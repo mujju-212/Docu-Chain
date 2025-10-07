@@ -1,0 +1,74 @@
+# Environment variables
+.env
+.env.local
+.env.production
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+backend/venv/
+backend/instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+dist-ssr/
+*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Blockchain
+blockchain/cache/
+blockchain/artifacts/
+blockchain/node_modules/
+blockchain/.openzeppelin/
+*.tsbuildinfo
+
+# Build outputs
+frontend/build/
+frontend/dist/
+backend/build/
+
+# Logs
+logs/
+*.log
+
+# Dependencies
+package-lock.json
+yarn.lock
+
+# Testing
+coverage/
+.nyc_output/
+
+# Private keys (NEVER commit these!)
+*.pem
+*.key
+private-keys.txt
+mnemonic.txt
+
+# Reference folder (HTML UI prototypes - not part of the project)
+F1/

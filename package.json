@@ -1,0 +1,34 @@
+{
+  "name": "docu-chain",
+  "version": "1.0.0",
+  "description": "Blockchain-based Document Management System for Educational Institutions",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "blockchain"
+  ],
+  "scripts": {
+    "install:all": "npm install && cd frontend && npm install && cd ../blockchain && npm install && cd ../backend && pip install -r requirements.txt",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && python run.py",
+    "dev:blockchain": "cd blockchain && npx hardhat node",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build:frontend": "cd frontend && npm run build",
+    "deploy:contracts": "cd blockchain && npx hardhat run scripts/deploy.js --network sepolia",
+    "test:contracts": "cd blockchain && npx hardhat test",
+    "setup": "node scripts/setup.js"
+  },
+  "keywords": [
+    "blockchain",
+    "document-management",
+    "ethereum",
+    "ipfs",
+    "react",
+    "flask"
+  ],
+  "author": "mujju-212",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
