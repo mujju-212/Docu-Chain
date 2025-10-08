@@ -9,10 +9,9 @@ A comprehensive blockchain-based document management system designed for educati
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Running the Application](#running-the-application)
+- [Quick Start](#quick-start)
+- [Documentation](#documentation)
+- [Testing](#testing)
 - [User Roles](#user-roles)
 - [Core Features](#core-features)
 
@@ -193,11 +192,72 @@ Docu-Chain/
 │   ├── hardhat.config.js    # Hardhat configuration
 │   └── package.json
 │
+├── docs/                    # 📚 Documentation
+│   ├── features/           # Feature documentation
+│   ├── development/        # Development guides
+│   ├── testing/            # Testing documentation
+│   └── README.md           # Documentation index
+│
+├── tests/                   # 🧪 Test Scripts
+│   ├── test_*.py           # Python test scripts
+│   ├── test_*.ps1          # PowerShell test scripts
+│   └── README.md           # Testing guide
+│
 ├── .gitignore
 ├── package.json             # Root package.json
 ├── README.md
 └── .env.example             # Global environment template
 ```
+
+## 🚀 Quick Start
+
+Get DocuChain running in minutes:
+
+1. **Clone & Setup**
+   ```bash
+   git clone https://github.com/mujju-212/Docu-Chain.git
+   cd Docu-Chain
+   ```
+
+2. **Backend Setup**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   python init_db.py
+   python run.py
+   ```
+
+3. **Frontend Setup**
+   ```bash
+   cd frontend
+   npm install
+   npm start
+   ```
+
+4. **Access Application**
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:5000
+
+## 📚 Documentation
+
+Comprehensive documentation is organized in the `/docs` folder:
+
+- **[Setup Guide](docs/SETUP.md)** - Detailed installation instructions
+- **[Quick Start](docs/QUICKSTART.md)** - Get running immediately  
+- **[Login Credentials](docs/LOGIN_CREDENTIALS.md)** - Test account access
+- **[Features](docs/features/)** - Feature-specific documentation
+- **[Development](docs/development/)** - Development guides and analysis
+
+## 🧪 Testing
+
+Test scripts are available in the `/tests` folder:
+
+- **Authentication Tests** - Complete auth flow validation
+- **Email System Tests** - Professional email template testing  
+- **API Tests** - Backend endpoint validation
+- **Frontend Tests** - UI and error handling tests
+
+Run tests with: `python tests/test_all_fixes.py`
 
 ## 📋 Prerequisites
 
