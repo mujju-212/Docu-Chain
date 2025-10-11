@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Settings from '../shared/Settings';
 import Profile from '../../components/shared/Profile';
-import './AdminDashboard.css';
+import './StudentDashboard.css';
 
-const AdminDashboard = () => {
+const StudentDashboard = () => {
   const { user, logout } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
@@ -79,11 +79,11 @@ const AdminDashboard = () => {
       const name = user.email.split('@')[0];
       return name.charAt(0).toUpperCase() + name.slice(1);
     }
-    return 'Admin User';
+    return 'Student User';
   };
 
   return (
-    <div className="admin-container admin-dashboard">
+    <div className="admin-container student-dashboard">
       <div 
         className={`frame ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
         style={{
@@ -94,10 +94,10 @@ const AdminDashboard = () => {
         {/* Sidebar */}
         <aside className="sidebar">
           <div className="brand">
-            <div className="logo">A</div>
+            <div className="logo">D</div>
             <div className="info">
-              <div className="name">EduChain</div>
-              <div className="role">ADMIN</div>
+              <div className="name">DocuChain</div>
+              <div className="role">STUDENT</div>
             </div>
           </div>
 
@@ -127,40 +127,14 @@ const AdminDashboard = () => {
               </a>
             </nav>
 
-            <div className="section-title">Administration</div>
-            <nav className="menu">
-              <a>
-                <i className="ri-user-line"></i> <span>User Management</span>
-              </a>
-              <a>
-                <i className="ri-user-settings-line"></i> <span>Account Requests</span>
-                <span className="badge alert">7</span>
-              </a>
-              <a>
-                <i className="ri-user-add-line"></i> <span>Add User</span>
-              </a>
-              <a>
-                <i className="ri-building-4-line"></i> <span>Institution Management</span>
-              </a>
-              <a>
-                <i className="ri-links-line"></i> <span>Blockchain Monitor</span>
-              </a>
-              <a>
-                <i className="ri-broadcast-line"></i> <span>Circulars</span>
-              </a>
-            </nav>
-
             <div className="section-title">System</div>
             <nav className="menu">
-              <a>
-                <i className="ri-file-list-3-line"></i> <span>Activity Logs</span>
-              </a>
-              <a 
+              <a
                 className={currentPage === 'settings' ? 'active' : ''}
                 onClick={() => setCurrentPage('settings')}
                 style={{cursor: 'pointer'}}
               >
-                <i className="ri-settings-3-line"></i> <span>System Settings</span>
+                <i className="ri-settings-3-line"></i> <span>Settings</span>
               </a>
               <a>
                 <i className="ri-question-line"></i> <span>Help & Support</span>
@@ -217,7 +191,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="who">
                   <b>{getUserName()}</b>
-                  <small>{user?.role || 'Administrator'}</small>
+                  <small>{user?.role || 'Student'}</small>
                 </div>
               </div>
             </div>
@@ -232,102 +206,104 @@ const AdminDashboard = () => {
             {/* Welcome Header */}
             <div className="page-title">
               <h1 style={{fontWeight: 800, fontSize: '28px'}}>Welcome back, {getUserName()}!</h1>
-              <p>Here's what's happening with your institution today.</p>
+              <p>Here's your academic dashboard overview.</p>
             </div>
 
-            {/* First Row - Main Stats (Students, Faculty, Departments, Admins) */}
+            {/* First Row - Main Document Stats */}
             <div className="content-grid">
               <div className="card stat gradient">
-                <div className="top">
-                  <div>Total Students</div>
-                  <i className="ri-graduation-cap-line arrow"></i>
-                </div>
-                <div className="value">1,247</div>
-                <div className="delta">
-                  <i className="ri-arrow-up-line"></i> +23 this month
-                </div>
-              </div>
-
-              <div className="card stat">
-                <div className="top">
-                  <div>Faculty & Staff</div>
-                  <i className="ri-user-line upto"></i>
-                </div>
-                <div className="value">89</div>
-                <div className="delta">
-                  <i className="ri-check-line"></i> Active members
-                </div>
-              </div>
-
-              <div className="card stat">
-                <div className="top">
-                  <div>Departments</div>
-                  <i className="ri-building-line upto"></i>
-                </div>
-                <div className="value">12</div>
-                <div className="delta">
-                  <i className="ri-information-line"></i> Active departments
-                </div>
-              </div>
-
-              <div className="card stat">
-                <div className="top">
-                  <div>Total Admins</div>
-                  <i className="ri-admin-line upto"></i>
-                </div>
-                <div className="value">5</div>
-                <div className="delta">
-                  <i className="ri-shield-check-line"></i> System admins
-                </div>
-              </div>
-            </div>
-
-            {/* Document Status Overview Section */}
-            <div className="content-grid">
-              <div className="card stat">
+                <div className="value">45</div>
                 <div className="top">
                   <div>Total Documents</div>
                   <i className="ri-file-list-line upto"></i>
                 </div>
-                <div className="value">3,026</div>
-                <div className="delta" style={{background:'#eef2ff',color:'#3949ab',borderColor:'#e5e7eb'}}>
-                  <i className="ri-file-line"></i> All documents
+                <div className="delta">
+                  <i className="ri-arrow-up-line"></i> +5 this week
                 </div>
               </div>
 
               <div className="card stat">
+                <div className="value">12</div>
                 <div className="top">
-                  <div>Approved</div>
-                  <i className="ri-checkbox-circle-line upto"></i>
+                  <div>Sent for Approval</div>
+                  <i className="ri-send-plane-line upto"></i>
                 </div>
-                <div className="value">2,847</div>
-                <div className="delta" style={{background:'#edfff6',color:'#0f6d4f',borderColor:'#c0f0d7'}}>
-                  <i className="ri-check-line"></i> Verified
+                <div className="delta">
+                  <i className="ri-time-line"></i> Awaiting review
                 </div>
               </div>
 
               <div className="card stat">
+                <div className="value">8</div>
+                <div className="top">
+                  <div>Shared with Me</div>
+                  <i className="ri-share-line upto"></i>
+                </div>
+                <div className="delta">
+                  <i className="ri-information-line"></i> New shares
+                </div>
+              </div>
+
+              <div className="card stat">
+                <div className="value">5</div>
+                <div className="top">
+                  <div>I Shared Documents</div>
+                  <i className="ri-share-forward-line upto"></i>
+                </div>
+                <div className="delta">
+                  <i className="ri-check-line"></i> Active shares
+                </div>
+              </div>
+            </div>
+
+            {/* Second Row - Document Status Stats */}
+            <div className="content-grid">
+              <div className="card stat">
+                <div className="value">7</div>
                 <div className="top">
                   <div>Pending</div>
                   <i className="ri-time-line upto"></i>
                 </div>
-                <div className="value">156</div>
                 <div className="delta" style={{background:'#fff7e5',color:'#a36b00',borderColor:'#fde4b6'}}>
                   <i className="ri-hourglass-line"></i> In review
                 </div>
               </div>
 
               <div className="card stat">
+                <div className="value">28</div>
+                <div className="top">
+                  <div>Approved</div>
+                  <i className="ri-checkbox-circle-line upto"></i>
+                </div>
+                <div className="delta" style={{background:'#edfff6',color:'#0f6d4f',borderColor:'#c0f0d7'}}>
+                  <i className="ri-check-line"></i> Verified
+                </div>
+              </div>
+
+              <div className="card stat">
+                <div className="value">2</div>
                 <div className="top">
                   <div>Rejected</div>
                   <i className="ri-close-circle-line upto"></i>
                 </div>
-                <div className="value">23</div>
                 <div className="delta" style={{background:'#ffe7e7',color:'#9b1c1c',borderColor:'#ffcaca'}}>
-                  <i className="ri-error-warning-line"></i> Declined
+                  <i className="ri-error-warning-line"></i> Need revision
+                </div>
+              </div>
+
+              <div className="card stat">
+                <div className="value">24</div>
+                <div className="top">
+                  <div>Generated Documents</div>
+                  <i className="ri-file-add-line upto"></i>
+                </div>
+                <div className="delta">
+                  <i className="ri-arrow-up-line"></i> +3 this week
                 </div>
               </div>
             </div>
+
+
 
             {/* Recent Activities Section */}
             <div className="activity-section">
@@ -389,7 +365,7 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="activity-item" onClick={() => alert('Activity Details:\n\nSecurity Update\n\nThis would open a detailed view of the selected activity with full context and related actions.')}>
-                                    <div className="activity-icon" style={{background: '#fef3c7', color: '#92400e'}}>
+                  <div className="activity-icon" style={{background: '#fef3c7', color: '#92400e'}}>
                     <i className="ri-shield-check-line"></i>
                   </div>
                   <div className="activity-content">
@@ -422,8 +398,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
             </div>
-
-          </div>
+              </div>
             )}
           </div>
         </main>
@@ -438,4 +413,4 @@ const AdminDashboard = () => {
   );
 };
 
-export default AdminDashboard;
+export default StudentDashboard;

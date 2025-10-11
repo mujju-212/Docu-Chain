@@ -150,7 +150,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null)
       setIsAuthenticated(false)
       
-      toast.success('Logged out successfully')
+      // toast.success('Logged out successfully') // Temporarily disabled
       navigate('/login')
     }
   }

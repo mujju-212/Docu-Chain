@@ -1,12 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './components/Login';
 import Register from './components/Register';
 import ForgotPassword from './components/ForgotPassword';
 import AdminDashboard from './pages/admin/AdminDashboard';
-import FacultyDashboard from './pages/faculty/Dashboard';
-import StudentDashboard from './pages/student/Dashboard';
+import FacultyDashboard from './pages/faculty/FacultyDashboard';
+import StudentDashboard from './pages/student/StudentDashboard';
 import './pages/auth/auth.css';
 
 function AppRoutes() {
@@ -95,7 +96,9 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <AppRoutes />
+        <ThemeProvider>
+          <AppRoutes />
+        </ThemeProvider>
       </AuthProvider>
     </Router>
   );

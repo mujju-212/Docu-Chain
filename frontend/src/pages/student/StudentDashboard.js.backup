@@ -1,0 +1,639 @@
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import './StudentDashboard.css';
+
+const StudentDashboard = () => {
+  const { user, logout } = useAuth();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState('');
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+
+  useEffect(() => {
+    // Load RemixIcon CSS
+    if (!document.querySelector('link[href*="remixicon"]')) {
+      const link = document.createElement('link');
+      link.href = 'https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css';
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+
+  const connectWallet = async () => {
+    if (typeof window.ethereum !== 'undefined') {
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        setWalletConnected(true);
+        setWalletAddress(accounts[0]);
+      } catch (error) {
+        console.error('Error connecting wallet:', error);
+        alert('Failed to connect wallet. Please try again.');
+      }
+    } else {
+      alert('Please install MetaMask to connect your wallet');
+    }
+  };
+
+  const getUserName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) {
+      const name = user.email.split('@')[0];
+      return name.charAt(0).toUpperCase() + name.slice(1);
+    }
+    return 'Admin User';
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex">
+      <div className={`flex ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        {/* Sidebar */}
+        <aside className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-white shadow-lg transition-all duration-300 fixed h-full z-30 lg:relative lg:translate-x-0 ${sidebarCollapsed ? '' : ''}`}>
+          <div className="flex items-center p-4 border-b border-gray-200">
+            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+              D
+            </div>
+            {!sidebarCollapsed && (
+              <div className="ml-3">
+                <div className="text-lg font-semibold text-gray-800">DocuChain</div>
+                <div className="text-sm text-gray-500">STUDENT</div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {!sidebarCollapsed && (
+              <div className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Dashboard
+              </div>
+            )}
+            <nav className="px-2 space-y-1">
+              <a href="#" className="bg-blue-50 text-blue-700 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-dashboard-line text-blue-500 mr-3 text-lg"></i>
+                {!sidebarCollapsed && <span>Overview</span>}
+              </a>
+              <a href="#" className="text-gray-700 hover:bg-gray-100 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-folder-line text-gray-400 mr-3 text-lg"></i>
+                {!sidebarCollapsed && (
+                  <>
+                    <span>My Documents</span>
+                    <span className="bg-red-100 text-red-800 ml-auto text-xs px-2 py-0.5 rounded-full">24</span>
+                  </>
+                )}
+              </a>
+              <a href="#" className="text-gray-700 hover:bg-gray-100 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-chat-3-line text-gray-400 mr-3 text-lg"></i>
+                {!sidebarCollapsed && (
+                  <>
+                    <span>Chat Messages</span>
+                    <span className="bg-red-100 text-red-800 ml-auto text-xs px-2 py-0.5 rounded-full">5</span>
+                  </>
+                )}
+              </a>
+              <a href="#" className="text-gray-700 hover:bg-gray-100 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-file-add-line text-gray-400 mr-3 text-lg"></i>
+                {!sidebarCollapsed && <span>Request Document</span>}
+              </a>
+              <a href="#" className="text-gray-700 hover:bg-gray-100 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-shield-check-line text-gray-400 mr-3 text-lg"></i>
+                {!sidebarCollapsed && <span>Verify Document</span>}
+              </a>
+            </nav>
+
+            {!sidebarCollapsed && (
+              <div className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Academic
+              </div>
+            )}
+            <nav className="px-2 space-y-1">
+              <a href="#" className="text-gray-700 hover:bg-gray-100 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-broadcast-line text-gray-400 mr-3 text-lg"></i>
+                {!sidebarCollapsed && <span>Circulars</span>}
+              </a>
+              <a href="#" className="text-gray-700 hover:bg-gray-100 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-calendar-line text-gray-400 mr-3 text-lg"></i>
+                {!sidebarCollapsed && <span>My Schedule</span>}
+              </a>
+              <a href="#" className="text-gray-700 hover:bg-gray-100 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-award-line text-gray-400 mr-3 text-lg"></i>
+                {!sidebarCollapsed && <span>Achievements</span>}
+              </a>
+            </nav>
+
+            {!sidebarCollapsed && (
+              <div className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Account
+              </div>
+            )}
+            <nav className="px-2 space-y-1">
+              <a href="#" className="text-gray-700 hover:bg-gray-100 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-settings-3-line text-gray-400 mr-3 text-lg"></i>
+                {!sidebarCollapsed && <span>Settings</span>}
+              </a>
+              <a href="#" className="text-gray-700 hover:bg-gray-100 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-question-line text-gray-400 mr-3 text-lg"></i>
+                {!sidebarCollapsed && <span>Help & Support</span>}
+              </a>
+              <a href="#" onClick={logout} className="text-red-700 hover:bg-red-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                <i className="ri-logout-circle-line text-red-500 mr-3 text-lg"></i>
+                {!sidebarCollapsed && <span>Logout</span>}
+              </a>
+            </nav>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {/* Topbar */}
+          <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <button 
+                  onClick={toggleSidebar}
+                  className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+                >
+                  <i className="ri-menu-line text-xl"></i>
+                </button>
+
+                {/* Connect Wallet Button */}
+                <button 
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
+                    walletConnected 
+                      ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                  onClick={connectWallet}
+                >
+                  <i className="ri-wallet-3-line"></i>
+                  <span>
+                    {walletConnected 
+                      ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` 
+                      : 'Connect Wallet'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <div className="relative max-w-xs">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i className="ri-search-line text-gray-400"></i>
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="Search documents..." 
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <button className="relative p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 rounded-md">
+                  <i className="ri-notification-3-line text-xl"></i>
+                  <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-400"></span>
+                </button>
+                
+                <div 
+                  className="flex items-center space-x-3 cursor-pointer hover:bg-gray-100 rounded-md p-2" 
+                  onClick={() => setProfileModalOpen(true)}
+                >
+                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                    {getUserName().charAt(0).toUpperCase()}
+                  </div>
+                  <div className="hidden md:block text-sm">
+                    <div className="font-medium text-gray-900">{getUserName()}</div>
+                    <div className="text-gray-500">{user?.role || 'Student'}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Dashboard Content */}
+          <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+            {/* Welcome Header */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {getUserName()}!</h1>
+              <p className="text-gray-600">Here's your academic dashboard overview.</p>
+            </div>
+
+            {/* First Row - Main Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">My Documents</p>
+                    <p className="text-3xl font-bold">24</p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-400 bg-opacity-50 rounded-lg flex items-center justify-center">
+                    <i className="ri-file-text-line text-2xl"></i>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center">
+                  <i className="ri-arrow-up-line text-green-300"></i>
+                  <span className="text-blue-100 text-sm ml-1">+3 this week</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">Enrolled Courses</p>
+                    <p className="text-3xl font-bold text-gray-900">8</p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-book-open-line text-2xl text-green-600"></i>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center">
+                  <i className="ri-check-line text-green-600"></i>
+                  <span className="text-gray-600 text-sm ml-1">All active</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">Pending Requests</p>
+                    <p className="text-3xl font-bold text-gray-900">3</p>
+                  </div>
+                  <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-time-line text-2xl text-orange-600"></i>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center">
+                  <i className="ri-information-line text-orange-600"></i>
+                  <span className="text-gray-600 text-sm ml-1">In progress</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">GPA</p>
+                    <p className="text-3xl font-bold text-gray-900">3.85</p>
+                  </div>
+                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-trophy-line text-2xl text-purple-600"></i>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center">
+                  <i className="ri-arrow-up-line text-green-600"></i>
+                  <span className="text-gray-600 text-sm ml-1">+0.15 this sem</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Document Status Overview Heading */}
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Recent Activity</h2>
+            </div>
+
+            {/* Recent Activity Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">Document Requests</p>
+                    <p className="text-3xl font-bold text-gray-900">12</p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-file-list-line text-2xl text-blue-600"></i>
+                  </div>
+                </div>
+                <div className="mt-4 px-3 py-1 bg-blue-50 text-blue-700 text-sm rounded-full inline-flex items-center">
+                  <i className="ri-file-line mr-1"></i> Total requests
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">Approved</p>
+                    <p className="text-3xl font-bold text-gray-900">9</p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-checkbox-circle-line text-2xl text-green-600"></i>
+                  </div>
+                </div>
+                <div className="mt-4 px-3 py-1 bg-green-50 text-green-700 text-sm rounded-full inline-flex items-center">
+                  <i className="ri-check-line mr-1"></i> Verified
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">Processing</p>
+                    <p className="text-3xl font-bold text-gray-900">3</p>
+                  </div>
+                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-time-line text-2xl text-yellow-600"></i>
+                  </div>
+                </div>
+                <div className="mt-4 px-3 py-1 bg-yellow-50 text-yellow-700 text-sm rounded-full inline-flex items-center">
+                  <i className="ri-hourglass-line mr-1"></i> In review
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">Issues</p>
+                    <p className="text-3xl font-bold text-gray-900">0</p>
+                  </div>
+                  <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-close-circle-line text-2xl text-red-600"></i>
+                  </div>
+                </div>
+                <div className="mt-4 px-3 py-1 bg-gray-50 text-gray-700 text-sm rounded-full inline-flex items-center">
+                  <i className="ri-check-line mr-1"></i> All clear
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Activities Section */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
+                  <div className="flex space-x-3">
+                    <button 
+                      className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center space-x-1" 
+                      id="refreshActivity" 
+                      onClick={() => {
+                        const btn = document.getElementById('refreshActivity');
+                        btn.innerHTML = '<i class="ri-loader-line animate-spin mr-1"></i> Loading...';
+                        btn.disabled = true;
+                        setTimeout(() => {
+                          btn.innerHTML = '<i class="ri-refresh-line mr-1"></i> Refresh';
+                          btn.disabled = false;
+                          alert('Activity feed refreshed!');
+                        }, 1000);
+                      }}
+                    >
+                      <i className="ri-refresh-line"></i>
+                      <span>Refresh</span>
+                    </button>
+                    <button 
+                      className="px-3 py-2 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors flex items-center space-x-1" 
+                      id="viewAllActivity" 
+                      onClick={() => {
+                        alert('Opening detailed activity log...\n\nThis would navigate to a comprehensive activity history page with filtering and search capabilities.');
+                      }}
+                    >
+                      <i className="ri-external-link-line"></i>
+                      <span>View All</span>
+                    </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4" id="activityFeed">
+                <div 
+                  className="flex items-start space-x-4 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => alert('Activity Details:\n\nDocument Request Submitted\n\nThis would open a detailed view of the selected activity with full context and related actions.')}
+                >
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-file-check-line text-green-600"></i>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900">Document Request Approved</div>
+                    <div className="text-sm text-gray-500">Your transcript request has been approved and is ready for download</div>
+                  </div>
+                  <div className="text-xs text-gray-400">2 min ago</div>
+                </div>
+
+                <div 
+                  className="flex items-start space-x-4 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => alert('Activity Details:\n\nCourse Enrollment\n\nThis would open a detailed view of the selected activity with full context and related actions.')}
+                >
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-book-open-line text-blue-600"></i>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900">New Course Enrolled</div>
+                    <div className="text-sm text-gray-500">Successfully enrolled in Advanced Database Systems (CS 485)</div>
+                  </div>
+                  <div className="text-xs text-gray-400">8 min ago</div>
+                </div>
+
+                <div 
+                  className="flex items-start space-x-4 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => alert('Activity Details:\n\nNew Message\n\nThis would open a detailed view of the selected activity with full context and related actions.')}
+                >
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-chat-3-line text-purple-600"></i>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900">New Message from Advisor</div>
+                    <div className="text-sm text-gray-500">Dr. Johnson sent you a message about course selection</div>
+                  </div>
+                  <div className="text-xs text-gray-400">15 min ago</div>
+                </div>
+
+                <div 
+                  className="flex items-start space-x-4 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => alert('Activity Details:\n\nGrade Posted\n\nThis would open a detailed view of the selected activity with full context and related actions.')}
+                >
+                  <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-trophy-line text-yellow-600"></i>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900">Grade Posted</div>
+                    <div className="text-sm text-gray-500">Final grade posted for Data Structures & Algorithms (A-)</div>
+                  </div>
+                  <div className="text-xs text-gray-400">25 min ago</div>
+                </div>
+
+                <div 
+                  className="flex items-start space-x-4 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => alert('Activity Details:\n\nSchedule Update\n\nThis would open a detailed view of the selected activity with full context and related actions.')}
+                >
+                  <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-calendar-line text-orange-600"></i>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900">Schedule Updated</div>
+                    <div className="text-sm text-gray-500">Room change for CS 301 - now in Building A, Room 205</div>
+                  </div>
+                  <div className="text-xs text-gray-400">1 hour ago</div>
+                </div>
+
+                <div 
+                  className="flex items-start space-x-4 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => alert('Activity Details:\n\nDocument Verification\n\nThis would open a detailed view of the selected activity with full context and related actions.')}
+                >
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <i className="ri-shield-check-line text-green-600"></i>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900">Document Verified</div>
+                    <div className="text-sm text-gray-500">Your enrollment certificate has been blockchain verified</div>
+                  </div>
+                  <div className="text-xs text-gray-400">2 hours ago</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {/* Profile Modal */}
+      {profileModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={(e) => {
+          if (e.target.classList.contains('fixed')) {
+            setProfileModalOpen(false);
+          }
+        }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="relative p-6 border-b border-gray-200">
+              <button 
+                className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                onClick={() => setProfileModalOpen(false)}
+              >
+                <i className="ri-close-line text-xl"></i>
+              </button>
+              <div className="text-center">
+                <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">
+                  {getUserName().charAt(0).toUpperCase()}
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900">{getUserName()}</h2>
+                <p className="text-sm text-gray-500 mt-1">{user?.role || 'Student'}</p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Personal Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <i className="ri-user-line mr-2 text-blue-600"></i>
+                  Personal Information
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <i className="ri-user-line text-gray-600"></i>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Full Name</div>
+                      <div className="font-medium text-gray-900">{getUserName()}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <i className="ri-id-card-line text-gray-600"></i>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Student ID</div>
+                      <div className="font-medium text-gray-900">{user?.id || 'STU-2024-001'}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <i className="ri-contacts-line mr-2 text-blue-600"></i>
+                  Contact Information
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <i className="ri-mail-line text-gray-600"></i>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Email Address</div>
+                      <div className="font-medium text-gray-900">{user?.email || 'student@university.edu'}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <i className="ri-graduation-cap-line text-gray-600"></i>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Department</div>
+                      <div className="font-medium text-gray-900">Computer Science</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Academic Statistics */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <i className="ri-bar-chart-line mr-2 text-blue-600"></i>
+                  Academic Overview
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">8</div>
+                    <div className="text-sm text-gray-600">Enrolled Courses</div>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">24</div>
+                    <div className="text-sm text-gray-600">Documents</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">3.85</div>
+                    <div className="text-sm text-gray-600">Current GPA</div>
+                  </div>
+                  <div className="text-center p-4 bg-orange-50 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-600">126</div>
+                    <div className="text-sm text-gray-600">Credit Hours</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Account Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <i className="ri-settings-line mr-2 text-blue-600"></i>
+                  Account Information
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <i className="ri-time-line text-gray-600"></i>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Last Login</div>
+                      <div className="font-medium text-gray-900">Today at 9:30 AM</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <i className="ri-calendar-line text-gray-600"></i>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Enrollment Date</div>
+                      <div className="font-medium text-gray-900">September 1, 2023</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                      <i className="ri-shield-check-line text-green-600"></i>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Account Status</div>
+                      <div className="font-medium text-green-600">Active & Verified</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default StudentDashboard;

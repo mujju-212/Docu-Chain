@@ -5,11 +5,20 @@ from app.models.user import User
 from app.models.institution import Institution
 from app.services.email_service import EmailService
 from datetime import datetime, timedelta
+from functools import wraps
 import random
 import string
 import os
 
 bp = Blueprint('auth', __name__)
+
+def token_required(f):
+    """Decorator to require a valid JWT token for protected routes"""
+    @wraps(f)
+    @jwt_required()
+    def decorated_function(*args, **kwargs):
+        return f(*args, **kwargs)
+    return decorated_function
 
 @bp.route('/register', methods=['POST'])
 def register():

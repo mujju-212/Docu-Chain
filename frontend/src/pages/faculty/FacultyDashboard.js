@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Settings from '../shared/Settings';
 import Profile from '../../components/shared/Profile';
-import './AdminDashboard.css';
+import './FacultyDashboard.css';
 
-const AdminDashboard = () => {
+const FacultyDashboard = () => {
   const { user, logout } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
@@ -15,12 +15,15 @@ const AdminDashboard = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
 
   useEffect(() => {
-    // Load RemixIcon CSS
-    if (!document.querySelector('link[href*="remixicon"]')) {
-      const link = document.createElement('link');
-      link.href = 'https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css';
-      link.rel = 'stylesheet';
-      document.head.appendChild(link);
+    // Check if MetaMask is connected
+    if (typeof window.ethereum !== 'undefined') {
+      window.ethereum.request({ method: 'eth_accounts' })
+        .then(accounts => {
+          if (accounts.length > 0) {
+            setWalletConnected(true);
+            setWalletAddress(accounts[0]);
+          }
+        });
     }
   }, []);
 
@@ -79,11 +82,11 @@ const AdminDashboard = () => {
       const name = user.email.split('@')[0];
       return name.charAt(0).toUpperCase() + name.slice(1);
     }
-    return 'Admin User';
+    return 'Faculty User';
   };
 
   return (
-    <div className="admin-container admin-dashboard">
+    <div className="admin-container faculty-dashboard">
       <div 
         className={`frame ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
         style={{
@@ -94,10 +97,10 @@ const AdminDashboard = () => {
         {/* Sidebar */}
         <aside className="sidebar">
           <div className="brand">
-            <div className="logo">A</div>
+            <div className="logo">F</div>
             <div className="info">
-              <div className="name">EduChain</div>
-              <div className="role">ADMIN</div>
+              <div className="name">DocuChain</div>
+              <div className="role">FACULTY</div>
             </div>
           </div>
 
@@ -113,54 +116,32 @@ const AdminDashboard = () => {
               </a>
               <a>
                 <i className="ri-folder-line"></i> <span>My Files</span>
-                <span className="badge alert">24</span>
+                <span className="badge alert">47</span>
               </a>
               <a>
-                <i className="ri-chat-3-line"></i> <span>Chat Messages</span>
-                <span className="badge alert">5</span>
-              </a>
-              <a>
-                <i className="ri-file-add-line"></i> <span>Generate Document</span>
+                <i className="ri-chat-3-line"></i> <span>Chat</span>
+                <span className="badge alert">8</span>
               </a>
               <a>
                 <i className="ri-shield-check-line"></i> <span>Document Verifier</span>
-              </a>
-            </nav>
-
-            <div className="section-title">Administration</div>
-            <nav className="menu">
-              <a>
-                <i className="ri-user-line"></i> <span>User Management</span>
+                <span className="badge alert">12</span>
               </a>
               <a>
-                <i className="ri-user-settings-line"></i> <span>Account Requests</span>
-                <span className="badge alert">7</span>
+                <i className="ri-file-add-line"></i> <span>Document Generation</span>
               </a>
               <a>
-                <i className="ri-user-add-line"></i> <span>Add User</span>
-              </a>
-              <a>
-                <i className="ri-building-4-line"></i> <span>Institution Management</span>
-              </a>
-              <a>
-                <i className="ri-links-line"></i> <span>Blockchain Monitor</span>
-              </a>
-              <a>
-                <i className="ri-broadcast-line"></i> <span>Circulars</span>
+                <i className="ri-notification-4-line"></i> <span>Circular</span>
               </a>
             </nav>
 
             <div className="section-title">System</div>
             <nav className="menu">
-              <a>
-                <i className="ri-file-list-3-line"></i> <span>Activity Logs</span>
-              </a>
-              <a 
+              <a
                 className={currentPage === 'settings' ? 'active' : ''}
                 onClick={() => setCurrentPage('settings')}
                 style={{cursor: 'pointer'}}
               >
-                <i className="ri-settings-3-line"></i> <span>System Settings</span>
+                <i className="ri-settings-3-line"></i> <span>Settings</span>
               </a>
               <a>
                 <i className="ri-question-line"></i> <span>Help & Support</span>
@@ -203,7 +184,7 @@ const AdminDashboard = () => {
 
             <div className="search">
               <i className="ri-search-line"></i>
-              <input type="text" placeholder="Search documents, users, or actions..." />
+              <input type="text" placeholder="Search documents, students, verification requests..." />
             </div>
 
             <div className="top-actions">
@@ -217,7 +198,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="who">
                   <b>{getUserName()}</b>
-                  <small>{user?.role || 'Administrator'}</small>
+                  <small>{user?.role || 'Faculty'}</small>
                 </div>
               </div>
             </div>
@@ -232,99 +213,104 @@ const AdminDashboard = () => {
             {/* Welcome Header */}
             <div className="page-title">
               <h1 style={{fontWeight: 800, fontSize: '28px'}}>Welcome back, {getUserName()}!</h1>
-              <p>Here's what's happening with your institution today.</p>
+              <p>Manage your documents, verify student submissions, and collaborate with colleagues.</p>
             </div>
 
-            {/* First Row - Main Stats (Students, Faculty, Departments, Admins) */}
+            {/* First Row - Faculty Stats */}
             <div className="content-grid">
               <div className="card stat gradient">
+                <div className="value">47</div>
                 <div className="top">
-                  <div>Total Students</div>
-                  <i className="ri-graduation-cap-line arrow"></i>
+                  <div>My Documents</div>
+                  <i className="ri-file-3-line upto"></i>
                 </div>
-                <div className="value">1,247</div>
                 <div className="delta">
-                  <i className="ri-arrow-up-line"></i> +23 this month
+                  <i className="ri-arrow-up-line"></i> +3 this week
                 </div>
               </div>
 
               <div className="card stat">
+                <div className="value">23</div>
                 <div className="top">
-                  <div>Faculty & Staff</div>
-                  <i className="ri-user-line upto"></i>
+                  <div>Shared with Me</div>
+                  <i className="ri-share-line upto"></i>
                 </div>
-                <div className="value">89</div>
-                <div className="delta">
-                  <i className="ri-check-line"></i> Active members
+                <div className="delta" style={{background:'#edfff6',color:'#0f6d4f',borderColor:'#c0f0d7'}}>
+                  <i className="ri-check-line"></i> From colleagues
                 </div>
               </div>
 
               <div className="card stat">
-                <div className="top">
-                  <div>Departments</div>
-                  <i className="ri-building-line upto"></i>
-                </div>
                 <div className="value">12</div>
-                <div className="delta">
-                  <i className="ri-information-line"></i> Active departments
+                <div className="top">
+                  <div>Verification Requests</div>
+                  <i className="ri-shield-check-line upto"></i>
+                </div>
+                <div className="delta" style={{background:'#fff7e5',color:'#a36b00',borderColor:'#fde4b6'}}>
+                  <i className="ri-time-line"></i> Awaiting review
                 </div>
               </div>
 
               <div className="card stat">
+                <div className="value">156</div>
                 <div className="top">
-                  <div>Total Admins</div>
-                  <i className="ri-admin-line upto"></i>
+                  <div>My Students</div>
+                  <i className="ri-graduation-cap-line upto"></i>
                 </div>
-                <div className="value">5</div>
-                <div className="delta">
-                  <i className="ri-shield-check-line"></i> System admins
+                <div className="delta" style={{background:'#e9fff4',color:'#0f6d4f',borderColor:'#c0f0d7'}}>
+                  <i className="ri-user-line"></i> Across sections
                 </div>
               </div>
+            </div>
+
+            {/* Document Status Overview Heading */}
+            <div className="section-heading">
+              <h2 style={{fontSize: '20px', fontWeight: 700, margin: '32px 0 16px 0', color: 'var(--text)'}}>Faculty Activity Overview</h2>
             </div>
 
             {/* Document Status Overview Section */}
             <div className="content-grid">
               <div className="card stat">
+                <div className="value">35</div>
                 <div className="top">
-                  <div>Total Documents</div>
-                  <i className="ri-file-list-line upto"></i>
-                </div>
-                <div className="value">3,026</div>
-                <div className="delta" style={{background:'#eef2ff',color:'#3949ab',borderColor:'#e5e7eb'}}>
-                  <i className="ri-file-line"></i> All documents
-                </div>
-              </div>
-
-              <div className="card stat">
-                <div className="top">
-                  <div>Approved</div>
+                  <div>Verified Documents</div>
                   <i className="ri-checkbox-circle-line upto"></i>
                 </div>
-                <div className="value">2,847</div>
                 <div className="delta" style={{background:'#edfff6',color:'#0f6d4f',borderColor:'#c0f0d7'}}>
-                  <i className="ri-check-line"></i> Verified
+                  <i className="ri-check-line"></i> This semester
                 </div>
               </div>
 
               <div className="card stat">
+                <div className="value">89</div>
                 <div className="top">
-                  <div>Pending</div>
-                  <i className="ri-time-line upto"></i>
+                  <div>Total Verifications</div>
+                  <i className="ri-shield-check-line upto"></i>
                 </div>
-                <div className="value">156</div>
+                <div className="delta" style={{background:'#eef2ff',color:'#3949ab',borderColor:'#e5e7eb'}}>
+                  <i className="ri-trophy-line"></i> All time
+                </div>
+              </div>
+
+              <div className="card stat">
+                <div className="value">8</div>
+                <div className="top">
+                  <div>Generated Certificates</div>
+                  <i className="ri-award-line upto"></i>
+                </div>
                 <div className="delta" style={{background:'#fff7e5',color:'#a36b00',borderColor:'#fde4b6'}}>
-                  <i className="ri-hourglass-line"></i> In review
+                  <i className="ri-calendar-line"></i> This month
                 </div>
               </div>
 
               <div className="card stat">
+                <div className="value">5</div>
                 <div className="top">
-                  <div>Rejected</div>
-                  <i className="ri-close-circle-line upto"></i>
+                  <div>Active Collaborations</div>
+                  <i className="ri-team-line upto"></i>
                 </div>
-                <div className="value">23</div>
-                <div className="delta" style={{background:'#ffe7e7',color:'#9b1c1c',borderColor:'#ffcaca'}}>
-                  <i className="ri-error-warning-line"></i> Declined
+                <div className="delta" style={{background:'#e9fff4',color:'#0f6d4f',borderColor:'#c0f0d7'}}>
+                  <i className="ri-links-line"></i> Research projects
                 </div>
               </div>
             </div>
@@ -332,7 +318,7 @@ const AdminDashboard = () => {
             {/* Recent Activities Section */}
             <div className="activity-section">
               <div className="activity-header">
-                <h3>Recent Administrative Activity</h3>
+                <h3>Recent Faculty Activity</h3>
                 <div className="activity-actions">
                   <button className="btn btn-sm" id="refreshActivity" onClick={() => {
                     const btn = document.getElementById('refreshActivity');
@@ -355,75 +341,74 @@ const AdminDashboard = () => {
               </div>
 
               <div className="activity-feed" id="activityFeed">
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nDocument Approved\n\nThis would open a detailed view of the selected activity with full context and related actions.')}>
+                <div className="activity-item" onClick={() => alert('Activity Details:\n\nDocument Verification Request\n\nThis would open a detailed view of the verification request with student information and document details.')}>
                   <div className="activity-icon" style={{background: 'var(--g-200)', color: 'var(--g-700)'}}>
-                    <i className="ri-file-check-line"></i>
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-title">Document Approved</div>
-                    <div className="activity-description">Transcript_2024.pdf approved for John Doe (Computer Science)</div>
-                  </div>
-                  <div className="activity-time">2 min ago</div>
-                </div>
-
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nAccount Request Approved\n\nThis would open a detailed view of the selected activity with full context and related actions.')}>
-                  <div className="activity-icon" style={{background: 'var(--g-200)', color: 'var(--g-700)'}}>
-                    <i className="ri-user-add-line"></i>
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-title">Account Request Approved</div>
-                    <div className="activity-description">New student account created for Jane Smith (Mathematics Department)</div>
-                  </div>
-                  <div className="activity-time">8 min ago</div>
-                </div>
-
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nNew Message Received\n\nThis would open a detailed view of the selected activity with full context and related actions.')}>
-                  <div className="activity-icon" style={{background: 'var(--g-200)', color: 'var(--g-700)'}}>
-                    <i className="ri-chat-3-line"></i>
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-title">New Message Received</div>
-                    <div className="activity-description">Message from Dr. Smith regarding document verification process</div>
-                  </div>
-                  <div className="activity-time">15 min ago</div>
-                </div>
-
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nSecurity Update\n\nThis would open a detailed view of the selected activity with full context and related actions.')}>
-                                    <div className="activity-icon" style={{background: '#fef3c7', color: '#92400e'}}>
                     <i className="ri-shield-check-line"></i>
                   </div>
                   <div className="activity-content">
-                    <div className="activity-title">Security Update</div>
-                    <div className="activity-description">System security protocols updated successfully</div>
-                  </div>
-                  <div className="activity-time">25 min ago</div>
-                </div>
-
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nBulk Document Upload\n\nThis would open a detailed view of the selected activity with full context and related actions.')}>
-                  <div className="activity-icon" style={{background: '#e0e7ff', color: '#3730a3'}}>
-                    <i className="ri-upload-cloud-line"></i>
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-title">Bulk Document Upload</div>
-                    <div className="activity-description">50 new documents uploaded by registrar office</div>
-                  </div>
-                  <div className="activity-time">1 hour ago</div>
-                </div>
-
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nSystem Notification\n\nThis would open a detailed view of the selected activity with full context and related actions.')}>
-                  <div className="activity-icon" style={{background: '#d1fae5', color: '#065f46'}}>
-                    <i className="ri-notification-line"></i>
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-title">System Notification</div>
-                    <div className="activity-description">Scheduled maintenance completed successfully</div>
+                    <div className="activity-title">Verification Request Received</div>
+                    <div className="activity-description">John Doe (CS2024001) submitted transcript for verification</div>
                   </div>
                   <div className="activity-time">2 hours ago</div>
                 </div>
+
+                <div className="activity-item" onClick={() => alert('Activity Details:\n\nDocument Shared\n\nThis would show details about the document sharing activity and collaboration.')}>
+                  <div className="activity-icon" style={{background: 'var(--g-200)', color: 'var(--g-700)'}}>
+                    <i className="ri-share-line"></i>
+                  </div>
+                  <div className="activity-content">
+                    <div className="activity-title">Document Shared</div>
+                    <div className="activity-description">Shared research paper with Dr. Sarah Smith (Mathematics Dept)</div>
+                  </div>
+                  <div className="activity-time">5 hours ago</div>
+                </div>
+
+                <div className="activity-item" onClick={() => alert('Activity Details:\n\nCertificate Generated\n\nThis would show details about the generated certificate and student information.')}>
+                  <div className="activity-icon" style={{background: '#e0e7ff', color: '#3730a3'}}>
+                    <i className="ri-award-line"></i>
+                  </div>
+                  <div className="activity-content">
+                    <div className="activity-title">Certificate Generated</div>
+                    <div className="activity-description">Course completion certificate for Alice Johnson (MATH2024001)</div>
+                  </div>
+                  <div className="activity-time">1 day ago</div>
+                </div>
+
+                <div className="activity-item" onClick={() => alert('Activity Details:\n\nChat Message\n\nThis would open the chat interface to view the conversation thread.')}>
+                  <div className="activity-icon" style={{background: '#fef3c7', color: '#92400e'}}>
+                    <i className="ri-chat-3-line"></i>
+                  </div>
+                  <div className="activity-content">
+                    <div className="activity-title">New Chat Message</div>
+                    <div className="activity-description">Message from student regarding assignment submission</div>
+                  </div>
+                  <div className="activity-time">2 days ago</div>
+                </div>
+
+                <div className="activity-item" onClick={() => alert('Activity Details:\n\nDocument Upload\n\nThis would show details about the uploaded document and its blockchain verification status.')}>
+                  <div className="activity-icon" style={{background: '#d1fae5', color: '#065f46'}}>
+                    <i className="ri-upload-cloud-line"></i>
+                  </div>
+                  <div className="activity-content">
+                    <div className="activity-title">Document Uploaded</div>
+                    <div className="activity-description">Uploaded lecture notes for Advanced Mathematics course</div>
+                  </div>
+                  <div className="activity-time">3 days ago</div>
+                </div>
+
+                <div className="activity-item" onClick={() => alert('Activity Details:\n\nCircular Published\n\nThis would show details about the published circular and its recipients.')}>
+                  <div className="activity-icon" style={{background: '#e0e7ff', color: '#3730a3'}}>
+                    <i className="ri-notification-4-line"></i>
+                  </div>
+                  <div className="activity-content">
+                    <div className="activity-title">Circular Published</div>
+                    <div className="activity-description">Published exam schedule circular to all students in section A & B</div>
+                  </div>
+                  <div className="activity-time">1 week ago</div>
+                </div>
               </div>
             </div>
-
-          </div>
+              </div>
             )}
           </div>
         </main>
@@ -434,8 +419,9 @@ const AdminDashboard = () => {
         isOpen={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
       />
+
     </div>
   );
 };
 
-export default AdminDashboard;
+export default FacultyDashboard;

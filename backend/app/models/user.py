@@ -27,6 +27,9 @@ class User(db.Model):
     # Wallet information
     wallet_address = db.Column(db.String(42))
     
+    # User preferences
+    theme = db.Column(db.String(20), default='green')  # green, blue, purple, orange, pink, teal, red
+    
     # Account status
     status = db.Column(db.String(20), default='active')  # pending, approved, rejected, banned, active
     
@@ -61,6 +64,7 @@ class User(db.Model):
             'phone': self.phone,
             'uniqueId': self.unique_id,
             'walletAddress': self.wallet_address,
+            'theme': self.theme,
             'status': self.status,
             'createdAt': self.created_at.isoformat() if self.created_at else None,
             'lastLogin': self.last_login.isoformat() if self.last_login else None
