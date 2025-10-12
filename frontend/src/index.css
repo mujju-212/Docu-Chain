@@ -127,10 +127,7 @@
     @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all;
   }
 
-  /* Card styles */
-  .card {
-    @apply bg-white rounded-xl shadow-soft p-6 transition-shadow hover:shadow-medium;
-  }
+  /* Card styles - REMOVED TO AVOID CONFLICTS WITH AUTH.CSS */
 
   /* Badge styles */
   .badge {
@@ -188,9 +185,7 @@
   @apply bg-gray-900 text-gray-100;
 }
 
-.dark .card {
-  @apply bg-gray-800 shadow-none;
-}
+/* Dark mode card styles removed to avoid conflicts */
 
 .dark .input-field {
   @apply bg-gray-700 border-gray-600 text-white;

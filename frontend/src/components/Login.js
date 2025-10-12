@@ -20,6 +20,14 @@ function Login() {
   const [loadingInstitutions, setLoadingInstitutions] = useState(false);
   const navigate = useNavigate();
 
+  // Add auth-page class to body for proper styling isolation
+  useEffect(() => {
+    document.body.classList.add('auth-page');
+    return () => {
+      document.body.classList.remove('auth-page');
+    };
+  }, []);
+
   useEffect(() => {
     // Load saved email if remember me was checked
     const savedEmail = localStorage.getItem('docuchain_email');

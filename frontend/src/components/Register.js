@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import '../pages/auth/auth.css';
 
 function Register() {
   const { register: registerUser } = useAuth();
@@ -283,6 +284,14 @@ function Register() {
       setLoadingSections(false);
     }
   };
+
+  // Add auth-page class to body for proper styling isolation
+  useEffect(() => {
+    document.body.classList.add('auth-page');
+    return () => {
+      document.body.classList.remove('auth-page');
+    };
+  }, []);
 
   // Load institutions on component mount
   useEffect(() => {
