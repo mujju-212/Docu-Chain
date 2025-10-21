@@ -572,9 +572,21 @@
 }
 
 .content-grid{
-  display:grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px; /* Further reduced for very tight spacing - was 18px originally */
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 16px !important;
+  margin-bottom: 24px;
+  align-items: stretch;
+  justify-content: start;
+  width: 100%;
+}
+
+/* Ensure specificity for content-grid with any additional classes */
+.content-grid.ai-style-change-1,
+div.content-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 16px !important;
 }
 
 .card{
@@ -582,6 +594,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 18px;
+  max-width: 300px;
   box-shadow: var(--shadow-soft);
   transition: all 0.2s ease;
 }
@@ -600,7 +613,8 @@
   overflow:hidden;
   display:grid;
   gap:8px;
-  min-height: 120px;
+  min-height: 130px;
+  max-width: 300px;
 }
 .stat .top{
   display:flex;
@@ -616,7 +630,7 @@
   font-size: 20px;
 }
 .stat .value{ 
-  font-size: 42px;
+  font-size: 28px;
   font-weight: 800;
   letter-spacing: -.02em;
 }
@@ -672,13 +686,16 @@
 .status.rejected{ color:var(--red-700); background:var(--red-50);border-color:var(--red-300); }
 
 /* Responsive Design */
-@media (max-width: 1200px){
-  .content-grid{ grid-template-columns: repeat(3, 1fr); }
-}
 @media (max-width: 920px){
-  .content-grid{ grid-template-columns: repeat(2, 1fr); }
+  .content-grid{ 
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 12px !important;
+  }
 }
 @media (max-width: 640px){
-  .content-grid{ grid-template-columns: 1fr; }
+  .content-grid{ 
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
   .bar-actions{ flex-direction:column; }
 }

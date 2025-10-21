@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Settings from '../shared/Settings';
+import FileManager from '../shared/FileManagerNew';
 import Profile from '../../components/shared/Profile';
 import './FacultyDashboard.css';
 
@@ -114,7 +115,11 @@ const FacultyDashboard = () => {
               >
                 <i className="ri-dashboard-line"></i> <span>Overview</span>
               </a>
-              <a>
+              <a 
+                className={currentPage === 'filemanager' ? 'active' : ''}
+                onClick={() => setCurrentPage('filemanager')}
+                style={{cursor: 'pointer'}}
+              >
                 <i className="ri-folder-line"></i> <span>My Files</span>
                 <span className="badge alert">47</span>
               </a>
@@ -208,6 +213,8 @@ const FacultyDashboard = () => {
           <div className="content">
             {currentPage === 'settings' ? (
               <Settings />
+            ) : currentPage === 'filemanager' ? (
+              <FileManager />
             ) : (
               <div className="dashboard-content">
             {/* Welcome Header */}
