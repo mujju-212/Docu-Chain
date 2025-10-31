@@ -1,9 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useWallet } from '../../contexts/WalletContext';
+import hybridFileManagerService from '../../services/hybridFileManagerService';
+import blockchainServiceV2 from '../../services/blockchainServiceV2';
+import pinataService from '../../services/pinataService';
 import './FileManagerNew.css';
 
 const FileManager = () => {
   const { currentTheme } = useTheme();
+  
+  // Get wallet context (global wallet state)
+  const { 
+    isConnected: isWalletConnectedGlobal,
+    address: walletAddressGlobal,
+    connect: connectWalletGlobal,
+    isLoading: isWalletLoading,
+    isMetaMaskInstalled
+  } = useWallet();
   
   // Main state
   const [currentSection, setCurrentSection] = useState('section-all');
@@ -40,148 +54,381 @@ const FileManager = () => {
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [clickTimeout, setClickTimeout] = useState(null);
   const [currentPath, setCurrentPath] = useState('/');
+  const [currentFolderId, setCurrentFolderId] = useState(null); // Track current folder ID
+  const [folderStack, setFolderStack] = useState([{id: null, name: 'Home', path: '/'}]); // Navigation stack
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [trashedItems, setTrashedItems] = useState([]);
+  const [deleteItem, setDeleteItem] = useState(null); // Item to be deleted
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false); // Delete confirmation modal
+  const [activeMenu, setActiveMenu] = useState(null); // Track which file's menu is open
 
-  // File system data with nested folder structure
+  // Blockchain states (using global wallet state where possible)
+  const [blockchainFiles, setBlockchainFiles] = useState([]);
+  const [blockchainFolders, setBlockchainFolders] = useState([]);
+  const [connectedUsers, setConnectedUsers] = useState([]);
+  // REMOVED: const [isBlockchainConnected, setIsBlockchainConnected] - Using isWalletConnectedGlobal from context
+  // REMOVED: const [walletAccount, setWalletAccount] - Using walletAddressGlobal from context
+  const [isLoadingBlockchain, setIsLoadingBlockchain] = useState(false);
+  const [fileVersions, setFileVersions] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentUser, setCurrentUser] = useState(null); // Current logged in user from database
+  const [institutionUsers, setInstitutionUsers] = useState([]);
+  const [isUploadingToBlockchain, setIsUploadingToBlockchain] = useState(false);
+
+  // Aliases for clarity (map global context to local names used in component)
+  const isBlockchainConnected = isWalletConnectedGlobal;
+  const walletAccount = walletAddressGlobal;
+
+  // UI state variables
+  const [starredItems, setStarredItems] = useState([]);
+  const [recentItems, setRecentItems] = useState([]);
+  const [sharedWithMeItems, setSharedWithMeItems] = useState([]);
+  const [selectedUsers, setSelectedUsers] = useState([]);
+
+  // File system data - now loaded from blockchain
   const [fileSystem, setFileSystem] = useState({
     currentPath: '/',
-    folders: {
-      '/': {
-        folders: [
-          { id: 'f1', name: 'Main Documents', type: 'folder' },
-          { id: 'f2', name: 'Images', type: 'folder' },
-          { id: 'f3', name: 'Projects', type: 'folder' },
-          { id: 'f4', name: 'Shared', type: 'folder' }
-        ],
-        files: [
-          { id: 1, name: 'Welcome_Guide.pdf', type: 'pdf', size: '1.2 MB', modified: 'Oct 20, 2025', owner: 'Me', starred: true, hash: 'QmX1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z', sharedWith: 0, content: 'Welcome guide for new users' }
-        ]
-      },
-      '/Main Documents': {
-        folders: [
-          { id: 'f5', name: 'Academic Papers', type: 'folder' },
-          { id: 'f6', name: 'Legal Documents', type: 'folder' }
-        ],
-        files: [
-          { id: 2, name: 'Annual_Report_2025.pdf', type: 'pdf', size: '3.4 MB', modified: 'Oct 19, 2025', owner: 'Admin', starred: false, hash: 'QmY2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a', sharedWith: 2, content: 'Comprehensive annual report with financial data' },
-          { id: 3, name: 'Company_Policy.pdf', type: 'pdf', size: '850 KB', modified: 'Oct 18, 2025', owner: 'HR', starred: true, hash: 'QmZ3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b', sharedWith: 5, content: 'Updated company policies and procedures' }
-        ]
-      },
-      '/Main Documents/Academic Papers': {
-        folders: [
-          { id: 'f7', name: 'Research Papers', type: 'folder' },
-          { id: 'f8', name: 'Thesis Collection', type: 'folder' }
-        ],
-        files: [
-          { id: 4, name: 'Blockchain_Research.pdf', type: 'pdf', size: '4.2 MB', modified: 'Oct 17, 2025', owner: 'Dr. Johnson', starred: true, hash: 'QmA4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c', sharedWith: 1, content: 'Comprehensive research on blockchain technology applications' },
-          { id: 5, name: 'ML_Algorithms_Study.pdf', type: 'pdf', size: '2.8 MB', modified: 'Oct 16, 2025', owner: 'Prof. Smith', starred: false, hash: 'QmB5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d', sharedWith: 3, content: 'Study on machine learning algorithms and their implementations' },
-          { id: 6, name: 'AI_Ethics_Paper.pdf', type: 'pdf', size: '1.9 MB', modified: 'Oct 15, 2025', owner: 'Ethics Committee', starred: true, hash: 'QmC6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e', sharedWith: 0, content: 'Analysis of ethical considerations in AI development' }
-        ]
-      },
-      '/Main Documents/Academic Papers/Research Papers': {
-        folders: [],
-        files: [
-          { id: 7, name: 'Quantum_Computing.pdf', type: 'pdf', size: '5.1 MB', modified: 'Oct 14, 2025', owner: 'Research Team', starred: false, hash: 'QmD7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f', sharedWith: 2, content: 'Research paper on quantum computing advancements' },
-          { id: 8, name: 'Cybersecurity_Analysis.pdf', type: 'pdf', size: '3.7 MB', modified: 'Oct 13, 2025', owner: 'Security Team', starred: true, hash: 'QmE8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g', sharedWith: 1, content: 'Comprehensive cybersecurity threat analysis' },
-          { id: 9, name: 'IoT_Applications.pdf', type: 'pdf', size: '2.6 MB', modified: 'Oct 12, 2025', owner: 'IoT Lab', starred: false, hash: 'QmF9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h', sharedWith: 4, content: 'Internet of Things applications in smart cities' },
-          { id: 10, name: 'Data_Science_Methods.pdf', type: 'pdf', size: '4.3 MB', modified: 'Oct 11, 2025', owner: 'Data Team', starred: true, hash: 'QmG0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i', sharedWith: 0, content: 'Advanced data science methodologies and techniques' },
-          { id: 11, name: 'Cloud_Architecture.pdf', type: 'pdf', size: '3.9 MB', modified: 'Oct 10, 2025', owner: 'Cloud Team', starred: false, hash: 'QmH1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j', sharedWith: 3, content: 'Modern cloud architecture patterns and best practices' }
-        ]
-      },
-      '/Main Documents/Academic Papers/Thesis Collection': {
-        folders: [],
-        files: [
-          { id: 12, name: 'PhD_Thesis_AI.pdf', type: 'pdf', size: '15.2 MB', modified: 'Oct 9, 2025', owner: 'Dr. Wilson', starred: true, hash: 'QmI2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j7k', sharedWith: 2, content: 'Doctoral thesis on artificial intelligence applications' },
-          { id: 13, name: 'Masters_Blockchain.pdf', type: 'pdf', size: '8.7 MB', modified: 'Oct 8, 2025', owner: 'Sarah Chen', starred: false, hash: 'QmJ3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j7k8l', sharedWith: 1, content: 'Masters thesis on blockchain implementation in healthcare' },
-          { id: 14, name: 'Undergrad_ML.pdf', type: 'pdf', size: '4.5 MB', modified: 'Oct 7, 2025', owner: 'Student', starred: true, hash: 'QmK4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j7k8l9m', sharedWith: 0, content: 'Undergraduate project on machine learning in finance' },
-          { id: 15, name: 'Research_Proposal.pdf', type: 'pdf', size: '2.1 MB', modified: 'Oct 6, 2025', owner: 'Graduate Student', starred: false, hash: 'QmL5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j7k8l9m0n', sharedWith: 2, content: 'Research proposal for advanced neural networks' }
-        ]
-      },
-      '/Main Documents/Legal Documents': {
-        folders: [],
-        files: [
-          { id: 16, name: 'Contract_Agreement.pdf', type: 'pdf', size: '1.8 MB', modified: 'Oct 5, 2025', owner: 'Legal Team', starred: true, hash: 'QmM6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j7k8l9m0n1o', sharedWith: 3, content: 'Legal contract agreement for partnership' }
-        ]
-      },
-      '/Images': {
-        folders: [],
-        files: [
-          { id: 17, name: 'Team_Photo.jpg', type: 'image', size: '5.2 MB', modified: 'Oct 4, 2025', owner: 'HR', starred: false, hash: 'QmN7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j7k8l9m0n1o2p', sharedWith: 0, content: 'Annual team photograph' }
-        ]
-      },
-      '/Projects': {
-        folders: [],
-        files: [
-          { id: 18, name: 'Project_Summary.xlsx', type: 'sheet', size: '2.3 MB', modified: 'Oct 3, 2025', owner: 'Project Manager', starred: true, hash: 'QmO8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j7k8l9m0n1o2p3q', sharedWith: 4, content: 'Comprehensive project summary with milestones' }
-        ]
-      },
-      '/Shared': {
-        folders: [],
-        files: [
-          { id: 19, name: 'Shared_Notes.txt', type: 'doc', size: '125 KB', modified: 'Oct 2, 2025', owner: 'Collaboration', starred: false, hash: 'QmP9s0t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i6j7k8l9m0n1o2p3q4r', sharedWith: 6, content: 'Shared collaborative notes and ideas' }
-        ]
-      }
-    }
+    folders: {},
+    files: []
   });
 
-  // Connected users data
-  const connectedUsers = [
-    { id: 'user1', name: 'Alice Johnson', username: '@alice.j', wallet: '0x742d35Cc6634C0532925a3b8D4C0532925a3b8D4', status: 'online', avatar: 'AJ', lastSeen: 'now', chatHistory: true },
-    { id: 'user2', name: 'Bob Chen', username: '@bob.chen', wallet: '0x853e46Dd7745D0643036b4c9E5D0643036b4c9E5', status: 'online', avatar: 'BC', lastSeen: '2 min ago', chatHistory: true },
-    { id: 'user3', name: 'Carol Davis', username: '@carol.d', wallet: '0x964f57Ee8856E0754147c5dF6E0754147c5dF6E', status: 'offline', avatar: 'CD', lastSeen: '1 hour ago', chatHistory: true },
-    { id: 'user4', name: 'David Wilson', username: '@d.wilson', wallet: '0xa75068Ff9967F0865258d6eG7F0865258d6eG7F', status: 'online', avatar: 'DW', lastSeen: 'now', chatHistory: false },
-    { id: 'user5', name: 'Emma Brown', username: '@emma.b', wallet: '0xb86179G0a078G0976369e7fH8G0976369e7fH8G', status: 'online', avatar: 'EB', lastSeen: '5 min ago', chatHistory: true },
-    { id: 'user6', name: 'Frank Miller', username: '@frank.m', wallet: '0xc9728aH1b189H1a87470f8gI9H1a87470f8gI9H', status: 'offline', avatar: 'FM', lastSeen: '3 hours ago', chatHistory: false },
-    { id: 'user7', name: 'Grace Lee', username: '@grace.lee', wallet: '0xda839bI2c29aI2b98581g9hJ0I2b98581g9hJ0I', status: 'online', avatar: 'GL', lastSeen: 'now', chatHistory: true },
-    { id: 'user8', name: 'Henry Taylor', username: '@h.taylor', wallet: '0xeb94acJ3d3abJ3ca9692h0iK1J3ca9692h0iK1J', status: 'online', avatar: 'HT', lastSeen: '1 min ago', chatHistory: false }
-  ];
-
-  const [starredItems, setStarredItems] = useState([1, 3, 4, 6, 10, 12, 14, 16]);
-  const [recentItems, setRecentItems] = useState([
-    { fileId: 1, action: 'opened', time: '2025-10-21 10:12', name: 'Welcome_Guide.pdf' },
-    { fileId: 2, action: 'opened', time: '2025-10-21 09:45', name: 'Annual_Report_2025.pdf' },
-    { fileId: 3, action: 'opened', time: '2025-10-20 16:30', name: 'Company_Policy.pdf' },
-    { fileId: 4, action: 'opened', time: '2025-10-20 14:22', name: 'Blockchain_Research.pdf' },
-    { fileId: 5, action: 'opened', time: '2025-10-19 11:15', name: 'ML_Algorithms_Study.pdf' },
-    { fileId: 6, action: 'opened', time: '2025-10-19 09:33', name: 'AI_Ethics_Paper.pdf' },
-    { fileId: 7, action: 'opened', time: '2025-10-18 15:45', name: 'Quantum_Computing.pdf' },
-    { fileId: 8, action: 'opened', time: '2025-10-18 13:20', name: 'Cybersecurity_Analysis.pdf' },
-    { fileId: 9, action: 'opened', time: '2025-10-17 11:00', name: 'IoT_Applications.pdf' },
-    { fileId: 10, action: 'uploaded', time: '2025-10-17 10:30', name: 'Data_Science_Methods.pdf' },
-    { fileId: 11, action: 'uploaded', time: '2025-10-16 14:15', name: 'Cloud_Architecture.pdf' },
-    { fileId: 12, action: 'opened', time: '2025-10-16 12:45', name: 'PhD_Thesis_AI.pdf' },
-    { fileId: 13, action: 'opened', time: '2025-10-15 16:20', name: 'Masters_Blockchain.pdf' },
-    { fileId: 14, action: 'uploaded', time: '2025-10-15 14:10', name: 'Undergrad_ML.pdf' },
-    { fileId: 15, action: 'created', time: '2025-10-14 13:30', name: 'Research_Proposal.pdf' }
-  ]);
-
-  // Version history data
-  const mockVersionHistory = {
-    1: [
-      { version: 3, date: 'Feb 10, 2025 10:15', user: 'Me', action: 'Content updated', size: '2.4 MB' },
-      { version: 2, date: 'Feb 08, 2025 14:30', user: 'John Smith', action: 'Formatting changes', size: '2.3 MB' },
-      { version: 1, date: 'Feb 05, 2025 09:00', user: 'Me', action: 'Initial version', size: '2.1 MB' }
-    ],
-    2: [
-      { version: 7, date: 'Feb 09, 2025 16:45', user: 'John Smith', action: 'Updated Q4 figures', size: '1.8 MB' },
-      { version: 6, date: 'Feb 07, 2025 11:20', user: 'Finance Team', action: 'Added new categories', size: '1.7 MB' },
-      { version: 5, date: 'Feb 05, 2025 13:15', user: 'John Smith', action: 'Corrected formulas', size: '1.6 MB' }
-    ],
-    8: [
-      { version: 12, date: 'Feb 03, 2025 15:30', user: 'Legal Team', action: 'Updated blockchain clauses', size: '890 KB' },
-      { version: 11, date: 'Jan 28, 2025 10:45', user: 'Legal Team', action: 'Added privacy terms', size: '845 KB' },
-      { version: 10, date: 'Jan 25, 2025 14:20', user: 'Compliance', action: 'Regulatory updates', size: '820 KB' }
-    ]
+  // Helper functions - defined before use
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return '0 KB';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   };
-  const [sharedWithMe] = useState([
-    { id: 7, name: 'Research_Notes.pdf', type: 'pdf', size: 1258291, sharedBy: 'Dr. Johnson', dateShared: '2025-02-05', access: 'read', hash: 'QmD3j0cK4e4bcK4db0703i1jL2K4db0703i1jL2K4db0703i1jL' },
-    { id: 8, name: 'Lecture_01.mp4', type: 'video', size: 125829120, sharedBy: 'Prof. Davis', dateShared: '2025-02-01', access: 'read', hash: 'QmE4k1dL5f5cdL5ec1814j2kM3L5ec1814j2kM3L5ec1814j2kM' },
-    { id: 9, name: 'Group_Project.docx', type: 'doc', size: 512000, sharedBy: 'Alice Chen', dateShared: '2025-01-28', access: 'write', hash: 'QmF5l2eM6g6deM6fd2925k3lN4M6fd2925k3lN4M6fd2925k3lN' }
-  ]);
 
-  // Mock data for demonstration (keeping existing for compatibility)
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Unknown';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffTime = Math.abs(now - date);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays} days ago`;
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+      if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+      return date.toLocaleDateString();
+    } catch (e) {
+      return 'Unknown';
+    }
+  };
+
+  // Initialize file manager (backend connection only)
+  useEffect(() => {
+    console.log('📂 Initializing File Manager...');
+    initializeBlockchainConnection();  // Connect to backend file service
+    loadCurrentUser();  // Load user data
+    loadInstitutionUsers();  // Load users for sharing functionality
+    loadSharedWithMe();  // Load shared documents
+    
+    // Note: Wallet connection is handled globally by WalletProvider in App.js
+    // No need to initialize blockchain/MetaMask here
+  }, []);
+
+  // Listen for wallet connection changes from global context
+  useEffect(() => {
+    if (isWalletConnectedGlobal && walletAddressGlobal) {
+      console.log('✅ Wallet connected globally:', walletAddressGlobal);
+      // Load blockchain data when wallet connects
+      loadBlockchainData();
+    }
+  }, [isWalletConnectedGlobal, walletAddressGlobal]);
+
+  // Close active menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      // Don't close if clicking inside a menu container
+      if (e.target.closest('.fm-menu-container')) {
+        return;
+      }
+      if (activeMenu !== null) {
+        setActiveMenu(null);
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [activeMenu]);
+
+  // Reload files when currentFolderId changes (for navigation)
+  useEffect(() => {
+    if (isBlockchainConnected) {
+      console.log('🔄 currentFolderId changed to:', currentFolderId);
+      console.log('🔄 Reloading files...');
+      loadBlockchainFiles();
+    }
+  }, [currentFolderId]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+C or Cmd+C - Copy
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedFiles.length > 0) {
+        const items = fileSystem.filter(f => selectedFiles.includes(f.id));
+        setClipboard({ items, action: 'copy' });
+        showNotification('success', 'Copied', `${items.length} item(s) copied to clipboard`);
+        e.preventDefault();
+      }
+      
+      // Ctrl+X or Cmd+X - Cut
+      if ((e.ctrlKey || e.metaKey) && e.key === 'x' && selectedFiles.length > 0) {
+        const items = fileSystem.filter(f => selectedFiles.includes(f.id));
+        setClipboard({ items, action: 'move' });
+        showNotification('info', 'Cut', `${items.length} item(s) cut to clipboard`);
+        e.preventDefault();
+      }
+      
+      // Ctrl+V or Cmd+V - Paste
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard.items.length > 0) {
+        handlePaste();
+        e.preventDefault();
+      }
+      
+      // Delete or Backspace - Delete selected items
+      if ((e.key === 'Delete' || (e.key === 'Backspace' && !e.target.matches('input, textarea'))) && selectedFiles.length > 0) {
+        const items = fileSystem.filter(f => selectedFiles.includes(f.id));
+        if (items.length === 1) {
+          handleDelete(items[0]);
+        } else if (window.confirm(`Delete ${items.length} items?`)) {
+          items.forEach(item => handleDelete(item));
+        }
+        e.preventDefault();
+      }
+      
+      // F2 - Rename
+      if (e.key === 'F2' && selectedFiles.length === 1) {
+        const item = fileSystem.find(f => f.id === selectedFiles[0]);
+        if (item) {
+          setRenameItem(item);
+          setNewName(item.name);
+        }
+        e.preventDefault();
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [selectedFiles, clipboard, fileSystem]);
+  const loadCurrentUser = async () => {
+    try {
+      // Get current user data from token
+      const authToken = localStorage.getItem('token');
+      if (authToken) {
+        // Parse JWT token to get user info (simplified approach)
+        const tokenPayload = JSON.parse(atob(authToken.split('.')[1]));
+        setCurrentUser({
+          id: tokenPayload.user_id,
+          username: tokenPayload.username,
+          email: tokenPayload.email,
+          role: tokenPayload.role
+        });
+      }
+    } catch (error) {
+      console.error('Error loading current user:', error);
+    }
+  };
+
+  const loadBlockchainData = async () => {
+    if (!isBlockchainConnected) return;
+
+    try {
+      // Blockchain-specific data loading here (if any)
+      console.log('Blockchain data loaded');
+    } catch (error) {
+      console.error('Error loading blockchain data:', error);
+    }
+  };
+
+  const initializeBlockchainConnection = async () => {
+    console.log('🔄 Initializing file manager connection...');
+    setIsLoadingBlockchain(true);
+    try {
+      // Get auth token from localStorage or context
+      const authToken = localStorage.getItem('token');
+      console.log('🔑 Auth token found:', authToken ? 'YES' : 'NO');
+      
+      if (!authToken) {
+        console.error('❌ No auth token found');
+        showNotification('error', 'Authentication Required', 'Please login to access file manager');
+        return;
+      }
+
+      console.log('🚀 Attempting to initialize hybrid service...');
+      const result = await hybridFileManagerService.initialize(authToken);
+      console.log('📋 Initialization result:', result);
+      
+      if (result.success) {
+        console.log('✅ Service initialized successfully');
+        console.log('👤 User data:', result.user);
+        
+        // Note: Blockchain connection state is managed by WalletContext
+        // Just load the files from database
+        await loadBlockchainFiles();
+        showNotification('success', 'Connected', 'Connected to file manager successfully!');
+      } else {
+        console.error('❌ Service initialization failed:', result.error);
+        showNotification('error', 'Connection Failed', `Failed to connect: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('💥 File manager connection error:', error);
+      showNotification('error', 'Connection Error', 'Failed to connect to file manager');
+    } finally {
+      setIsLoadingBlockchain(false);
+    }
+  };
+
+  // Load files from hybrid service (database + blockchain)
+  const loadBlockchainFiles = async () => {
+    console.log('🔄 loadBlockchainFiles called');
+    console.log('🔍 Loading files for folder:', currentFolderId);
+    console.log('🔍 Current path:', currentPath);
+    
+    // TEMPORARY: Test direct API call to see what backend returns
+    try {
+      const testResponse = await axios.get(`http://localhost:5000/api/documents/`, {
+        params: currentFolderId ? { folder_id: currentFolderId } : {},
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      console.log('🧪 DIRECT API TEST - Backend returned:', testResponse.data);
+    } catch (testError) {
+      console.log('🧪 DIRECT API TEST - Error:', testError.response?.data);
+    }
+    
+    try {
+      // Load folders for current directory
+      const foldersResult = await hybridFileManagerService.getFolders(currentFolderId);
+      console.log('📁 Folders result:', foldersResult);
+      
+      // Load documents for current directory  
+      const documentsResult = await hybridFileManagerService.getDocuments(currentFolderId);
+      console.log('📄 Documents result:', documentsResult);
+      
+      if (foldersResult.success && documentsResult.success) {
+        const allFiles = [];
+        
+        // Add folders from current directory
+        foldersResult.folders.forEach(folder => {
+          console.log('📁 Adding folder:', folder);
+          // Use updatedAt (last modified) if available, otherwise fallback to createdAt
+          const folderDate = folder.updatedAt || folder.updated_at || folder.createdAt || folder.created_at;
+          const itemCount = (folder.documentCount || 0) + (folder.subfolderCount || 0);
+          
+          allFiles.push({
+            id: folder.id,
+            name: folder.name,
+            type: 'folder',
+            size: itemCount > 0 ? `${itemCount} items` : 'Empty',
+            modified: formatDate(folderDate),
+            date: folderDate,
+            owner: 'You',
+            shared: folder.isShared || false,
+            path: folder.path || `${currentPath}${folder.name}/`,
+            parentPath: currentPath, // Add parentPath for filtering
+            parentId: folder.parentId || folder.parent_id, // Support both camelCase and snake_case
+            isStarred: false,
+            isShared: folder.isShared || false
+          });
+        });
+        
+        // Add documents from current directory
+        documentsResult.documents.forEach(doc => {
+          console.log('📄 Adding document:', doc);
+          console.log('📄 Document RAW properties:', {
+            documentId: doc.documentId,
+            document_id: doc.document_id,
+            ipfsHash: doc.ipfsHash,
+            ipfs_hash: doc.ipfs_hash,
+            folderId: doc.folderId,
+            folder_id: doc.folder_id
+          });
+          console.log('📄 Document folderId:', doc.folderId || doc.folder_id, 'vs currentFolderId:', currentFolderId);
+          
+          const fileType = getFileTypeFromMime(doc.documentType || doc.document_type);
+          const docDate = doc.createdAt || doc.created_at;
+          const docSize = doc.fileSize || doc.file_size;
+          
+          const fileObj = {
+            id: doc.id,
+            name: doc.fileName || doc.file_name,
+            type: fileType,
+            size: formatFileSize(docSize),
+            modified: formatDate(docDate),
+            date: docDate,
+            owner: 'You',
+            shared: false, // TODO: Check if document is shared
+            folderId: doc.folderId || doc.folder_id, // Support both camelCase and snake_case
+            documentId: doc.documentId || doc.document_id, // Blockchain document ID
+            ipfsHash: doc.ipfsHash || doc.ipfs_hash,
+            transactionHash: doc.transactionHash || doc.transaction_hash,
+            blockNumber: doc.blockNumber || doc.block_number,
+            isStarred: false,
+            isShared: false
+          };
+          
+          console.log('📄 Created file object with documentId:', fileObj.documentId);
+          allFiles.push(fileObj);
+        });
+
+        console.log('📋 All files to display:', allFiles);
+        console.log('📋 Total files found:', allFiles.length);
+        
+        // Update state for existing UI components
+        setFileSystem(allFiles);
+        setBlockchainFiles(documentsResult.documents);
+        setBlockchainFolders(foldersResult.folders);
+        
+        console.log('✅ File system loaded for current directory:', { 
+          currentFolderId, 
+          folders: foldersResult.folders.length, 
+          documents: documentsResult.documents.length 
+        });
+      } else {
+        console.error('Failed to load file system:', foldersResult.error || documentsResult.error);
+        showNotification('error', 'Load Failed', foldersResult.error || documentsResult.error);
+      }
+    } catch (error) {
+      console.error('Error loading files:', error);
+      showNotification('error', 'Load Error', 'Failed to load files');
+    }
+  };
+
+  // Helper function to convert MIME type to file type
+  const getFileTypeFromMime = (mimeType) => {
+    if (!mimeType) return 'other';
+    
+    if (mimeType.includes('pdf')) return 'pdf';
+    if (mimeType.includes('word') || mimeType.includes('doc')) return 'doc';
+    if (mimeType.includes('excel') || mimeType.includes('sheet')) return 'sheet';
+    if (mimeType.includes('image')) return 'image';
+    if (mimeType.includes('video')) return 'video';
+    if (mimeType.includes('audio')) return 'audio';
+    return 'other';
+  };
+
+  // Organize folders for existing UI structure
+  const organizeFoldersForUI = (folders) => {
+    const organized = {};
+    folders.forEach(folder => {
+      const path = folder.path || '/';
+      if (!organized[path]) {
+        organized[path] = { folders: [], files: [] };
+      }
+      organized[path].folders.push({
+        id: folder.id,
+        name: folder.name,
+        type: 'folder'
+      });
+    });
+    return organized;
+  };
   // Filter files based on search term
   const filterFiles = (files) => {
     if (!files || !Array.isArray(files)) return [];
@@ -197,34 +444,85 @@ const FileManager = () => {
 
   // Get current files and folders
   const getCurrentFiles = () => {
-    const currentFolder = fileSystem.folders[currentPath] || { folders: [], files: [] };
+    console.log('🔍 getCurrentFiles called, currentPath:', currentPath);
+    console.log('🔍 currentFolderId:', currentFolderId);
+    console.log('🔍 fileSystem contents:', fileSystem);
+    
+    // DEBUG: Log each item in fileSystem to see what we have
+    if (fileSystem && Array.isArray(fileSystem)) {
+      console.log('🔍 DEBUGGING fileSystem items:');
+      fileSystem.forEach((item, index) => {
+        console.log(`  [${index}] Type: ${item.type}, Name: ${item.name}, folderId: ${item.folderId}, parentId: ${item.parentId}`);
+      });
+    }
+    
     let items = [];
     
-    // Add folders
-    items.push(...currentFolder.folders.map(folder => ({ ...folder, type: 'folder' })));
+    // Use unified fileSystem array
+    if (fileSystem && Array.isArray(fileSystem)) {
+      items = fileSystem.filter(item => {
+        console.log(`🔍 Filtering item: ${item.name} (type: ${item.type})`);
+        
+        const isFolder = item.type === 'folder';
+        const isFile = !isFolder; // Anything that's not a folder is a file
+        
+        // For root level (currentPath === '/' and currentFolderId is null)
+        if (currentPath === '/' && !currentFolderId) {
+          console.log(`  → Root level check for ${item.name}`);
+          // Show folders that have no parent (root folders)
+          if (isFolder) {
+            const include = !item.parentId || item.parentId === null;
+            console.log(`  → Folder ${item.name}: parentId=${item.parentId}, include=${include}`);
+            return include;
+          }
+          // Show files that have no folder assignment
+          if (isFile) {
+            const include = !item.folderId || item.folderId === null;
+            console.log(`  → File ${item.name}: folderId=${item.folderId}, include=${include}`);
+            return include;
+          }
+        } else {
+          console.log(`  → Specific folder check for ${item.name}, looking for currentFolderId: ${currentFolderId}`);
+          // For specific folder levels
+          if (isFolder) {
+            const include = item.parentId === currentFolderId;
+            console.log(`  → Folder ${item.name}: parentId=${item.parentId} === currentFolderId=${currentFolderId}? ${include}`);
+            return include;
+          }
+          if (isFile) {
+            const include = item.folderId === currentFolderId;
+            console.log(`  → File ${item.name}: folderId=${item.folderId} === currentFolderId=${currentFolderId}? ${include}`);
+            return include;
+          }
+        }
+        console.log(`  → Default false for ${item.name}`);
+        return false;
+      });
+    }
     
-    // Add files  
-    items.push(...currentFolder.files.map(file => ({ ...file, type: 'file' })));
-    
+    console.log('🔍 getCurrentFiles returning items:', items);
+    console.log('🔍 Number of items to display:', items.length);
     return items;
   };
 
-  // Get all starred files from the file system
+  // Get all starred files from the blockchain data
   const getStarredFiles = () => {
     let starredFiles = [];
     
     try {
-      // Iterate through all folders in the file system
-      Object.values(fileSystem.folders || {}).forEach(folder => {
-        // Check starred folders
-        if (folder.folders && Array.isArray(folder.folders)) {
-          starredFiles.push(...folder.folders.filter(f => f && starredItems.includes(f.id)));
-        }
-        // Check starred files
-        if (folder.files && Array.isArray(folder.files)) {
-          starredFiles.push(...folder.files.filter(f => f && starredItems.includes(f.id)));
-        }
-      });
+      // Check starred folders
+      if (blockchainFolders && Array.isArray(blockchainFolders)) {
+        starredFiles.push(...blockchainFolders.filter(folder => 
+          folder && starredItems.includes(folder.id)
+        ));
+      }
+      
+      // Check starred files  
+      if (blockchainFiles && Array.isArray(blockchainFiles)) {
+        starredFiles.push(...blockchainFiles.filter(file => 
+          file && starredItems.includes(file.id)
+        ));
+      }
     } catch (error) {
       console.error('Error getting starred files:', error);
     }
@@ -237,151 +535,9 @@ const FileManager = () => {
     return sortFiles(filterByType(filterFiles(files)));
   };
 
-  const mockFiles = [
-    {
-      id: 1,
-      name: 'Project Proposal.pdf',
-      type: 'pdf',
-      size: '2.4 MB',
-      modified: 'Feb 10, 2025',
-      owner: 'Me',
-      starred: true,
-      hash: 'QmX7d4B2mP8kL9nR5tY6uI3oP7qW8eR2tY5uI',
-      shared: false,
-      content: 'This is a comprehensive project proposal for the blockchain document management system...',
-      versions: 3
-    },
-    {
-      id: 2,
-      name: 'Budget Analysis.xlsx',
-      type: 'sheet',
-      size: '1.8 MB',
-      modified: 'Feb 09, 2025',
-      owner: 'John Smith',
-      starred: false,
-      hash: 'QmA9k2L7pN3mR8sT4uV6wX1yZ5eR7tY9uI',
-      shared: true,
-      content: 'Financial analysis spreadsheet with budget breakdowns and forecasts',
-      versions: 7
-    },
-    {
-      id: 3,
-      name: 'Marketing Assets',
-      type: 'folder',
-      size: '24 files',
-      modified: 'Feb 08, 2025',
-      owner: 'Me',
-      starred: false,
-      hash: null,
-      shared: false,
-      folderContents: ['logos', 'banners', 'social-media', 'presentations']
-    },
-    {
-      id: 4,
-      name: 'Team Photo.jpg',
-      type: 'image',
-      size: '5.2 MB',
-      modified: 'Feb 07, 2025',
-      owner: 'Sarah Wilson',
-      starred: true,
-      hash: 'QmP3k8M2nQ5rS9tU7vW1xY4zA6bC8dE',
-      shared: true,
-      content: 'High-resolution team photograph taken during annual company retreat',
-      versions: 1
-    },
-    {
-      id: 5,
-      name: 'Presentation.pptx',
-      type: 'doc',
-      size: '3.6 MB',
-      modified: 'Feb 06, 2025',
-      owner: 'Me',
-      starred: false,
-      hash: 'QmR8k3N7pQ2mS5tU9vW7xY1zA4bC',
-      shared: false,
-      content: 'PowerPoint presentation for Q1 review meeting with stakeholders',
-      versions: 4
-    },
-    {
-      id: 6,
-      name: 'Demo Video.mp4',
-      type: 'video',
-      size: '45.8 MB',
-      modified: 'Feb 05, 2025',
-      owner: 'Mike Johnson',
-      starred: false,
-      hash: 'QmT5k1L9pM3nR7sU2vW8xY6zA',
-      shared: true,
-      content: 'Product demonstration video showing key features and functionality',
-      versions: 2
-    },
-    {
-      id: 7,
-      name: 'Research Documents',
-      type: 'folder',
-      size: '15 files',
-      modified: 'Feb 04, 2025',
-      owner: 'Me',
-      starred: true,
-      hash: null,
-      shared: true,
-      folderContents: ['surveys', 'interviews', 'analysis', 'reports']
-    },
-    {
-      id: 8,
-      name: 'Contract_Template.docx',
-      type: 'doc',
-      size: '890 KB',
-      modified: 'Feb 03, 2025',
-      owner: 'Legal Team',
-      starred: false,
-      hash: 'QmS6j9H4kM1nP3qR7sT2uV8wX',
-      shared: true,
-      content: 'Standard contract template with blockchain verification clauses',
-      versions: 12
-    },
-    {
-      id: 9,
-      name: 'Financial_Report_Q4.pdf',
-      type: 'pdf',
-      size: '4.7 MB',
-      modified: 'Feb 02, 2025',
-      owner: 'Finance Dept',
-      starred: false,
-      hash: 'QmU8l1K6oO3rQ5sV9xY2zA7bD',
-      shared: false,
-      content: 'Comprehensive Q4 financial report with blockchain transaction logs',
-      versions: 5
-    },
-    {
-      id: 10,
-      name: 'Client Database.xlsx',
-      type: 'sheet',
-      size: '2.1 MB',
-      modified: 'Feb 01, 2025',
-      owner: 'Sales Team',
-      starred: true,
-      hash: 'QmW0n3M8qS5tR7uX1yB4zC9eF',
-      shared: true,
-      content: 'Complete client database with contact information and transaction history',
-      versions: 8
-    }
-  ];
 
-  const quickAccessItems = [
-    { id: 1, name: 'Documents', icon: 'ri-file-text-line', count: 23 },
-    { id: 2, name: 'Images', icon: 'ri-image-line', count: 12 },
-    { id: 3, name: 'Videos', icon: 'ri-video-line', count: 5 },
-    { id: 4, name: 'Shared', icon: 'ri-share-line', count: 8 },
-    { id: 5, name: 'Recent', icon: 'ri-time-line', count: 15 },
-    { id: 6, name: 'Starred', icon: 'ri-star-line', count: 6 }
-  ];
 
-  const mockUsers = [
-    { id: 1, name: 'Alice Johnson', email: 'alice@university.edu', avatar: 'AJ', online: true, wallet: '0x1a2b3c...789def' },
-    { id: 2, name: 'Bob Smith', email: 'bob@university.edu', avatar: 'BS', online: false, wallet: '0x4e5f6g...123abc' },
-    { id: 3, name: 'Carol Davis', email: 'carol@university.edu', avatar: 'CD', online: true, wallet: '0x7h8i9j...456def' },
-  ];
+
 
   const getFileIcon = (type) => {
     const icons = {
@@ -395,10 +551,89 @@ const FileManager = () => {
     return icons[type] || 'ri-file-3-line';
   };
 
-  const handleSectionChange = (section) => {
+  const handleSectionChange = async (section) => {
     setCurrentSection(section);
     // Clear selection when switching sections
     setSelectedFiles([]);
+    
+    // Load trash items if switching to trash section
+    if (section === 'section-trash') {
+      await loadTrashItems();
+    }
+  };
+
+  // Load trash items
+  const loadTrashItems = async () => {
+    try {
+      const authToken = localStorage.getItem('token');
+      
+      // Load trashed folders
+      const foldersResponse = await axios.get('http://localhost:5000/api/folders/trash', {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      
+      // Load trashed documents
+      const docsResponse = await axios.get('http://localhost:5000/api/documents/trash', {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      
+      // Combine and format trash items
+      const trashedFolders = (foldersResponse.data.folders || []).map(folder => ({
+        ...folder,
+        type: 'folder',
+        name: folder.name,
+        modified: folder.trashDate || folder.trash_date || folder.updatedAt || folder.updated_at,
+        size: '-'
+      }));
+      
+      const trashedDocs = (docsResponse.data.documents || []).map(doc => ({
+        ...doc,
+        type: doc.documentType || doc.document_type || 'file',
+        name: doc.fileName || doc.file_name,
+        modified: doc.trashDate || doc.trash_date || doc.updatedAt || doc.updated_at,
+        size: doc.fileSize || doc.file_size
+      }));
+      
+      setTrashedItems([...trashedFolders, ...trashedDocs]);
+      
+    } catch (error) {
+      console.error('Error loading trash:', error);
+      showNotification('error', 'Load Failed', 'Failed to load trash items');
+    }
+  };
+
+  // Load documents shared with me
+  const loadSharedWithMe = async () => {
+    try {
+      const authToken = localStorage.getItem('token');
+      
+      console.log('📥 Loading documents shared with me...');
+      
+      const response = await axios.get('http://localhost:5000/api/shares/shared-with-me', {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      
+      console.log('✅ Shared documents response:', response.data);
+      
+      if (response.data.success) {
+        const sharedDocs = (response.data.documents || []).map(doc => ({
+          ...doc,
+          type: doc.documentType || doc.document_type || 'file',
+          name: doc.fileName || doc.file_name,
+          modified: doc.shared_at || doc.updatedAt || doc.updated_at,
+          size: doc.fileSize || doc.file_size,
+          owner: doc.shared_by?.username || doc.shared_by?.email || 'Unknown',
+          isShared: true
+        }));
+        
+        setSharedWithMeItems(sharedDocs);
+        console.log(`✅ Loaded ${sharedDocs.length} shared documents`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error loading shared documents:', error);
+      showNotification('error', 'Load Failed', 'Failed to load shared documents');
+    }
   };
 
   const handleFileSelect = (fileId) => {
@@ -432,27 +667,43 @@ const FileManager = () => {
     return names[type] || 'File';
   };
 
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  };
-
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-  };
-
-  const generateHash = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let hash = 'Qm';
-    for (let i = 0; i < 44; i++) {
-      hash += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return hash;
+  // Generate quick access data based on blockchain files
+  const getQuickAccessItems = () => {
+    const documentTypes = ['pdf', 'doc', 'docx'];
+    const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'image'];
+    const videoTypes = ['mp4', 'avi', 'mov', 'wmv', 'video'];
+    
+    // Ensure blockchainFiles is an array before filtering
+    const files = Array.isArray(blockchainFiles) ? blockchainFiles : [];
+    
+    const docCount = files.filter(file => 
+      documentTypes.some(type => file.type?.toLowerCase().includes(type))
+    ).length;
+    
+    const imageCount = files.filter(file => 
+      imageTypes.some(type => file.type?.toLowerCase().includes(type))
+    ).length;
+    
+    const videoCount = files.filter(file => 
+      videoTypes.some(type => file.type?.toLowerCase().includes(type))
+    ).length;
+    
+    const sharedCount = files.filter(file => file.shared).length;
+    const recentCount = files.filter(file => {
+      const fileDate = new Date(file.modified);
+      const daysDiff = Math.floor((Date.now() - fileDate.getTime()) / (1000 * 60 * 60 * 24));
+      return daysDiff <= 7;
+    }).length;
+    const starredCount = Array.isArray(starredItems) ? starredItems.length : 0;
+    
+    return [
+      { id: 1, name: 'Documents', icon: 'ri-file-text-line', count: docCount },
+      { id: 2, name: 'Images', icon: 'ri-image-line', count: imageCount },
+      { id: 3, name: 'Videos', icon: 'ri-video-line', count: videoCount },
+      { id: 4, name: 'Shared', icon: 'ri-share-line', count: sharedCount },
+      { id: 5, name: 'Recent', icon: 'ri-time-line', count: recentCount },
+      { id: 6, name: 'Starred', icon: 'ri-star-line', count: starredCount }
+    ];
   };
 
   const showNotification = useCallback((type, title, message) => {
@@ -522,12 +773,17 @@ const FileManager = () => {
       case 'version':
         setCurrentFile(item);
         setIsVersionModalOpen(true);
+        loadVersionHistory(item);
         break;
       case 'update':
         handleUpdateFile(item);
         break;
       case 'paste':
         handlePaste();
+        break;
+      case 'refresh':
+        loadBlockchainFiles();
+        showNotification('success', 'Refreshed', 'File list refreshed');
         break;
       default:
         break;
@@ -536,107 +792,340 @@ const FileManager = () => {
   };
 
   // Paste functionality
-  const handlePaste = () => {
-    if (clipboard.items.length === 0) return;
+  const handlePaste = async () => {
+    if (clipboard.items.length === 0) {
+      showNotification('warning', 'No Items', 'No items in clipboard to paste');
+      return;
+    }
     
-    clipboard.items.forEach(item => {
-      const newItem = {
-        ...item,
-        id: clipboard.action === 'move' ? item.id : Date.now() + Math.random(),
-        modified: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-      };
-      
-      // Add to current folder
-      setFileSystem(prev => {
-        const newFS = { ...prev };
-        if (!newFS.folders[currentPath]) {
-          newFS.folders[currentPath] = { folders: [], files: [] };
-        }
-        
+    try {
+      for (const item of clipboard.items) {
         if (item.type === 'folder') {
-          newFS.folders[currentPath].folders.push(newItem);
+          if (clipboard.action === 'copy') {
+            // Copy folder - create new folder with same name
+            const response = await axios.post('http://localhost:5000/api/folders/', {
+              name: `${item.name} (Copy)`,
+              parent_id: currentFolderId,
+              path: currentPath
+            }, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            console.log('Folder copied:', response.data);
+          } else if (clipboard.action === 'move') {
+            // Move folder - update parent_id
+            const response = await axios.put(`http://localhost:5000/api/folders/${item.id}`, {
+              parent_id: currentFolderId,
+              path: currentPath
+            }, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            console.log('Folder moved:', response.data);
+          }
         } else {
-          newFS.folders[currentPath].files.push(newItem);
+          // Handle file copy/move
+          if (clipboard.action === 'move') {
+            // Move file - update folder_id
+            const response = await axios.put(`http://localhost:5000/api/documents/${item.id}`, {
+              folder_id: currentFolderId
+            }, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            console.log('File moved:', response.data);
+          } else if (clipboard.action === 'copy') {
+            // Copy file - use copy endpoint
+            const response = await axios.post(`http://localhost:5000/api/documents/${item.id}/copy`, {
+              folder_id: currentFolderId
+            }, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            console.log('File copied:', response.data);
+          }
         }
-        
-        return newFS;
-      });
-    });
-    
-    const actionText = clipboard.action === 'copy' ? 'copied' : 'moved';
-    const itemNames = clipboard.items.map(item => item.name).join(', ');
-    
-    showNotification('success', 'Paste Complete', 
-      `${clipboard.items.length} item(s) ${actionText}: ${itemNames}`);
-    
-    // Clear clipboard if it was a move operation
-    if (clipboard.action === 'move') {
-      setClipboard({ items: [], action: null });
+      }
+      
+      const actionText = clipboard.action === 'copy' ? 'copied' : 'moved';
+      const itemCount = clipboard.items.length;
+      
+      showNotification('success', 'Paste Complete', 
+        `${itemCount} item(s) ${actionText} successfully`);
+      
+      // Clear clipboard if it was a move operation
+      if (clipboard.action === 'move') {
+        setClipboard({ items: [], action: null });
+      }
+      
+      // Reload blockchain data
+      await loadBlockchainFiles();
+    } catch (error) {
+      console.error('Error pasting items:', error);
+      showNotification('error', 'Paste Failed', error.response?.data?.message || 'Failed to paste items');
     }
   };
 
-  // Delete functionality
+  // Delete functionality for blockchain files
   const handleDelete = (item) => {
-    // Add to trash
-    setTrashedItems(prev => [...prev, {
-      ...item,
-      deletedDate: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      originalPath: currentPath
-    }]);
+    setDeleteItem(item);
+    setIsDeleteModalOpen(true);
+  };
 
-    // Remove from file system
-    setFileSystem(prev => {
-      const newFS = { ...prev };
-      if (newFS.folders[currentPath]) {
-        if (item.type === 'folder') {
-          newFS.folders[currentPath].folders = newFS.folders[currentPath].folders.filter(f => f.id !== item.id);
-        } else {
-          newFS.folders[currentPath].files = newFS.folders[currentPath].files.filter(f => f.id !== item.id);
+  // Confirm delete action
+  const confirmDelete = async () => {
+    if (!deleteItem) return;
+
+    try {
+      if (deleteItem.type === 'folder') {
+        // Delete folder via backend API
+        const response = await axios.delete(`http://localhost:5000/api/folders/${deleteItem.id}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        
+        if (response.data.success) {
+          showNotification('success', 'Deleted', `Folder "${deleteItem.name}" deleted successfully`);
+          // Reload files
+          await loadBlockchainFiles();
+        }
+      } else {
+        // Delete file via backend API
+        const response = await axios.delete(`http://localhost:5000/api/documents/${deleteItem.id}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        
+        if (response.data.success) {
+          showNotification('success', 'Deleted', `File "${deleteItem.name}" deleted successfully`);
+          // Reload files
+          await loadBlockchainFiles();
         }
       }
-      return newFS;
-    });
-
-    showNotification('warning', 'Deleted', `${item.name} moved to trash`);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      console.error('Error response:', error.response?.data);
+      showNotification('error', 'Delete Failed', error.response?.data?.error || error.response?.data?.message || 'Failed to delete item');
+    } finally {
+      setIsDeleteModalOpen(false);
+      setDeleteItem(null);
+    }
   };
 
-  // Update file functionality
-  const handleUpdateFile = (file) => {
-    const newVersion = (file.versions || 1) + 1;
-    showNotification('success', 'File Updated', 
-      `${file.name} updated to version ${newVersion}`);
+  // Load version history from blockchain
+  const loadVersionHistory = async (file) => {
+    console.log('📜 Loading version history for:', file.name);
     
-    // Add to version history
-    const currentDate = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', month: 'short', day: 'numeric', 
-      hour: '2-digit', minute: '2-digit' 
-    });
-    
-    // Update version history (in real app, this would be API call)
-    setVersionHistory(prev => ({
-      ...prev,
-      [file.id]: [
-        { 
-          version: newVersion, 
-          date: currentDate, 
-          user: 'Me', 
-          action: 'File updated', 
-          size: file.size 
-        },
-        ...(prev[file.id] || [])
-      ]
-    }));
+    if (!file.documentId) {
+      console.warn('⚠️ No documentId found for file');
+      showNotification('warning', 'No Version History', 'Document ID not found');
+      return;
+    }
+
+    try {
+      showNotification('info', 'Loading...', 'Fetching version history from blockchain...');
+      
+      const result = await blockchainServiceV2.getDocumentVersionHistory(file.documentId);
+      
+      if (result.success && result.versions.length > 0) {
+        // Format versions for display
+        const formattedVersions = result.versions.map((v, index) => ({
+          version: v.versionNumber,
+          action: v.changeLog || 'File updated',
+          user: `${v.updatedBy.substring(0, 6)}...${v.updatedBy.substring(38)}`,
+          date: v.date,
+          size: formatFileSize(v.fileSize),
+          ipfsHash: v.ipfsHash,
+          fileName: v.fileName,
+          fileSize: v.fileSize,
+          isCurrent: index === 0
+        }));
+
+        setVersionHistory({
+          ...versionHistory,
+          [file.id]: formattedVersions
+        });
+
+        showNotification('success', 'Loaded', `Found ${formattedVersions.length} versions`);
+      } else {
+        console.log('⚠️ No versions found');
+        setVersionHistory({
+          ...versionHistory,
+          [file.id]: []
+        });
+        showNotification('info', 'No History', 'No version history available for this file');
+      }
+    } catch (error) {
+      console.error('❌ Error loading version history:', error);
+      showNotification('error', 'Load Failed', 'Failed to load version history');
+    }
   };
 
-  // Rename functionality
-  const handleRename = () => {
-    if (!newName.trim()) return;
+  // Show version history modal
+  const handleShowVersionHistory = async (file) => {
+    setCurrentFile(file);
+    setIsVersionModalOpen(true);
+    await loadVersionHistory(file);
+  };
+
+  // Update file functionality for blockchain
+  const handleUpdateFile = async (file) => {
+    console.log('🔄 Update file clicked for:', file);
+    console.log('📋 File properties:', {
+      id: file.id,
+      name: file.name,
+      documentId: file.documentId,
+      folderId: file.folderId,
+      ipfsHash: file.ipfsHash,
+      isShared: file.isShared,
+      permission: file.permission
+    });
     
-    showNotification('success', 'Renamed', 
-      `${renameItem.name} renamed to ${newName}`);
+    // Check if this is a shared document without write permission
+    if (file.isShared && file.permission !== 'write') {
+      showNotification('error', 'Access Denied', 'You need write permission to update this file.');
+      return;
+    }
     
-    setRenameItem(null);
-    setNewName('');
+    if (!file.documentId && !file.document_id) {
+      showNotification('error', 'Update Failed', 'Document ID not found. Please refresh and try again.');
+      return;
+    }
+    
+    try {
+      // Create a file input for the new version
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '*/*';
+      
+      input.onchange = async (event) => {
+        const newFile = event.target.files[0];
+        if (!newFile) {
+          console.log('❌ No file selected');
+          return;
+        }
+        
+        console.log('📁 New file selected:', newFile.name, newFile.size, 'bytes');
+        
+        try {
+          showNotification('info', 'Uploading...', 'Uploading new version to blockchain...');
+          
+          // Step 1: Upload new file to IPFS
+          console.log('📤 Uploading to IPFS...');
+          const ipfsResult = await pinataService.uploadFile(newFile);
+          if (!ipfsResult.success) {
+            throw new Error(ipfsResult.error || 'IPFS upload failed');
+          }
+          console.log('✅ IPFS upload successful:', ipfsResult.ipfsHash);
+          
+          // Step 2: Update document on blockchain (keeps same document_id, creates new version)
+          console.log('⛓️ Updating document on blockchain...');
+          const docId = file.documentId || file.document_id;
+          console.log('📋 Using existing document_id:', docId);
+          const blockchainResult = await blockchainServiceV2.updateDocument(
+            docId,                     // Existing document ID (bytes32 hash)
+            ipfsResult.ipfsHash        // New IPFS hash
+          );
+          if (!blockchainResult.success) {
+            throw new Error(blockchainResult.error || 'Blockchain update failed');
+          }
+          console.log('✅ Blockchain updated successfully');
+          
+          // Step 3: Update document in database with new IPFS hash (document_id stays the same)
+          console.log('� Updating database...');
+          const token = localStorage.getItem('token');
+          const updateResponse = await axios.put(
+            `http://localhost:5000/api/documents/${file.id}`,
+            {
+              name: newFile.name,
+              ipfs_hash: ipfsResult.ipfsHash,
+              file_size: newFile.size,
+              file_type: newFile.type
+              // document_id stays the same - not updating it
+            },
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          if (updateResponse.data.success) {
+            console.log('✅ Database updated successfully');
+            const copiesCount = updateResponse.data.copies_updated || 0;
+            const message = copiesCount > 0 
+              ? `${file.name} updated successfully! All ${copiesCount + 1} copies now show the new version.`
+              : `${file.name} updated successfully!`;
+            showNotification('success', 'File Updated', message);
+            
+            // Reload blockchain files to get updated data
+            await loadBlockchainFiles();
+            
+            // If version history modal is open for this file, reload it
+            if (isVersionModalOpen && currentFile && currentFile.id === file.id) {
+              console.log('🔄 Reloading version history for updated file...');
+              await loadVersionHistory(file);
+            }
+          } else {
+            throw new Error(updateResponse.data.error || 'Database update failed');
+          }
+        } catch (error) {
+          console.error('❌ Error updating file:', error);
+          showNotification('error', 'Update Failed', error.message || 'Failed to update file');
+        }
+      };
+      
+      input.click();
+      console.log('📂 File picker opened');
+    } catch (error) {
+      console.error('❌ Error initiating file update:', error);
+      showNotification('error', 'Update Failed', 'Failed to update file');
+    }
+  };
+
+  // Rename functionality for blockchain items
+  const handleRename = async () => {
+    if (!newName.trim() || !renameItem) {
+      setRenameItem(null);
+      setNewName('');
+      return;
+    }
+    
+    // Don't rename if name hasn't changed
+    if (newName.trim() === renameItem.name) {
+      setRenameItem(null);
+      setNewName('');
+      return;
+    }
+    
+    try {
+      if (renameItem.type === 'folder') {
+        // Rename folder via backend API
+        const response = await axios.put(`http://localhost:5000/api/folders/${renameItem.id}`, {
+          name: newName.trim()
+        }, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        
+        if (response.data.success) {
+          showNotification('success', 'Renamed', `Folder renamed to "${newName.trim()}"`);
+          await loadBlockchainFiles();
+        }
+      } else {
+        // Rename file via backend API
+        const response = await axios.put(`http://localhost:5000/api/documents/${renameItem.id}`, {
+          name: newName.trim()
+        }, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        
+        if (response.data.success) {
+          showNotification('success', 'Renamed', `File renamed to "${newName.trim()}"`);
+          await loadBlockchainFiles();
+        }
+      }
+      
+      setRenameItem(null);
+      setNewName('');
+    } catch (error) {
+      console.error('Error renaming item:', error);
+      showNotification('error', 'Rename Failed', error.response?.data?.message || 'Failed to rename item');
+    }
   };
 
   // Create new folder/file
@@ -644,97 +1133,216 @@ const FileManager = () => {
     setIsCreateFolderModalOpen(true);
   };
 
-  const createFolder = () => {
-    if (newFolderName.trim()) {
-      const newFolder = {
-        id: `f${Date.now()}`,
-        name: newFolderName.trim(),
-        type: 'folder',
-        size: '0 files',
-        modified: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-        owner: 'Me',
-        starred: false,
-        hash: null,
-        shared: false
-      };
-      
-      // Add to file system
-      setFileSystem(prev => {
-        const newFS = { ...prev };
-        if (!newFS.folders[currentPath]) {
-          newFS.folders[currentPath] = { folders: [], files: [] };
-        }
-        newFS.folders[currentPath].folders.push(newFolder);
-        
-        // Create empty folder structure for the new folder
-        const newFolderPath = currentPath === '/' ? `/${newFolderName.trim()}` : `${currentPath}/${newFolderName.trim()}`;
-        newFS.folders[newFolderPath] = { folders: [], files: [] };
-        
-        return newFS;
-      });
+  const createFolder = async () => {
+    if (!newFolderName.trim()) {
+      showNotification('error', 'Invalid Name', 'Please enter a folder name');
+      return;
+    }
 
-      // Add to recent items
-      setRecentItems(prev => {
-        const newItem = {
-          fileId: newFolder.id,
-          action: 'created',
-          time: new Date().toISOString().replace('T', ' ').slice(0, 16),
-          name: newFolder.name
-        };
-        return [newItem, ...prev].slice(0, 15);
-      });
-      
-      showNotification('success', 'Folder Created', `Created folder "${newFolderName}"`);
-      setIsCreateFolderModalOpen(false);
-      setNewFolderName('');
+    if (!isBlockchainConnected) {
+      showNotification('error', 'Not Connected', 'Please connect to the system first');
+      return;
+    }
+
+    try {
+      const result = await hybridFileManagerService.createFolder(
+        newFolderName.trim(),
+        currentPath,
+        getCurrentFolderId()
+      );
+
+      if (result.success) {
+        await loadBlockchainFiles();
+        showNotification('success', 'Folder Created', result.message);
+        setNewFolderName('');
+        setIsCreateFolderModalOpen(false);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Folder creation error:', error);
+      showNotification('error', 'Failed to Create Folder', error.message);
     }
   };
 
-  // Handle file upload
-  const handleFileUpload = (event) => {
+  // Handle file upload with blockchain integration
+  const handleFileUpload = async (event) => {
+    console.log('🚀 File upload started');
     const files = Array.from(event.target.files);
-    if (files.length > 0) {
-      files.forEach(file => {
-        const fileType = getFileTypeFromExtension(file.name);
-        const newFile = {
-          id: Date.now() + Math.random(),
-          name: file.name,
-          type: fileType,
-          size: formatFileSize(file.size),
-          modified: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-          owner: 'Me',
-          starred: false,
-          hash: generateHash(),
-          shared: false,
-          content: `Uploaded file: ${file.name}`,
-          versions: 1
-        };
+    if (files.length === 0) return;
+
+    console.log('📁 Files selected:', files.map(f => f.name));
+    console.log('🔗 Blockchain connected:', isBlockchainConnected);
+    console.log('👤 Current user:', currentUser);
+
+    if (!isBlockchainConnected) {
+      console.error('❌ Blockchain not connected');
+      showNotification('error', 'Blockchain Not Connected', 'Please connect to blockchain first');
+      return;
+    }
+
+    if (!currentUser) {
+      console.error('❌ User not logged in');
+      showNotification('error', 'User Not Logged In', 'Please login first');
+      return;
+    }
+
+    setIsProgressModalOpen(true);
+    setUploadProgress(0);
+    setIsUploadingToBlockchain(true);
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        console.log(`📤 Processing file ${i + 1}/${files.length}: ${file.name}`);
+        const baseProgress = (i / files.length) * 100;
         
-        // Add to file system
-        setFileSystem(prev => {
-          const newFS = { ...prev };
-          if (!newFS.folders[currentPath]) {
-            newFS.folders[currentPath] = { folders: [], files: [] };
-          }
-          newFS.folders[currentPath].files.push(newFile);
-          return newFS;
+        // Step 1: Upload to traditional database (25%)
+        console.log('📊 Step 1: Database upload');
+        setUploadProgress(baseProgress + 25);
+        const metadata = {
+          filePath: currentPath,
+          description: `Uploaded via DocuChain on ${new Date().toLocaleString()}`,
+          tags: 'user-upload,blockchain', // Convert array to comma-separated string
+          parentFolderId: getCurrentFolderId() // Keep as UUID or null, don't convert to string
+        };
+
+        const result = await hybridFileManagerService.createFile(file, metadata);
+        console.log('📊 Database result:', result);
+        
+        if (!result.success) {
+          throw new Error(`Failed to upload ${file.name} to database: ${result.error}`);
+        }
+
+        // Step 2: Upload to IPFS via Pinata (50%)
+        console.log('🌐 Step 2: IPFS upload');
+        setUploadProgress(baseProgress + 50);
+        const ipfsResult = await pinataService.uploadFile(file);
+        console.log('🌐 IPFS result:', ipfsResult);
+        
+        if (!ipfsResult.success) {
+          throw new Error(`Failed to upload ${file.name} to IPFS: ${ipfsResult.error}`);
+        }
+
+        // Step 3: Store metadata on blockchain (75%)
+        console.log('⛓️ Step 3: Blockchain upload');
+        setUploadProgress(baseProgress + 75);
+        
+        console.log('⛓️ Blockchain service ready:', blockchainServiceV2.isReady());
+        
+        console.log('⛓️ Calling uploadDocument with:', {
+          fileName: file.name,
+          ipfsHash: ipfsResult.ipfsHash,
+          fileSize: file.size,
+          fileType: file.type
         });
 
-        // Add to recent items
-        setRecentItems(prev => {
-          const newItem = {
-            fileId: newFile.id,
-            action: 'uploaded',
-            time: new Date().toISOString().replace('T', ' ').slice(0, 16),
-            name: newFile.name
-          };
-          return [newItem, ...prev].slice(0, 15);
+        // Use V2 blockchain upload
+        const blockchainResult = await blockchainServiceV2.uploadDocument(
+          ipfsResult.ipfsHash,
+          file.name,
+          file.size,
+          file.type || 'document'
+        );
+
+        console.log('⛓️ Blockchain result:', blockchainResult);
+
+        if (!blockchainResult.success) {
+          throw new Error(`Failed to store ${file.name} on blockchain: ${blockchainResult.error}`);
+        }
+
+        // Step 3.5: Update database with blockchain documentId (bytes32 hash)
+        console.log('💾 Step 3.5: Saving blockchain documentId to database');
+        const documentId = blockchainResult.documentId; // This is the bytes32 hash
+        console.log('📝 Blockchain documentId (bytes32):', documentId);
+        
+        try {
+          const token = localStorage.getItem('token');
+          await axios.put(
+            `http://localhost:5000/api/documents/${result.document.id}`,
+            {
+              document_id: documentId, // Backend expects 'document_id' not 'blockchain_document_id'
+              ipfs_hash: ipfsResult.ipfsHash
+            },
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          console.log('✅ Database updated with blockchain documentId');
+        } catch (dbError) {
+          console.error('⚠️ Failed to update database with blockchain ID:', dbError);
+          // Don't fail the upload, just warn
+        }
+
+        // Step 4: Complete (100%)
+        setUploadProgress(baseProgress + 100/files.length);
+        console.log('✅ File uploaded successfully:', {
+          database: result,
+          ipfs: ipfsResult,
+          blockchain: blockchainResult,
+          documentId: documentId
         });
         
-        showNotification('success', 'File Uploaded', `Uploaded "${file.name}"`);
-      });
+        showNotification('success', 'File Uploaded', `${file.name} uploaded to blockchain successfully!`);
+      }
+
+      // Reload files after successful upload
+      console.log('🔄 Reloading blockchain files');
+      await loadBlockchainFiles();
+    } catch (error) {
+      console.error('💥 Upload error:', error);
+      showNotification('error', 'Upload Failed', error.message);
+    } finally {
+      setIsProgressModalOpen(false);
+      setUploadProgress(0);
+      setIsUploadingToBlockchain(false);
+      event.target.value = '';
     }
-    event.target.value = '';
+  };
+
+  // Get current folder ID based on path
+  const getCurrentFolderId = () => {
+    // Return the current folder ID, null for root/home directory
+    return currentFolderId;
+  };
+
+  // Navigate into a folder
+  const navigateToFolder = (folder) => {
+    console.log('🐛 DEBUG: navigateToFolder called with:', folder);
+    console.log('🐛 DEBUG: folder properties:', {
+      id: folder.id,
+      name: folder.name,
+      folder_name: folder.folder_name,
+      title: folder.title,
+      path: folder.path
+    });
+    
+    // Use folder_name if name is undefined
+    const folderName = folder.name || folder.folder_name || folder.title || 'Unnamed Folder';
+    
+    setCurrentFolderId(folder.id);
+    setCurrentPath(folder.path || `${currentPath}${folderName}/`);
+    setFolderStack(prev => [...prev, {
+      id: folder.id,
+      name: folderName,
+      path: folder.path || `${currentPath}${folderName}/`
+    }]);
+    // Reload files for the new folder
+    loadBlockchainFiles();
+  };
+
+  // Navigate back to a folder in the breadcrumb
+  const navigateToBreadcrumb = (index) => {
+    console.log('🔙 Navigating to breadcrumb index:', index);
+    const targetFolder = folderStack[index];
+    console.log('🎯 Target folder:', targetFolder);
+    setCurrentFolderId(targetFolder.id);
+    setCurrentPath(targetFolder.path);
+    setFolderStack(prev => prev.slice(0, index + 1));
+    // Don't call loadBlockchainFiles here - let useEffect handle it when currentFolderId changes
   };
 
   // Helper function to determine file type from extension
@@ -816,9 +1424,9 @@ const FileManager = () => {
   const handleDoubleClick = (file) => {
     if (file.type === 'folder') {
       // Navigate into folder
-      const newPath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
-      navigateToFolder(newPath);
-      showNotification('info', 'Folder Opened', `Opened ${file.name} folder`);
+      navigateToFolder(file);
+      const folderName = file.name || file.folder_name || file.title || 'Unnamed Folder';
+      showNotification('info', 'Folder Opened', `Opened ${folderName} folder`);
     } else {
       // Open file for viewing/editing
       setRecentItems(prev => {
@@ -865,30 +1473,245 @@ const FileManager = () => {
     setIsFileModalOpen(true);
   };
 
-  const shareFile = (file) => {
-    setCurrentSharingItems([file]);
-    setIsShareModalOpen(true);
+  // Share file functionality for blockchain
+  // Toggle user selection for sharing
+  const toggleUserSelection = (user) => {
+    setSelectedRecipients(prev => {
+      const isAlreadySelected = prev.find(r => r.id === user.id);
+      if (isAlreadySelected) {
+        // Remove from selection
+        return prev.filter(r => r.id !== user.id);
+      } else {
+        // Add with default "read" permission
+        return [...prev, { ...user, permission: 'read' }];
+      }
+    });
   };
 
-  const downloadFile = (file) => {
-    // Create a blob with some sample content
-    const content = file.content || `Sample content for ${file.name}`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
+  // Search users (filter institutionUsers)
+  const searchUsers = (searchTerm) => {
+    if (!searchTerm || searchTerm.trim() === '') {
+      // Reset to all institution users if search is empty
+      loadInstitutionUsers();
+      return;
+    }
     
-    // Create a temporary link and trigger download
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = file.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const term = searchTerm.toLowerCase();
+    const filtered = institutionUsers.filter(user => 
+      user.username?.toLowerCase().includes(term) ||
+      user.email?.toLowerCase().includes(term) ||
+      user.role?.toLowerCase().includes(term)
+    );
     
-    // Clean up the URL
-    URL.revokeObjectURL(url);
-    
-    showNotification('success', 'Download Complete', 
-      `${file.name} downloaded successfully`);
+    // Update the displayed users (could store in separate state if needed)
+    setInstitutionUsers(filtered);
+  };
+
+  const shareFile = async (file) => {
+    try {
+      if (file.type === 'folder') {
+        // For folders, just open share modal
+        setCurrentSharingItems([file]);
+        // Load fresh user list
+        await loadInstitutionUsers();
+        setSelectedRecipients([]);
+        setIsShareModalOpen(true);
+      } else {
+        // For files, implement blockchain-based sharing
+        setCurrentSharingItems([file]);
+        // Load fresh user list
+        await loadInstitutionUsers();
+        setSelectedRecipients([]);
+        setIsShareModalOpen(true);
+      }
+    } catch (error) {
+      console.error('Error sharing file:', error);
+      showNotification('error', 'Share Failed', 'Failed to share item');
+    }
+  };
+
+  // Download file from IPFS
+  const downloadFile = async (file) => {
+    try {
+      if (file.ipfsHash) {
+        // Download from IPFS
+        const url = `https://gateway.pinata.cloud/ipfs/${file.ipfsHash}`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = file.name;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showNotification('success', 'Download Started', 
+          `Downloading ${file.name} from IPFS`);
+      } else {
+        // Fallback for files without IPFS hash
+        const content = file.content || `No content available for ${file.name}`;
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = file.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      showNotification('error', 'Download Failed', 'Failed to download file');
+    }
+  };
+
+  // Blockchain-specific functions
+  // Use global wallet connect function
+  const connectWallet = async () => {
+    try {
+      console.log('🔗 Connecting wallet via global context...');
+      setIsLoadingBlockchain(true);
+      
+      await connectWalletGlobal();  // Use global connect from WalletContext
+      
+      showNotification('success', 'Wallet Connected', 
+        `Successfully connected to MetaMask!`);
+      
+      // Blockchain data will be loaded automatically via useEffect watching isWalletConnectedGlobal
+    } catch (error) {
+      console.error('Wallet connection error:', error);
+      
+      if (error.message && (error.message.includes('User rejected') || error.message.includes('User denied'))) {
+        showNotification('info', 'Connection Cancelled', 'You cancelled the connection request');
+      } else if (error.message && error.message.includes('not installed')) {
+        showNotification('error', 'MetaMask Not Found', 'Please install MetaMask browser extension');
+      } else {
+        showNotification('error', 'Connection Error', error.message || 'Failed to connect wallet');
+      }
+    } finally {
+      setIsLoadingBlockchain(false);
+    }
+  };
+
+  const searchInstitutionUsers = async (searchTerm) => {
+    try {
+      // Use the existing loadInstitutionUsers function with search term
+      await loadInstitutionUsers(searchTerm);
+      return institutionUsers;
+    } catch (error) {
+      console.error('User search error:', error);
+      showNotification('error', 'Search Failed', 'Failed to search users');
+      return [];
+    }
+  };
+
+  const shareDocumentOnBlockchain = async (documentId, userAddress, accessType) => {
+    try {
+      console.log('🔗 shareDocumentOnBlockchain called with:');
+      console.log('  documentId:', documentId);
+      console.log('  userAddress:', userAddress);
+      console.log('  accessType:', accessType);
+      
+      setIsLoadingBlockchain(true);
+      
+      // V2 contract: accessType must be "read" or "write" string
+      console.log('  Calling blockchainServiceV2.shareDocument...');
+      const result = await blockchainServiceV2.shareDocument(documentId, userAddress, accessType);
+      console.log('  Blockchain service result:', result);
+      
+      if (result.success) {
+        showNotification('success', 'Document Shared', 'Document shared successfully on blockchain!');
+        
+        // Return proper object with transaction details
+        return {
+          success: true,
+          transactionHash: result.transactionHash || result.hash,
+          blockNumber: result.blockNumber
+        };
+      } else {
+        console.error('  ❌ Blockchain share failed:', result.error);
+        showNotification('error', 'Sharing Failed', result.error);
+        return {
+          success: false,
+          error: result.error
+        };
+      }
+    } catch (error) {
+      console.error('  ❌ Sharing error:', error);
+      showNotification('error', 'Sharing Error', 'Failed to share document');
+      return {
+        success: false,
+        error: error.message
+      };
+    } finally {
+      setIsLoadingBlockchain(false);
+    }
+  };
+
+  const connectWithUser = async (userAddress) => {
+    try {
+      // In simplified version, users are already available from institution
+      // No need for separate connection - just show success
+      showNotification('success', 'User Available', 'User is available for sharing!');
+      return true;
+    } catch (error) {
+      console.error('User connection error:', error);
+      showNotification('error', 'Connection Error', 'Failed to connect with user');
+      return false;
+    }
+  };
+
+  // Load institution users from database for sharing
+  const loadInstitutionUsers = async (searchTerm = '') => {
+    try {
+      const authToken = localStorage.getItem('token');
+      if (!authToken) {
+        console.warn('⚠️ No auth token found');
+        return;
+      }
+
+      const apiUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/users/institution`;
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        let users = data.users || [];
+        
+        // Filter by search term if provided
+        if (searchTerm) {
+          users = users.filter(user => 
+            (user.fullName && user.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (user.firstName && user.firstName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (user.lastName && user.lastName.toLowerCase().includes(searchTerm.toLowerCase()))
+          );
+        }
+        
+        // Format users for the UI - matching backend response format
+        const formattedUsers = users.map(user => ({
+          id: user.id,
+          username: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+          email: user.email,
+          role: user.role,
+          department: user.department || 'N/A',
+          address: user.walletAddress || '',
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName || user.email)}&background=random`
+        }));
+        
+        console.log(`✅ Loaded ${formattedUsers.length} institution users`);
+        setInstitutionUsers(formattedUsers);
+      } else {
+        console.error('❌ Failed to load institution users:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error loading institution users:', error);
+    }
   };
 
   // Selection Management
@@ -923,26 +1746,7 @@ const FileManager = () => {
   };
 
   const getCurrentItems = () => {
-    const currentFolder = fileSystem.folders[fileSystem.currentPath];
-    if (!currentFolder) return [];
-    
-    let items = [];
-    
-    // Add folders
-    currentFolder.folders.forEach(folderName => {
-      const folderPath = fileSystem.currentPath === '/' ? `/${folderName}` : `${fileSystem.currentPath}/${folderName}`;
-      items.push({ type: 'folder', name: folderName, path: folderPath });
-    });
-    
-    // Add files
-    items.push(...currentFolder.files.map(file => ({ ...file, type: 'file' })));
-    
-    return items;
-  };
-
-  const navigateToFolder = (path) => {
-    setCurrentPath(path);
-    clearSelection();
+    return getCurrentFiles(); // Use the blockchain-enabled getCurrentFiles function
   };
 
   // Navigate back
@@ -968,35 +1772,158 @@ const FileManager = () => {
   };
 
   // Share Modal Functions
-  const toggleUserSelection = (user) => {
-    setSelectedRecipients(prev => {
-      const existingIndex = prev.findIndex(r => r.id === user.id);
-      if (existingIndex > -1) {
-        return prev.filter(r => r.id !== user.id);
-      } else {
-        return [...prev, { ...user, permission: 'read' }];
-      }
-    });
-  };
-
-  const executeBlockchainShare = () => {
+  const executeBlockchainShare = async () => {
+    console.log('🚀 Starting share execution...');
+    console.log('Selected recipients:', selectedRecipients);
+    console.log('Current sharing items:', currentSharingItems);
+    
     if (selectedRecipients.length === 0) {
       showNotification('warning', 'No Recipients', 'Please select at least one recipient');
       return;
     }
+
+    if (currentSharingItems.length === 0) {
+      showNotification('warning', 'No Files', 'Please select files to share');
+      return;
+    }
     
     setIsProgressModalOpen(true);
-    setTimeout(() => {
+    setIsLoadingBlockchain(true);
+    
+    try {
+      let successCount = 0;
+      let totalShares = currentSharingItems.length * selectedRecipients.length;
+      console.log(`📊 Total shares to process: ${totalShares}`);
+      
+      for (const item of currentSharingItems) {
+        // Normalize file properties (handle both frontend and backend formats)
+        const fileName = item.name || item.fileName;
+        const fileId = item.id;
+        // Backend returns 'document_id' (blockchain documentId - bytes32 hash)
+        const blockchainId = item.document_id || item.blockchainId || item.documentId;
+        
+        console.log(`\n📄 Processing file: ${fileName}`);
+        console.log('File data:', item);
+        console.log(`  ID: ${fileId}, Blockchain ID: ${blockchainId}`);
+        
+        for (const recipient of selectedRecipients) {
+          console.log(`  👤 Sharing with: ${recipient.username} (${recipient.email})`);
+          console.log('  Recipient data:', recipient);
+          
+          if (blockchainId) {
+            console.log(`  ✅ File has blockchain ID: ${blockchainId}`);
+            
+            // Check if recipient has wallet address
+            if (!recipient.address) {
+              console.warn(`  ⚠️ Recipient ${recipient.username} has no wallet address, skipping blockchain share`);
+              // Still record in database
+              try {
+                const shareResponse = await axios.post(
+                  `http://localhost:5000/api/shares/document/${fileId}`,
+                  {
+                    recipients: [{
+                      user_id: recipient.id,
+                      permission: recipient.permission
+                    }],
+                    transaction_hash: null,
+                    block_number: null
+                  },
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                      'Content-Type': 'application/json'
+                    }
+                  }
+                );
+                
+                if (shareResponse.data.success) {
+                  console.log(`  ✅ Database share successful (no blockchain)`);
+                  successCount++;
+                } else {
+                  console.error(`  ❌ Database share failed:`, shareResponse.data.error);
+                }
+              } catch (apiError) {
+                console.error(`  ❌ API error:`, apiError.response?.data || apiError.message);
+              }
+              continue;
+            }
+            
+            // Step 1: Share document on blockchain
+            console.log(`  🔗 Sharing on blockchain...`);
+            // V2 contract expects "read" or "write" strings (not numbers)
+            const accessType = recipient.permission === 'write' ? 'write' : 'read';
+            const blockchainResult = await shareDocumentOnBlockchain(
+              blockchainId, 
+              recipient.address, 
+              accessType
+            );
+            
+            if (blockchainResult && blockchainResult.success) {
+              console.log(`  ✅ Blockchain share successful:`, blockchainResult);
+              
+              // Step 2: Record share in database with blockchain reference
+              try {
+                const shareResponse = await axios.post(
+                  `http://localhost:5000/api/shares/document/${fileId}`,
+                  {
+                    recipients: [{
+                      user_id: recipient.id,
+                      permission: recipient.permission
+                    }],
+                    transaction_hash: blockchainResult.transactionHash,
+                    block_number: blockchainResult.blockNumber || null
+                  },
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                      'Content-Type': 'application/json'
+                    }
+                  }
+                );
+                
+                if (shareResponse.data.success) {
+                  console.log(`  ✅ Database share successful`);
+                  successCount++;
+                } else {
+                  console.error(`  ❌ Database share failed:`, shareResponse.data.error);
+                }
+              } catch (apiError) {
+                console.error(`  ❌ API error:`, apiError.response?.data || apiError.message);
+                // Still count as partial success if blockchain succeeded
+                successCount++;
+              }
+            } else {
+              console.error(`  ❌ Blockchain share failed:`, blockchainResult);
+            }
+          } else {
+            console.warn(`  ⚠️ File has no blockchain ID, skipping: ${fileName}`);
+          }
+        }
+      }
+      
+      console.log(`\n📊 Final results: ${successCount}/${totalShares} successful`);
+      
+      if (successCount > 0) {
+        const percentage = Math.round((successCount / totalShares) * 100);
+        showNotification('success', 'Share Complete', 
+          `Successfully shared ${currentSharingItems.length} item(s) with ${selectedRecipients.length} user(s) (${percentage}% success)`);
+        setIsShareModalOpen(false);
+        setSelectedRecipients([]);
+        setCurrentSharingItems([]);
+        
+        // Refresh data to show shared status
+        await loadBlockchainFiles();
+      } else {
+        showNotification('error', 'Share Failed', 'Failed to share documents. Check console for details.');
+      }
+    } catch (error) {
+      console.error('❌ Share execution error:', error);
+      showNotification('error', 'Share Error', 'An error occurred while sharing');
+    } finally {
       setIsProgressModalOpen(false);
-      setIsShareModalOpen(false);
-      setSelectedRecipients([]);
-      setCurrentSharingItems([]);
-      showNotification('success', 'Blockchain Share Complete', 
-        `Successfully shared files with ${selectedRecipients.length} users`);
-    }, 3000);
+      setIsLoadingBlockchain(false);
+    }
   };
-
-
 
   const openFileModal = (file) => {
     setCurrentFile(file);
@@ -1009,9 +1936,53 @@ const FileManager = () => {
   };
 
   const openShareModal = (files = null) => {
+    console.log('📂 openShareModal called with:', files);
+    
     if (files) {
-      setSelectedFiles(Array.isArray(files) ? files : [files]);
+      let fileObjects = [];
+      
+      if (Array.isArray(files)) {
+        // Handle array of files
+        fileObjects = files.map(file => {
+          // If it's already an object, use it
+          if (typeof file === 'object' && file !== null) {
+            return file;
+          }
+          // If it's an ID, try to find the file
+          const foundFile = fileSystem?.files?.find(f => f.id === file) || 
+                           blockchainFiles?.find(f => f.id === file);
+          return foundFile;
+        }).filter(f => f); // Remove any nulls/undefined
+      } else {
+        // Handle single file
+        if (typeof files === 'object' && files !== null) {
+          // It's already a file object
+          fileObjects = [files];
+        } else {
+          // It's an ID, try to find it
+          const foundFile = fileSystem?.files?.find(f => f.id === files) || 
+                           blockchainFiles?.find(f => f.id === files);
+          if (foundFile) {
+            fileObjects = [foundFile];
+          }
+        }
+      }
+      
+      // Check if any files are shared documents
+      const sharedFiles = fileObjects.filter(f => f.isShared);
+      if (sharedFiles.length > 0) {
+        showNotification('error', 'Cannot Share', 'You cannot share documents that were shared with you. Only the owner can share these files.');
+        return;
+      }
+      
+      console.log('📂 File objects for sharing:', fileObjects);
+      setCurrentSharingItems(fileObjects);
+      setSelectedFiles(files);
     }
+    
+    // Load fresh user list
+    loadInstitutionUsers();
+    setSelectedRecipients([]);
     setIsShareModalOpen(true);
   };
 
@@ -1137,13 +2108,96 @@ const FileManager = () => {
 
         {/* Content Header with Search */}
         <div className="content-header" style={{marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <h2 style={{margin: 0, fontSize: '24px', fontWeight: '600', color: '#1f2937'}}>
-            {currentSection === 'section-all' && 'All Files'}
-            {currentSection === 'section-shared' && 'Shared with me'}
-            {currentSection === 'section-recent' && 'Recent'}
-            {currentSection === 'section-starred' && 'Starred'}
-            {currentSection === 'section-trash' && 'Trash'}
-          </h2>
+          <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+            {/* Blockchain Status */}
+            <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 12px',
+                borderRadius: '20px',
+                backgroundColor: isBlockchainConnected ? '#dcfce7' : '#fee2e2',
+                color: isBlockchainConnected ? '#166534' : '#991b1b',
+                fontSize: '12px',
+                fontWeight: '500'
+              }}>
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: isBlockchainConnected ? '#22c55e' : '#ef4444'
+                }}></div>
+                {isBlockchainConnected ? 'Blockchain Connected' : 'Blockchain Disconnected'}
+              </div>
+              
+              {!isBlockchainConnected && (
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <button
+                    onClick={connectWallet}
+                    disabled={isLoadingBlockchain}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: currentTheme.primary,
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      cursor: isLoadingBlockchain ? 'not-allowed' : 'pointer',
+                      opacity: isLoadingBlockchain ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <i className="ri-wallet-3-line"></i>
+                    {isLoadingBlockchain ? 'Connecting...' : 'Connect Wallet'}
+                  </button>
+                  
+                  {/* Install MetaMask link if not detected */}
+                  {typeof window.ethereum === 'undefined' && (
+                    <a
+                      href="https://metamask.io/download/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#f97316',
+                        color: 'white',
+                        textDecoration: 'none',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#ea580c'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = '#f97316'}
+                    >
+                      <i className="ri-download-line"></i>
+                      Install MetaMask
+                    </a>
+                  )}
+                </div>
+              )}
+              
+              {walletAccount && currentUser && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '12px',
+                  color: '#6b7280'
+                }}>
+                  <span>{currentUser.username}</span>
+                  <span style={{color: '#d1d5db'}}>|</span>
+                  <span>{walletAccount.slice(0, 6)}...{walletAccount.slice(-4)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+            
           <div className="file-search" style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
             <div style={{position: 'relative'}}>
               <i className="ri-search-line" style={{position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280'}}></i>
@@ -1165,45 +2219,6 @@ const FileManager = () => {
                 }}
               />
             </div>
-            <button 
-              className="fm-btn" 
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#f3f4f6',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}>
-              <i className="ri-upload-cloud-2-line" style={{marginRight: '6px'}}></i> Upload
-            </button>
-            <button 
-              className="fm-btn" 
-              onClick={() => document.getElementById('fileInput').click()}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#f3f4f6',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}>
-              <i className="ri-upload-cloud-2-line" style={{marginRight: '6px'}}></i> Upload
-            </button>
-            <button 
-              className="fm-btn fm-primary" 
-              onClick={handleCreateNew}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: currentTheme.primary,
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}>
-              <i className="ri-add-line" style={{marginRight: '6px'}}></i> Create
-            </button>
           </div>
         </div>
 
@@ -1218,7 +2233,7 @@ const FileManager = () => {
                 </span>
               </div>
               <div className="fm-qa" id="qaGrid">
-                {quickAccessItems.map(item => (
+                {getQuickAccessItems().map(item => (
                   <div key={item.id} className="fm-qa-card">
                     <div className="fm-qa-icon">
                       <i className={item.icon}></i>
@@ -1245,7 +2260,18 @@ const FileManager = () => {
                         href="#" 
                         onClick={(e) => {
                           e.preventDefault();
-                          navigateToFolder(breadcrumb.path);
+                          if (index === 0) {
+                            // Navigate to home - reset to root
+                            console.log('🏠 Navigating to Home - resetting to root');
+                            console.log('🏠 Before reset - currentFolderId:', currentFolderId, 'currentPath:', currentPath);
+                            setCurrentFolderId(null);
+                            setCurrentPath('/');
+                            setFolderStack([{id: null, name: 'Home', path: '/'}]);
+                            // useEffect will handle reloading files when currentFolderId changes
+                          } else {
+                            // Use navigateToBreadcrumb for non-home breadcrumbs
+                            navigateToBreadcrumb(index);
+                          }
                         }}
                         data-path={breadcrumb.path}
                       >
@@ -1383,7 +2409,16 @@ const FileManager = () => {
 
               {/* Grid view */}
               {viewMode === 'grid' && (
-                <div className="fm-collection" id="gridView">
+                <div 
+                  className="fm-collection" 
+                  id="gridView"
+                  onContextMenu={(e) => {
+                    // Only show empty context menu if clicking on the container itself
+                    if (e.target.id === 'gridView' || e.target.id === 'gridItems') {
+                      showContextMenu(e, null, 'empty');
+                    }
+                  }}
+                >
                   <div className="fm-grid" id="gridItems">
                     {getProcessedFiles(getCurrentFiles()).map(file => (
                       <div 
@@ -1402,12 +2437,14 @@ const FileManager = () => {
                         </div>
 
                         <div className="fm-card-actions">
-                          <div className="fm-action-btn" onClick={(e) => {
-                            e.stopPropagation();
-                            openShareModal([file.id]);
-                          }}>
-                            <i className="ri-share-line"></i>
-                          </div>
+                          {!file.isShared && (
+                            <div className="fm-action-btn" onClick={(e) => {
+                              e.stopPropagation();
+                              openShareModal([file.id]);
+                            }}>
+                              <i className="ri-share-line"></i>
+                            </div>
+                          )}
                           <div 
                             className="fm-action-btn"
                             onClick={(e) => {
@@ -1434,7 +2471,7 @@ const FileManager = () => {
                             style={{width: '100%', padding: '2px', border: '1px solid #0ea5e9', borderRadius: '3px'}}
                             onClick={(e) => e.stopPropagation()}
                           />
-                        ) : file.name}</div>
+                        ) : (file.name || file.folder_name || file.title || 'Unnamed Item')}</div>
                         <div className="fm-meta">{file.size} • {file.modified}</div>
                       </div>
                     ))}
@@ -1503,7 +2540,7 @@ const FileManager = () => {
                             style={{width: '90%', padding: '2px', border: '1px solid #0ea5e9', borderRadius: '3px'}}
                             onClick={(e) => e.stopPropagation()}
                           />
-                        ) : file.name}</div>
+                        ) : (file.name || file.folder_name || file.title || 'Unnamed Item')}</div>
                         <div className="fm-hide-mobile">{file.modified || 'Unknown'}</div>
                         <div className="fm-hide-mobile">
                           <div className="fm-avatar-sm">{file.owner ? file.owner.charAt(0) : 'U'}</div>
@@ -1529,14 +2566,135 @@ const FileManager = () => {
 
           {/* Other sections */}
           {currentSection === 'section-shared' && (
-            <section className="fm-section">
+            <section className="fm-section" id="section-shared">
               <div className="fm-section-head">
                 <h3 style={{margin:0}}>Shared with me</h3>
+                <span className="fm-pill">
+                  <i className="ri-share-line"></i> {sharedWithMeItems.length} {sharedWithMeItems.length === 1 ? 'document' : 'documents'}
+                </span>
               </div>
-              <div className="fm-empty">
-                <i className="ri-share-line" style={{fontSize: '48px', color: 'var(--icon)', marginBottom: '16px'}}></i>
-                <p>No files shared with you yet.</p>
-              </div>
+              
+              {sharedWithMeItems.length === 0 ? (
+                <div className="fm-empty">
+                  <i className="ri-share-line" style={{fontSize: '48px', color: 'var(--icon)', marginBottom: '16px'}}></i>
+                  <p>No files shared with you yet.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="fm-list-header">
+                    <div className="fm-header-icon"></div>
+                    <div className="fm-header-name">Name</div>
+                    <div className="fm-header-date fm-hide-mobile">Shared Date</div>
+                    <div className="fm-header-owner fm-hide-mobile">Shared By</div>
+                    <div className="fm-header-size fm-hide-mobile">Size</div>
+                    <div className="fm-header-shared fm-hide-mobile">Permission</div>
+                    <div className="fm-header-actions"></div>
+                  </div>
+
+                  {sharedWithMeItems.map(item => (
+                    <div
+                      key={item.id}
+                      className="fm-list-item"
+                      style={{
+                        borderLeft: selectedFiles.includes(item.id) 
+                          ? `3px solid ${currentTheme.primary}` 
+                          : '3px solid transparent'
+                      }}
+                    >
+                      <div className="fm-item-icon">
+                        <i 
+                          className={`ri-${item.type === 'folder' ? 'folder' : 'file'}-line`}
+                          style={{color: getFileColor(item.type)}}
+                        ></i>
+                      </div>
+                      <div className="fm-item-name">
+                        <div className="fm-item-title">{item.name}</div>
+                      </div>
+                      <div className="fm-item-date fm-hide-mobile">{formatDate(item.modified)}</div>
+                      <div className="fm-item-owner fm-hide-mobile">{item.owner}</div>
+                      <div className="fm-item-size fm-hide-mobile">{formatFileSize(item.size)}</div>
+                      <div className="fm-item-shared fm-hide-mobile">
+                        <span className={`fm-permission-badge ${item.permission === 'write' ? 'fm-badge-write' : 'fm-badge-read'}`}>
+                          {item.permission === 'write' ? 'Write' : 'Read'}
+                        </span>
+                      </div>
+                      <div className="fm-item-actions">
+                        <button 
+                          className="fm-action-btn"
+                          onClick={() => openFile(item)}
+                          title="View"
+                        >
+                          <i className="ri-eye-line"></i>
+                        </button>
+                        <button 
+                          className="fm-action-btn"
+                          onClick={() => downloadFile(item)}
+                          title="Download"
+                        >
+                          <i className="ri-download-line"></i>
+                        </button>
+                        {/* 3-dot menu for shared files */}
+                        <div className="fm-menu-container">
+                          <button 
+                            className="fm-action-btn fm-menu-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenu(activeMenu === item.id ? null : item.id);
+                            }}
+                            title="More options"
+                            id={`menu-btn-${item.id}`}
+                          >
+                            <i className="ri-more-2-fill"></i>
+                          </button>
+                          {activeMenu === item.id && (
+                            <div 
+                              className="fm-dropdown-menu" 
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                position: 'fixed',
+                                top: document.getElementById(`menu-btn-${item.id}`)?.getBoundingClientRect().bottom + 5 + 'px',
+                                right: window.innerWidth - (document.getElementById(`menu-btn-${item.id}`)?.getBoundingClientRect().right || 0) + 'px',
+                                backgroundColor: 'white',
+                                border: '1px solid var(--line)',
+                                borderRadius: '12px',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                display: 'block',
+                                minWidth: '180px',
+                                padding: '6px',
+                                zIndex: 9999
+                              }}
+                            >
+                              <div className="fm-menu-item" onClick={() => { openFile(item); setActiveMenu(null); }}>
+                                <i className="ri-eye-line"></i>
+                                <span>View</span>
+                              </div>
+                              <div className="fm-menu-item" onClick={() => { downloadFile(item); setActiveMenu(null); }}>
+                                <i className="ri-download-line"></i>
+                                <span>Download</span>
+                              </div>
+                              {item.permission === 'write' && (
+                                <div className="fm-menu-item" onClick={() => { handleUpdateFile(item); setActiveMenu(null); }}>
+                                  <i className="ri-upload-line"></i>
+                                  <span>Update File</span>
+                                </div>
+                              )}
+                              <div className="fm-menu-item" onClick={() => { handleShowVersionHistory(item); setActiveMenu(null); }}>
+                                <i className="ri-history-line"></i>
+                                <span>Version History</span>
+                              </div>
+                              <div className="fm-menu-divider"></div>
+                              <div className="fm-menu-item" onClick={() => { handleShowFileInfo(item); setActiveMenu(null); }}>
+                                <i className="ri-information-line"></i>
+                                <span>Details</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </section>
           )}
 
@@ -1568,18 +2726,18 @@ const FileManager = () => {
                   
                   <div className="fm-files-grid">
                     {recentItems.map((recentItem, index) => {
-                      // Find the actual file from all folders
+                      // Find the actual file from blockchain data
                       let file = null;
-                      Object.values(fileSystem.folders).forEach(folder => {
-                        if (folder.files) {
-                          const found = folder.files.find(f => f.id === recentItem.fileId);
-                          if (found) file = found;
-                        }
-                        if (!file && folder.folders) {
-                          const foundFolder = folder.folders.find(f => f.id === recentItem.fileId);
-                          if (foundFolder) file = foundFolder;
-                        }
-                      });
+                      
+                      // Check in blockchain files
+                      if (blockchainFiles) {
+                        file = blockchainFiles.find(f => f.id === recentItem.fileId);
+                      }
+                      
+                      // Check in blockchain folders if not found in files
+                      if (!file && blockchainFolders) {
+                        file = blockchainFolders.find(f => f.id === recentItem.fileId);
+                      }
                       
                       // If file not found, use recent item data
                       if (!file) {
@@ -1685,12 +2843,14 @@ const FileManager = () => {
                       </div>
 
                       <div className="fm-card-actions">
-                        <div className="fm-action-btn" onClick={(e) => {
-                          e.stopPropagation();
-                          openShareModal([file.id]);
-                        }}>
-                          <i className="ri-share-line"></i>
-                        </div>
+                        {!file.isShared && (
+                          <div className="fm-action-btn" onClick={(e) => {
+                            e.stopPropagation();
+                            openShareModal([file.id]);
+                          }}>
+                            <i className="ri-share-line"></i>
+                          </div>
+                        )}
                         <div 
                           className="fm-action-btn"
                           onClick={(e) => {
@@ -1861,32 +3021,181 @@ const FileManager = () => {
               </div>
               <div className="fm-modal-body" style={{maxHeight: '70vh', overflowY: 'auto'}}>
                 <div className="fm-file-preview" style={{marginBottom: '24px'}}>
-                  {currentFile.type === 'pdf' && (
+                  {/* Image Preview */}
+                  {(currentFile.documentType?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(currentFile.name?.split('.').pop()?.toLowerCase())) && currentFile.ipfsHash && (
                     <div style={{
-                      border: '2px dashed #d1d5db',
+                      border: '1px solid #e5e7eb',
                       borderRadius: '8px',
-                      padding: '40px',
+                      padding: '20px',
                       textAlign: 'center',
                       backgroundColor: '#f9fafb'
                     }}>
-                      <i className="ri-file-pdf-line" style={{fontSize: '64px', color: '#b42318', marginBottom: '16px'}}></i>
-                      <h4>PDF Document Viewer</h4>
-                      <p style={{color: '#6b7280', marginBottom: '16px'}}>
-                        {currentFile.content}
-                      </p>
-                      <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', textAlign: 'left', marginTop: '16px'}}>
-                        <h5>Document Preview:</h5>
-                        <p style={{fontFamily: 'serif', lineHeight: '1.6', color: '#374151'}}>
-                          This would show the actual PDF content. In a real application, you would use a PDF viewer 
-                          component like react-pdf or pdf.js to render the PDF content here. The document contains 
-                          detailed information about the project proposal including objectives, timeline, budget, 
-                          and implementation strategy.
-                        </p>
+                      <img 
+                        src={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                        alt={currentFile.name}
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '500px',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'block';
+                        }}
+                      />
+                      <div style={{display: 'none'}}>
+                        <i className="ri-image-line" style={{fontSize: '64px', color: '#6b7280', marginBottom: '16px'}}></i>
+                        <p style={{color: '#6b7280'}}>Failed to load image</p>
                       </div>
                     </div>
                   )}
-                  
-                  {currentFile.type === 'doc' && (
+
+                  {/* PDF Preview */}
+                  {(currentFile.documentType === 'application/pdf' || currentFile.name?.toLowerCase().endsWith('.pdf')) && currentFile.ipfsHash && (
+                    <div style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      backgroundColor: '#ffffff',
+                      overflow: 'hidden'
+                    }}>
+                      <iframe
+                        src={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                        style={{
+                          width: '100%',
+                          height: '600px',
+                          border: 'none'
+                        }}
+                        title={currentFile.name}
+                      />
+                      <div style={{padding: '12px', backgroundColor: '#f9fafb', borderTop: '1px solid #e5e7eb', textAlign: 'center'}}>
+                        <a 
+                          href={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{color: '#2563eb', textDecoration: 'none', fontSize: '14px'}}
+                        >
+                          <i className="ri-external-link-line"></i> Open in New Tab
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Office Documents (Word, Excel, PowerPoint) Preview */}
+                  {(currentFile.documentType?.includes('word') || 
+                    currentFile.documentType?.includes('document') ||
+                    currentFile.documentType?.includes('excel') || 
+                    currentFile.documentType?.includes('spreadsheet') ||
+                    currentFile.documentType?.includes('powerpoint') ||
+                    currentFile.documentType?.includes('presentation') ||
+                    ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(currentFile.name?.split('.').pop()?.toLowerCase())) && currentFile.ipfsHash && (
+                    <div style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      backgroundColor: '#ffffff',
+                      overflow: 'hidden'
+                    }}>
+                      <iframe
+                        src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`)}`}
+                        style={{
+                          width: '100%',
+                          height: '600px',
+                          border: 'none'
+                        }}
+                        title={currentFile.name}
+                      />
+                      <div style={{padding: '12px', backgroundColor: '#f9fafb', borderTop: '1px solid #e5e7eb', textAlign: 'center'}}>
+                        <a 
+                          href={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{color: '#2563eb', textDecoration: 'none', fontSize: '14px', marginRight: '16px'}}
+                        >
+                          <i className="ri-external-link-line"></i> Open in New Tab
+                        </a>
+                        <a 
+                          href={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                          download={currentFile.name}
+                          style={{color: '#059669', textDecoration: 'none', fontSize: '14px'}}
+                        >
+                          <i className="ri-download-line"></i> Download to View
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Text Files Preview */}
+                  {(currentFile.documentType?.includes('text') || ['txt', 'csv', 'json', 'xml', 'html', 'css', 'js'].includes(currentFile.name?.split('.').pop()?.toLowerCase())) && currentFile.ipfsHash && (
+                    <div style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      backgroundColor: '#ffffff',
+                      padding: '20px'
+                    }}>
+                      <iframe
+                        src={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                        style={{
+                          width: '100%',
+                          height: '400px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '4px',
+                          fontFamily: 'monospace',
+                          padding: '12px'
+                        }}
+                        title={currentFile.name}
+                      />
+                    </div>
+                  )}
+
+                  {/* Video Preview */}
+                  {(currentFile.documentType?.startsWith('video/') || ['mp4', 'webm', 'ogg', 'mov'].includes(currentFile.name?.split('.').pop()?.toLowerCase())) && currentFile.ipfsHash && (
+                    <div style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      padding: '20px',
+                      textAlign: 'center',
+                      backgroundColor: '#000000'
+                    }}>
+                      <video 
+                        controls
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '500px',
+                          borderRadius: '8px'
+                        }}
+                      >
+                        <source src={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`} type={currentFile.documentType || 'video/mp4'} />
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
+                  )}
+
+                  {/* Audio Preview */}
+                  {(currentFile.documentType?.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a'].includes(currentFile.name?.split('.').pop()?.toLowerCase())) && currentFile.ipfsHash && (
+                    <div style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      padding: '40px',
+                      textAlign: 'center',
+                      backgroundColor: '#f9fafb'
+                    }}>
+                      <i className="ri-music-line" style={{fontSize: '64px', color: '#8b5cf6', marginBottom: '16px'}}></i>
+                      <h4>{currentFile.name}</h4>
+                      <audio 
+                        controls
+                        style={{
+                          width: '100%',
+                          marginTop: '20px'
+                        }}
+                      >
+                        <source src={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`} type={currentFile.documentType || 'audio/mpeg'} />
+                        Your browser does not support the audio tag.
+                      </audio>
+                    </div>
+                  )}
+
+                  {/* Fallback for unsupported types or no IPFS hash */}
+                  {!currentFile.ipfsHash && (
                     <div style={{
                       border: '2px dashed #d1d5db',
                       borderRadius: '8px',
@@ -1894,21 +3203,18 @@ const FileManager = () => {
                       textAlign: 'center',
                       backgroundColor: '#f9fafb'
                     }}>
-                      <i className="ri-file-word-line" style={{fontSize: '64px', color: '#2563eb', marginBottom: '16px'}}></i>
-                      <h4>Document Viewer</h4>
+                      <i className="ri-file-line" style={{fontSize: '64px', color: '#6b7280', marginBottom: '16px'}}></i>
+                      <h4>No Preview Available</h4>
                       <p style={{color: '#6b7280', marginBottom: '16px'}}>
-                        {currentFile.content}
+                        This file is not stored on IPFS or preview is not available.
                       </p>
-                      <div style={{backgroundColor: 'white', padding: '20px', borderRadius: '8px', textAlign: 'left', marginTop: '16px'}}>
-                        <h5>Document Content:</h5>
-                        <div style={{fontFamily: 'system-ui', lineHeight: '1.6', color: '#374151'}}>
-                          <p><strong>Title:</strong> {currentFile.name.replace(/\.[^/.]+$/, "")}</p>
-                          <p><strong>Content Preview:</strong></p>
-                          <p>This document contains important information and would be rendered using an appropriate 
-                          document viewer. In a real application, you could use components like react-docx-preview 
-                          or convert the document to HTML for display.</p>
-                        </div>
-                      </div>
+                      <button 
+                        className="fm-btn fm-primary"
+                        onClick={() => downloadFile(currentFile)}
+                        style={{marginTop: '12px'}}
+                      >
+                        <i className="ri-download-line"></i> Download File
+                      </button>
                     </div>
                   )}
                   
@@ -2061,12 +3367,14 @@ const FileManager = () => {
                 }}>
                   <i className="ri-history-line"></i> Version History
                 </button>
-                <button className="fm-btn fm-primary" onClick={() => {
-                  closeFileModal();
-                  openShareModal([currentFile.id]);
-                }}>
-                  <i className="ri-share-line"></i> Share
-                </button>
+                {!currentFile?.isShared && (
+                  <button className="fm-btn fm-primary" onClick={() => {
+                    closeFileModal();
+                    openShareModal([currentFile.id]);
+                  }}>
+                    <i className="ri-share-line"></i> Share
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -2084,63 +3392,81 @@ const FileManager = () => {
               </div>
               <div className="fm-modal-body">
                 <div style={{maxHeight: '400px', overflowY: 'auto'}}>
-                  {(mockVersionHistory[currentFile.id] || versionHistory[currentFile.id] || []).map((version, index) => (
-                    <div key={index} style={{
-                      padding: '12px',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                      marginBottom: '8px',
-                      backgroundColor: index === 0 ? '#f0f9ff' : 'white'
-                    }}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
-                        <strong>Version {version.version} {index === 0 && '(Current)'}</strong>
-                        <span style={{fontSize: '12px', color: '#6b7280'}}>{version.size}</span>
-                      </div>
-                      <div style={{fontSize: '14px', color: '#374151', marginBottom: '4px'}}>
-                        {version.action}
-                      </div>
-                      <div style={{fontSize: '12px', color: '#6b7280'}}>
-                        By {version.user} • {version.date}
-                      </div>
-                      {index !== 0 && (
-                        <div style={{marginTop: '8px', display: 'flex', gap: '8px'}}>
-                          <button style={{
-                            padding: '4px 8px',
-                            fontSize: '12px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '4px',
-                            backgroundColor: 'white',
-                            cursor: 'pointer'
-                          }}>
-                            Restore
-                          </button>
-                          <button style={{
-                            padding: '4px 8px',
-                            fontSize: '12px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '4px',
-                            backgroundColor: 'white',
-                            cursor: 'pointer'
-                          }}>
-                            Download
-                          </button>
+                  {(versionHistory[currentFile.id] || []).length > 0 ? (
+                    (versionHistory[currentFile.id] || []).map((version, index) => (
+                      <div key={index} style={{
+                        padding: '12px',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        marginBottom: '8px',
+                        backgroundColor: index === 0 ? '#f0f9ff' : 'white'
+                      }}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
+                          <strong>Version {version.version} {index === 0 && '(Current)'}</strong>
+                          <span style={{fontSize: '12px', color: '#6b7280'}}>{version.size}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
-                  {(!mockVersionHistory[currentFile.id] && !versionHistory[currentFile.id]) && (
+                        <div style={{fontSize: '14px', color: '#374151', marginBottom: '4px'}}>
+                          {version.action}
+                        </div>
+                        <div style={{fontSize: '12px', color: '#6b7280'}}>
+                          By {version.user} • {version.date}
+                        </div>
+                        <div style={{marginTop: '8px', display: 'flex', gap: '8px'}}>
+                          <button 
+                            onClick={() => {
+                              const url = `https://gateway.pinata.cloud/ipfs/${version.ipfsHash}`;
+                              window.open(url, '_blank');
+                            }}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px',
+                              backgroundColor: 'white',
+                              cursor: 'pointer'
+                            }}>
+                            <i className="ri-download-line"></i> Download
+                          </button>
+                          {index !== 0 && (
+                            <button 
+                              onClick={() => {
+                                if (window.confirm(`Restore version ${version.version}? This will create a new version with the old file content.`)) {
+                                  // TODO: Implement restore functionality
+                                  showNotification('info', 'Coming Soon', 'Restore functionality will be implemented');
+                                }
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '12px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                backgroundColor: 'white',
+                                cursor: 'pointer'
+                              }}>
+                              <i className="ri-restart-line"></i> Restore
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
                     <div style={{textAlign: 'center', padding: '32px', color: '#6b7280'}}>
                       <i className="ri-history-line" style={{fontSize: '48px', marginBottom: '16px'}}></i>
                       <p>No version history available</p>
+                      <p style={{fontSize: '14px', marginTop: '8px'}}>
+                        This file has no previous versions. Upload a new version to start tracking changes.
+                      </p>
                     </div>
                   )}
                 </div>
               </div>
               <div className="fm-modal-footer">
                 <button className="fm-btn" onClick={() => setIsVersionModalOpen(false)}>Close</button>
-                <button className="fm-btn fm-primary" onClick={() => handleUpdateFile(currentFile)}>
-                  <i className="ri-upload-line"></i> Upload New Version
-                </button>
+                {!currentFile?.isShared && (
+                  <button className="fm-btn fm-primary" onClick={() => handleUpdateFile(currentFile)}>
+                    <i className="ri-upload-line"></i> Upload New Version
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -2149,7 +3475,10 @@ const FileManager = () => {
         <div className="fm-modal fm-share-modal fm-open">
           <div className="fm-modal-content">
             <div className="fm-modal-header">
-              <h3>Share on Blockchain</h3>
+              <h3>
+                <i className="ri-share-line"></i> Share Document
+                {currentSharingItems.length > 0 && ` - ${currentSharingItems[0].name}`}
+              </h3>
               <button className="fm-close-btn" onClick={closeShareModal}>
                 <i className="ri-close-line"></i>
               </button>
@@ -2157,31 +3486,171 @@ const FileManager = () => {
             <div className="fm-modal-body">
               <div className="fm-blockchain-info">
                 <h5><i className="ri-links-line"></i> Blockchain Document Sharing</h5>
-                <p>Share documents securely on the blockchain with immutable access records and smart contract permissions.</p>
+                <p>Share documents securely with users in your institution. Access permissions are recorded on the blockchain for immutability.</p>
               </div>
 
-              <div className="fm-share-section">
-                <h4><i className="ri-team-line"></i> Select Recipients</h4>
-                <div className="fm-user-list">
-                  {mockUsers.map(user => (
-                    <div key={user.id} className="fm-user-item">
-                      <div className="fm-user-avatar">{user.avatar}</div>
-                      <div className="fm-user-info">
-                        <div className="fm-user-name">{user.name}</div>
-                        <div className="fm-user-details">
-                          <span className={`fm-status-indicator ${user.online ? '' : 'offline'}`}></span>
-                          {user.email}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              {/* Search Users */}
+              <div className="fm-search-section" style={{marginTop: '20px'}}>
+                <div className="fm-search-box">
+                  <i className="ri-search-line"></i>
+                  <input 
+                    type="text" 
+                    placeholder="Search users by name or email..." 
+                    onChange={(e) => searchUsers(e.target.value)}
+                  />
                 </div>
               </div>
+
+              {/* Select Recipients */}
+              <div className="fm-share-section">
+                <h4><i className="ri-team-line"></i> Select Recipients ({institutionUsers.length} available)</h4>
+                <div className="fm-user-list" style={{
+                  maxHeight: '250px',
+                  overflowY: 'auto',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  padding: '10px'
+                }}>
+                  {institutionUsers && institutionUsers.length > 0 ? institutionUsers
+                    .filter(user => user.id !== currentUser?.id) // Don't show current user
+                    .map(user => {
+                      const isSelected = selectedRecipients.find(r => r.id === user.id);
+                      return (
+                        <div 
+                          key={user.id} 
+                          className="fm-user-item"
+                          onClick={() => toggleUserSelection(user)}
+                          style={{
+                            padding: '12px',
+                            cursor: 'pointer',
+                            borderRadius: '6px',
+                            marginBottom: '8px',
+                            border: isSelected ? '2px solid #10b981' : '1px solid #e5e7eb',
+                            backgroundColor: isSelected ? '#f0fdf4' : 'white',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                              <div className="fm-user-avatar" style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                backgroundImage: `url(${user.avatar})`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center'
+                              }}></div>
+                              <div className="fm-user-info">
+                                <div className="fm-user-name" style={{fontWeight: '600', fontSize: '14px'}}>
+                                  {user.username}
+                                  {isSelected && <i className="ri-check-line" style={{marginLeft: '8px', color: '#10b981'}}></i>}
+                                </div>
+                                <div className="fm-user-details" style={{fontSize: '12px', color: '#6b7280'}}>
+                                  {user.email}
+                                </div>
+                                {user.role && (
+                                  <div style={{fontSize: '11px', color: '#9ca3af', marginTop: '2px'}}>
+                                    Role: {user.role}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Permission Selector */}
+                            {isSelected && (
+                              <select
+                                value={isSelected.permission}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedRecipients(prev => 
+                                    prev.map(r => 
+                                      r.id === user.id 
+                                        ? {...r, permission: e.target.value} 
+                                        : r
+                                    )
+                                  );
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #d1d5db',
+                                  fontSize: '13px',
+                                  cursor: 'pointer',
+                                  backgroundColor: 'white'
+                                }}
+                              >
+                                <option value="read">👁️ View Only</option>
+                                <option value="write">✏️ Can Edit</option>
+                              </select>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }) : (
+                    <div className="fm-no-users" style={{
+                      textAlign: 'center',
+                      padding: '40px 20px',
+                      color: '#9ca3af'
+                    }}>
+                      <i className="ri-user-search-line" style={{fontSize: '48px', marginBottom: '12px', display: 'block'}}></i>
+                      <p>No users found in your institution.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Selected Recipients Summary */}
+              {selectedRecipients.length > 0 && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '12px',
+                  backgroundColor: '#f3f4f6',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <h5 style={{marginBottom: '8px', fontSize: '14px', fontWeight: '600'}}>
+                    <i className="ri-user-add-line"></i> Selected: {selectedRecipients.length} user(s)
+                  </h5>
+                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
+                    {selectedRecipients.map(recipient => (
+                      <div key={recipient.id} style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px 10px',
+                        backgroundColor: 'white',
+                        borderRadius: '16px',
+                        fontSize: '12px',
+                        border: '1px solid #d1d5db'
+                      }}>
+                        <span>{recipient.username}</span>
+                        <span style={{color: '#6b7280'}}>
+                          ({recipient.permission === 'write' ? '✏️ Edit' : '👁️ View'})
+                        </span>
+                        <i 
+                          className="ri-close-line" 
+                          onClick={() => toggleUserSelection(recipient)}
+                          style={{cursor: 'pointer', color: '#ef4444', marginLeft: '4px'}}
+                        ></i>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="fm-modal-footer">
               <button className="fm-btn" onClick={closeShareModal}>Cancel</button>
-              <button className="fm-btn fm-primary">
-                <i className="ri-send-plane-line"></i> Share on Blockchain
+              <button 
+                className="fm-btn fm-primary"
+                onClick={executeBlockchainShare}
+                disabled={selectedRecipients.length === 0}
+                style={{
+                  opacity: selectedRecipients.length === 0 ? 0.5 : 1,
+                  cursor: selectedRecipients.length === 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <i className="ri-send-plane-line"></i> Share with {selectedRecipients.length} user(s)
               </button>
             </div>
           </div>
@@ -2231,11 +3700,16 @@ const FileManager = () => {
                     <i className="ri-share-line"></i> Share Folder
                   </div>
                   <div {...getContextMenuItemProps('copy')}>
-                    <i className="ri-file-copy-line"></i> Make a copy
+                    <i className="ri-file-copy-line"></i> Copy
                   </div>
                   <div {...getContextMenuItemProps('move')}>
-                    <i className="ri-arrow-up-down-line"></i> Move
+                    <i className="ri-scissors-line"></i> Cut
                   </div>
+                  {clipboard.items.length > 0 && (
+                    <div {...getContextMenuItemProps('paste')}>
+                      <i className="ri-clipboard-line"></i> Paste {clipboard.items.length} item(s)
+                    </div>
+                  )}
                   <div {...getContextMenuItemProps('rename')}>
                     <i className="ri-edit-line"></i> Rename
                   </div>
@@ -2244,39 +3718,94 @@ const FileManager = () => {
                     <i className="ri-delete-bin-line"></i> Delete
                   </div>
                 </>
+              ) : contextMenu.type === 'empty' ? (
+                // Empty Space Context Menu
+                <>
+                  {clipboard.items.length > 0 && (
+                    <div {...getContextMenuItemProps('paste')}>
+                      <i className="ri-clipboard-line"></i> Paste {clipboard.items.length} item(s)
+                    </div>
+                  )}
+                  <div {...getContextMenuItemProps('refresh')}>
+                    <i className="ri-refresh-line"></i> Refresh
+                  </div>
+                  <div onClick={() => {
+                    hideContextMenu();
+                    setIsCreateFolderModalOpen(true);
+                  }} 
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  style={{
+                    padding: '8px 16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    fontSize: '14px',
+                    transition: 'background-color 0.15s'
+                  }}>
+                    <i className="ri-folder-add-line"></i> New Folder
+                  </div>
+                  <div onClick={() => {
+                    hideContextMenu();
+                    document.getElementById('hiddenFileInput').click();
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  style={{
+                    padding: '8px 16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    fontSize: '14px',
+                    transition: 'background-color 0.15s'
+                  }}>
+                    <i className="ri-upload-line"></i> Upload File
+                  </div>
+                </>
               ) : (
                 // File Context Menu
                 <>
                   <div {...getContextMenuItemProps('details')}>
                     <i className="ri-eye-line"></i> View details
                   </div>
+                  <div {...getContextMenuItemProps('open')}>
+                    <i className="ri-file-line"></i> Open
+                  </div>
                   <div {...getContextMenuItemProps('download')}>
                     <i className="ri-download-line"></i> Download
                   </div>
-                  <div {...getContextMenuItemProps('share')}>
-                    <i className="ri-share-line"></i> Share on Blockchain
-                  </div>
+                  {!contextMenu.item?.isShared && (
+                    <div {...getContextMenuItemProps('share')}>
+                      <i className="ri-share-line"></i> Share
+                    </div>
+                  )}
+                  <hr style={{margin: '6px 0', border: 'none', borderTop: '1px solid #e5e7eb'}} />
                   <div {...getContextMenuItemProps('copy')}>
-                    <i className="ri-file-copy-line"></i> Make a copy
+                    <i className="ri-file-copy-line"></i> Copy
                   </div>
                   <div {...getContextMenuItemProps('move')}>
-                    <i className="ri-arrow-up-down-line"></i> Move
+                    <i className="ri-scissors-line"></i> Cut
                   </div>
                   <div {...getContextMenuItemProps('rename')}>
                     <i className="ri-edit-line"></i> Rename
                   </div>
+                  <hr style={{margin: '6px 0', border: 'none', borderTop: '1px solid #e5e7eb'}} />
                   <div {...getContextMenuItemProps('star')}>
                     <i className="ri-star-line"></i> {starredItems.includes(contextMenu.item?.id) ? 'Remove star' : 'Add star'}
                   </div>
                   <div {...getContextMenuItemProps('version')}>
                     <i className="ri-history-line"></i> Version history
                   </div>
-                  <div {...getContextMenuItemProps('update')}>
-                    <i className="ri-refresh-line"></i> Update file
-                  </div>
+                  {!contextMenu.item?.isShared && (
+                    <div {...getContextMenuItemProps('update')}>
+                      <i className="ri-upload-cloud-line"></i> Update file
+                    </div>
+                  )}
                   <hr style={{margin: '6px 0', border: 'none', borderTop: '1px solid #e5e7eb'}} />
                   <div {...getContextMenuItemProps('delete', true)}>
-                    <i className="ri-delete-bin-line"></i> Move to trash
+                    <i className="ri-delete-bin-line"></i> Delete
                   </div>
                 </>
               )}
@@ -2344,6 +3873,56 @@ const FileManager = () => {
                   }}
                 >
                   <i className="ri-folder-add-line"></i> Create Folder
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {isDeleteModalOpen && deleteItem && (
+          <div className="fm-modal fm-open">
+            <div className="fm-modal-content" style={{maxWidth: '400px'}}>
+              <div className="fm-modal-header">
+                <h3>Confirm Delete</h3>
+                <button className="fm-close-btn" onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setDeleteItem(null);
+                }}>
+                  <i className="ri-close-line"></i>
+                </button>
+              </div>
+              <div className="fm-modal-body">
+                <div style={{marginBottom: '16px'}}>
+                  <p style={{fontSize: '14px', color: '#374151', marginBottom: '12px'}}>
+                    Are you sure you want to delete <strong>"{deleteItem.name}"</strong>?
+                  </p>
+                  {deleteItem.type === 'folder' && (
+                    <p style={{fontSize: '13px', color: '#dc2626', marginTop: '8px'}}>
+                      <i className="ri-alert-line"></i> This will also delete all files and subfolders inside it.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="fm-modal-footer">
+                <button 
+                  className="fm-btn" 
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setDeleteItem(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="fm-btn" 
+                  onClick={confirmDelete}
+                  style={{
+                    backgroundColor: '#dc2626',
+                    color: 'white'
+                  }}
+                >
+                  <i className="ri-delete-bin-line"></i> Delete
                 </button>
               </div>
             </div>

@@ -516,6 +516,57 @@ body {
     margin: 6px 0;
 }
 
+/* Menu container for 3-dot menus */
+.fm-menu-container {
+    position: relative;
+    display: inline-block;
+}
+
+.fm-menu-btn {
+    position: relative;
+    z-index: 10;
+}
+
+.fm-menu-container .fm-dropdown-menu {
+    position: absolute;
+    top: 110%;
+    right: 0;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: block;
+    min-width: 180px;
+    padding: 6px;
+    z-index: 1000;
+}
+
+.fm-menu-item {
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: #333;
+    transition: all 0.2s ease;
+}
+
+.fm-menu-item:hover {
+    background: #ecfdf5;
+    color: #11684f;
+}
+
+.fm-menu-item i {
+    font-size: 16px;
+    width: 20px;
+}
+
 /* Grid and List */
 .fm-collection {
     padding: 12px;
@@ -1520,4 +1571,58 @@ div[id="recent"] .fm-recent-badge {
     font-size: 11px !important;
     color: var(--primary) !important;
     margin-right: 2px !important;
+}
+
+/* Shared with me section styles */
+.fm-permission-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: capitalize;
+    background-color: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.fm-permission-badge.edit,
+.fm-permission-badge[data-permission="edit"],
+.fm-badge-write,
+.fm-permission-badge.write {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+}
+
+.fm-permission-badge.view,
+.fm-permission-badge[data-permission="view"],
+.fm-permission-badge.read,
+.fm-permission-badge[data-permission="read"],
+.fm-badge-read {
+    background-color: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+.fm-item-shared {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Ensure shared section uses the same grid layout */
+#section-shared .fm-list-header,
+#section-shared .fm-list-item {
+    display: grid;
+    grid-template-columns: 40px 1fr 140px 180px 100px 120px 80px;
+    gap: 12px;
+    align-items: center;
+}
+
+@media (max-width: 768px) {
+    #section-shared .fm-list-header,
+    #section-shared .fm-list-item {
+        grid-template-columns: 40px 1fr 80px;
+    }
 }
