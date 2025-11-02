@@ -40,6 +40,7 @@ class User(db.Model):
     
     # Relationships
     documents = db.relationship('Document', back_populates='owner', lazy='dynamic')
+    folders = db.relationship('Folder', back_populates='owner', lazy='dynamic')
     # shared_documents = db.relationship('DocumentShare', back_populates='shared_with_user', lazy='dynamic')
     
     def set_password(self, password):

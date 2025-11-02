@@ -699,3 +699,148 @@ div.content-grid {
   }
   .bar-actions{ flex-direction:column; }
 }
+
+/* Wallet Button Styles */
+.wallet-btn {
+  margin-right: 16px;
+}
+
+.wallet-btn button {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+.wallet-btn button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Wallet Dropdown Styles */
+.wallet-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-width: 300px;
+  max-width: 350px;
+  z-index: 9999;
+  margin-top: 4px;
+}
+
+.wallet-info {
+  padding: 16px;
+}
+
+.wallet-address-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wallet-address-section strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.wallet-address {
+  font-family: 'Courier New', monospace;
+  background: var(--background);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  word-break: break-all;
+  color: var(--text);
+  line-height: 1.4;
+  border: 1px solid var(--line);
+}
+
+.network-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.network-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.network-status.correct {
+  color: var(--success);
+}
+
+.network-status.incorrect {
+  color: #ff6b35;
+}
+
+.network-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.network-warning {
+  font-size: 11px;
+  color: #ff6b35;
+  margin-top: 4px;
+}
+
+.disconnect-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.disconnect-btn:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.dropdown-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9998;
+}
+
+/* Responsive wallet dropdown */
+@media (max-width: 768px) {
+  .wallet-dropdown {
+    min-width: 280px;
+    max-width: 320px;
+    left: -20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .wallet-dropdown {
+    min-width: 260px;
+    max-width: 300px;
+    left: -40px;
+  }
+}

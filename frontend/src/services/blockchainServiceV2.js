@@ -73,25 +73,52 @@ class BlockchainServiceV2 {
 
   // Handle account changes (wallet switching)
   handleAccountsChanged(accounts) {
-    console.log('🔄 Wallet switched:', accounts[0]);
-    this.currentWallet = accounts[0];
+    console.log('🔄 Wallet switched in blockchainServiceV2:', accounts[0]);
     
-    // Reinitialize signer and contract with new account
-    if (provider && accounts.length > 0) {
-      provider.getSigner().then(newSigner => {
-        signer = newSigner;
-        contract = new ethers.Contract(CONTRACT_ADDRESS, DocumentManagerV2ABI, signer);
-        console.log('✅ Contract reinitialized with new wallet');
-      });
+    if (accounts.length === 0) {
+      // User disconnected wallet
+      console.log('👋 Wallet disconnected');
+      this.currentWallet = null;
+      this.isInitialized = false;
+    } else {
+      // User switched to a different account
+      this.currentWallet = accounts[0];
+      
+      // Reinitialize signer and contract with new account
+      if (provider) {
+        provider.getSigner().then(newSigner => {
+          signer = newSigner;
+          contract = new ethers.Contract(CONTRACT_ADDRESS, DocumentManagerV2ABI, signer);
+          console.log('✅ Contract reinitialized with new wallet:', this.currentWallet);
+        }).catch(error => {
+          console.error('❌ Error reinitializing signer:', error);
+        });
+      }
     }
     
-    // Trigger page reload to update UI
-    window.location.reload();
+    // Note: Page reload removed - let WalletContext handle UI updates
+    // If you need to reload data, dispatch a custom event instead
+    window.dispatchEvent(new CustomEvent('walletChanged', { 
+      detail: { address: accounts[0] } 
+    }));
   }
 
   // Handle chain changes
   handleChainChanged(chainId) {
     console.log('🔄 Network changed:', chainId);
+    
+    // Check if still on Sepolia
+    const newChainId = parseInt(chainId, 16);
+    if (newChainId !== SEPOLIA_CHAIN_ID) {
+      console.warn('⚠️ Not on Sepolia network anymore. ChainId:', newChainId);
+    }
+    
+    // Dispatch event for components to handle
+    window.dispatchEvent(new CustomEvent('networkChanged', { 
+      detail: { chainId: newChainId } 
+    }));
+    
+    // Reload page to reset state (optional - you can handle this in components instead)
     window.location.reload();
   }
 

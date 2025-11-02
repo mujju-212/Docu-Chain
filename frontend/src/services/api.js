@@ -77,3 +77,75 @@ api.interceptors.response.use(
 )
 
 export default api
+
+// Star/Unstar functions
+export const toggleStarDocument = async (documentId) => {
+  try {
+    const response = await api.put(`/documents/${documentId}/star`);
+    return response.data;
+  } catch (error) {
+    console.error('Error toggling document star:', error);
+    throw error;
+  }
+};
+
+export const toggleStarFolder = async (folderId) => {
+  try {
+    const response = await api.put(`/folders/${folderId}/star`);
+    return response.data;
+  } catch (error) {
+    console.error('Error toggling folder star:', error);
+    throw error;
+  }
+};
+
+export const getStarredDocuments = async () => {
+  try {
+    const response = await api.get('/documents/starred');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching starred documents:', error);
+    throw error;
+  }
+};
+
+export const getStarredFolders = async () => {
+  try {
+    const response = await api.get('/folders/starred');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching starred folders:', error);
+    throw error;
+  }
+};
+
+// Recent Activity functions
+export const getRecentActivities = async (limit = 20) => {
+  try {
+    const response = await api.get(`/recent?limit=${limit}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching recent activities:', error);
+    throw error;
+  }
+};
+
+export const addRecentActivity = async (activityData) => {
+  try {
+    const response = await api.post('/recent', activityData);
+    return response.data;
+  } catch (error) {
+    console.error('Error adding recent activity:', error);
+    throw error;
+  }
+};
+
+export const clearRecentActivities = async () => {
+  try {
+    const response = await api.delete('/recent/clear');
+    return response.data;
+  } catch (error) {
+    console.error('Error clearing recent activities:', error);
+    throw error;
+  }
+};

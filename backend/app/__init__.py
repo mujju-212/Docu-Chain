@@ -26,10 +26,10 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     jwt.init_app(app)
     
-    # Setup CORS
+    # Setup CORS - Allow all origins during development
     CORS(app, resources={
         r"/api/*": {
-            "origins": app.config['CORS_ORIGINS'],
+            "origins": "*",  # Allow all origins during development
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
             "supports_credentials": True
@@ -39,11 +39,23 @@ def create_app(config_name=None):
     # Initialize SocketIO
     socketio.init_app(app, cors_allowed_origins=app.config['CORS_ORIGINS'])
     
+    # Global OPTIONS handler - handle ALL preflight requests BEFORE any other processing
+    @app.before_request
+    def handle_preflight():
+        from flask import request, make_response
+        if request.method == 'OPTIONS':
+            response = make_response('', 200)
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+            response.headers['Access-Control-Max-Age'] = '3600'
+            return response
+    
     # Import models to ensure they are registered with SQLAlchemy
-    from app.models import user, document, institution
+    from app.models import user, document, institution, folder, recent_activity
     
     # Register blueprints
-    from app.routes import auth, documents, users, approvals, chat, circulars, institutions
+    from app.routes import auth, documents, users, approvals, chat, circulars, institutions, folders, shares, recent
     
     app.register_blueprint(auth.bp, url_prefix='/api/auth')
     app.register_blueprint(documents.bp, url_prefix='/api/documents')
@@ -52,6 +64,9 @@ def create_app(config_name=None):
     app.register_blueprint(chat.bp, url_prefix='/api/chat')
     app.register_blueprint(circulars.bp, url_prefix='/api/circulars')
     app.register_blueprint(institutions.bp, url_prefix='/api/institutions')
+    app.register_blueprint(folders.bp, url_prefix='/api/folders')
+    app.register_blueprint(shares.bp)  # /api/shares prefix already in blueprint
+    app.register_blueprint(recent.bp)  # /api/recent prefix already in blueprint
     
     # Create upload folder if it doesn't exist
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -60,6 +75,11 @@ def create_app(config_name=None):
     @app.route('/api/health')
     def health_check():
         return {'status': 'healthy', 'message': 'DocuChain API is running'}, 200
+    
+    # Simple test endpoint for CORS testing
+    @app.route('/api/test', methods=['GET', 'OPTIONS'])
+    def test_cors():
+        return {'message': 'CORS test successful', 'timestamp': 'now'}, 200
     
     # Error handlers
     @app.errorhandler(404)

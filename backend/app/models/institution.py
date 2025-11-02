@@ -55,7 +55,7 @@ class Department(db.Model):
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = db.Column(db.String(100), nullable=False)
     institution_id = db.Column(db.Integer, db.ForeignKey('institutions.id'), nullable=False)
-    head_of_department_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    head_of_department = db.Column(db.Integer, db.ForeignKey('users.id'))
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -69,7 +69,7 @@ class Department(db.Model):
             'id': self.id,
             'name': self.name,
             'institutionId': self.institution_id,
-            'headOfDepartmentId': self.head_of_department_id,
+            'headOfDepartment': self.head_of_department,
             'createdAt': self.created_at.isoformat() if self.created_at else None
         }
 

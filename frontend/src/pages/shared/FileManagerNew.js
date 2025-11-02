@@ -5,6 +5,7 @@ import { useWallet } from '../../contexts/WalletContext';
 import hybridFileManagerService from '../../services/hybridFileManagerService';
 import blockchainServiceV2 from '../../services/blockchainServiceV2';
 import pinataService from '../../services/pinataService';
+import { toggleStarDocument, toggleStarFolder, getStarredDocuments, getStarredFolders, getRecentActivities, addRecentActivity as addRecentActivityAPI } from '../../services/api';
 import './FileManagerNew.css';
 
 const FileManager = () => {
@@ -85,6 +86,11 @@ const FileManager = () => {
   const [recentItems, setRecentItems] = useState([]);
   const [sharedWithMeItems, setSharedWithMeItems] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
+  
+  // Quick Access filtered view state
+  const [filteredView, setFilteredView] = useState(null); // 'documents', 'images', 'videos', or null
+  const [filteredFiles, setFilteredFiles] = useState([]); // Store all files when filtering is active
+  const [totalFileCounts, setTotalFileCounts] = useState({ documents: 0, images: 0, videos: 0, shared: 0 }); // Total counts across all folders
 
   // File system data - now loaded from blockchain
   const [fileSystem, setFileSystem] = useState({
@@ -106,6 +112,9 @@ const FileManager = () => {
     if (!dateString) return 'Unknown';
     try {
       const date = new Date(dateString);
+      // Check if date is valid
+      if (isNaN(date.getTime())) return 'Unknown';
+      
       const now = new Date();
       const diffTime = Math.abs(now - date);
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -117,6 +126,7 @@ const FileManager = () => {
       if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
       return date.toLocaleDateString();
     } catch (e) {
+      console.error('Error formatting date:', dateString, e);
       return 'Unknown';
     }
   };
@@ -124,10 +134,7 @@ const FileManager = () => {
   // Initialize file manager (backend connection only)
   useEffect(() => {
     console.log('📂 Initializing File Manager...');
-    initializeBlockchainConnection();  // Connect to backend file service
-    loadCurrentUser();  // Load user data
-    loadInstitutionUsers();  // Load users for sharing functionality
-    loadSharedWithMe();  // Load shared documents
+    initializeBlockchainConnection();  // This will load everything after authentication
     
     // Note: Wallet connection is handled globally by WalletProvider in App.js
     // No need to initialize blockchain/MetaMask here
@@ -154,8 +161,19 @@ const FileManager = () => {
       }
     };
     
+    const handleScroll = () => {
+      if (activeMenu !== null) {
+        setActiveMenu(null);
+      }
+    };
+    
     document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, true); // Use capture phase to catch all scrolls
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
   }, [activeMenu]);
 
   // Reload files when currentFolderId changes (for navigation)
@@ -269,9 +287,15 @@ const FileManager = () => {
         console.log('✅ Service initialized successfully');
         console.log('👤 User data:', result.user);
         
-        // Note: Blockchain connection state is managed by WalletContext
-        // Just load the files from database
-        await loadBlockchainFiles();
+        // Load all data in order after successful authentication
+        await loadCurrentUser();  // Load user data
+        await loadInstitutionUsers();  // Load users for sharing functionality
+        await loadBlockchainFiles();  // Load files from database
+        await loadStarredItems(); // Load starred items after files
+        await loadSharedWithMe();  // Load shared documents
+        await loadTotalFileCounts();  // Load total file counts for Quick Access
+        await loadRecentActivities(); // Load recent activities from database
+        
         showNotification('success', 'Connected', 'Connected to file manager successfully!');
       } else {
         console.error('❌ Service initialization failed:', result.error);
@@ -290,17 +314,6 @@ const FileManager = () => {
     console.log('🔄 loadBlockchainFiles called');
     console.log('🔍 Loading files for folder:', currentFolderId);
     console.log('🔍 Current path:', currentPath);
-    
-    // TEMPORARY: Test direct API call to see what backend returns
-    try {
-      const testResponse = await axios.get(`http://localhost:5000/api/documents/`, {
-        params: currentFolderId ? { folder_id: currentFolderId } : {},
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      console.log('🧪 DIRECT API TEST - Backend returned:', testResponse.data);
-    } catch (testError) {
-      console.log('🧪 DIRECT API TEST - Error:', testError.response?.data);
-    }
     
     try {
       // Load folders for current directory
@@ -363,7 +376,7 @@ const FileManager = () => {
             modified: formatDate(docDate),
             date: docDate,
             owner: 'You',
-            shared: false, // TODO: Check if document is shared
+            shared: doc.isShared || false, // Check if document is shared from backend
             folderId: doc.folderId || doc.folder_id, // Support both camelCase and snake_case
             documentId: doc.documentId || doc.document_id, // Blockchain document ID
             ipfsHash: doc.ipfsHash || doc.ipfs_hash,
@@ -400,16 +413,137 @@ const FileManager = () => {
     }
   };
 
+  // Load starred items from API
+  const loadStarredItems = async () => {
+    try {
+      const [documentsResult, foldersResult] = await Promise.all([
+        getStarredDocuments(),
+        getStarredFolders()
+      ]);
+      
+      const starredIds = [];
+      
+      if (documentsResult.success && documentsResult.documents) {
+        documentsResult.documents.forEach(doc => {
+          starredIds.push(doc.id);
+          // Update the document in blockchainFiles if it exists
+          setBlockchainFiles(prev => prev.map(f => 
+            f.id === doc.id ? { ...f, isStarred: true } : f
+          ));
+        });
+      }
+      
+      if (foldersResult.success && foldersResult.folders) {
+        foldersResult.folders.forEach(folder => {
+          starredIds.push(folder.id);
+          // Update the folder in blockchainFolders if it exists
+          setBlockchainFolders(prev => prev.map(f => 
+            f.id === folder.id ? { ...f, isStarred: true } : f
+          ));
+        });
+      }
+      
+      setStarredItems(starredIds);
+      console.log('✅ Loaded starred items:', starredIds.length);
+    } catch (error) {
+      console.error('Error loading starred items:', error);
+    }
+  };
+
+  // Load recent activities from API
+  const loadRecentActivities = async () => {
+    try {
+      // Check if user is authenticated
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('⚠️ No auth token - skipping recent activities load');
+        return;
+      }
+      
+      const result = await getRecentActivities(20);
+      
+      if (result.success && result.activities) {
+        setRecentItems(result.activities);
+        console.log('✅ Loaded recent activities:', result.activities.length);
+      }
+    } catch (error) {
+      console.error('Error loading recent activities:', error);
+      // Don't show error notification - this is a background load
+    }
+  };
+
+  // Load total file counts for Quick Access cards
+  const loadTotalFileCounts = async () => {
+    try {
+      console.log('📊 Loading total file counts...');
+      
+      // Check if user is authenticated
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('⚠️ No auth token - skipping file counts load');
+        return;
+      }
+      
+      // Fetch ALL documents recursively from all folders
+      const documentsResult = await hybridFileManagerService.getDocuments(null, true);
+      
+      if (documentsResult.success && documentsResult.documents) {
+        const allDocs = documentsResult.documents;
+        
+        const counts = {
+          documents: 0,
+          images: 0,
+          videos: 0
+        };
+        
+        allDocs.forEach(doc => {
+          const fileType = getFileTypeFromMime(doc.documentType || doc.document_type);
+          
+          // Count by type (getFileTypeFromMime returns: 'pdf', 'doc', 'sheet', 'image', 'video', 'audio', 'other')
+          if (fileType === 'pdf' || fileType === 'doc' || fileType === 'sheet') {
+            counts.documents++;
+          } else if (fileType === 'image') {
+            counts.images++;
+          } else if (fileType === 'video') {
+            counts.videos++;
+          }
+        });
+        
+        setTotalFileCounts(counts);
+        console.log('✅ Total file counts loaded:', counts);
+      }
+    } catch (error) {
+      console.error('Error loading total file counts:', error);
+    }
+  };
+
   // Helper function to convert MIME type to file type
   const getFileTypeFromMime = (mimeType) => {
     if (!mimeType) return 'other';
     
-    if (mimeType.includes('pdf')) return 'pdf';
-    if (mimeType.includes('word') || mimeType.includes('doc')) return 'doc';
-    if (mimeType.includes('excel') || mimeType.includes('sheet')) return 'sheet';
-    if (mimeType.includes('image')) return 'image';
-    if (mimeType.includes('video')) return 'video';
-    if (mimeType.includes('audio')) return 'audio';
+    const mime = mimeType.toLowerCase();
+    
+    // Document types
+    if (mime.includes('pdf')) return 'pdf';
+    if (mime.includes('word') || mime.includes('msword') || mime.includes('doc')) return 'doc';
+    if (mime.includes('excel') || mime.includes('spreadsheet') || mime.includes('sheet')) return 'sheet';
+    
+    // Image types - check for common image MIME types
+    if (mime.includes('image')) return 'image';
+    if (mime.includes('jpg') || mime.includes('jpeg') || mime.includes('png') || 
+        mime.includes('gif') || mime.includes('svg') || mime.includes('bmp') || 
+        mime.includes('webp') || mime.includes('ico')) return 'image';
+    
+    // Video types - check for common video MIME types
+    if (mime.includes('video')) return 'video';
+    if (mime.includes('mp4') || mime.includes('avi') || mime.includes('mov') || 
+        mime.includes('wmv') || mime.includes('flv') || mime.includes('webm') || 
+        mime.includes('mkv') || mime.includes('mpeg')) return 'video';
+    
+    // Audio types
+    if (mime.includes('audio')) return 'audio';
+    if (mime.includes('mp3') || mime.includes('wav') || mime.includes('ogg')) return 'audio';
+    
     return 'other';
   };
 
@@ -442,11 +576,92 @@ const FileManager = () => {
     );
   };
 
+  // Get all files recursively from all folders (for Quick Access filtering)
+  const getAllFilesRecursively = async () => {
+    try {
+      console.log('🔍 Fetching ALL files from ALL folders for filtering...');
+      
+      // Check if user is authenticated
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('⚠️ No auth token - cannot fetch files');
+        return [];
+      }
+      
+      // Fetch ALL documents recursively from all folders
+      const documentsResult = await hybridFileManagerService.getDocuments(null, true);
+      
+      if (documentsResult.success && documentsResult.documents) {
+        const allFiles = documentsResult.documents.map(doc => {
+          const fileType = getFileTypeFromMime(doc.documentType || doc.document_type);
+          const docDate = doc.createdAt || doc.created_at;
+          const docSize = doc.fileSize || doc.file_size;
+          
+          // Debug: Log file type detection
+          console.log(`📄 File: ${doc.fileName || doc.file_name}, MIME: ${doc.documentType || doc.document_type}, Detected Type: ${fileType}`);
+          
+          return {
+            id: doc.id,
+            name: doc.fileName || doc.file_name,
+            type: fileType,
+            size: formatFileSize(docSize),
+            modified: formatDate(docDate),
+            date: docDate,
+            owner: 'You',
+            shared: false,
+            folderId: doc.folderId || doc.folder_id,
+            documentId: doc.documentId || doc.document_id,
+            ipfsHash: doc.ipfsHash || doc.ipfs_hash,
+            transactionHash: doc.transactionHash || doc.transaction_hash,
+            blockNumber: doc.blockNumber || doc.block_number,
+            isStarred: false,
+            isShared: false
+          };
+        });
+        
+        console.log(`✅ Fetched ${allFiles.length} files from all folders`);
+        return allFiles;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error fetching all files:', error);
+      return [];
+    }
+  };
+
   // Get current files and folders
   const getCurrentFiles = () => {
     console.log('🔍 getCurrentFiles called, currentPath:', currentPath);
     console.log('🔍 currentFolderId:', currentFolderId);
+    console.log('🔍 filteredView:', filteredView);
     console.log('🔍 fileSystem contents:', fileSystem);
+    
+    // If we're in a filtered view (Documents, Images, Videos), show ALL files of that type
+    if (filteredView && filteredFiles.length > 0) {
+      let filtered = [];
+      switch(filteredView) {
+        case 'documents':
+          // Filter for PDF, DOC, SHEET types
+          filtered = filteredFiles.filter(file => 
+            file.type === 'pdf' || file.type === 'doc' || file.type === 'sheet'
+          );
+          break;
+        case 'images':
+          // Filter for IMAGE type
+          filtered = filteredFiles.filter(file => file.type === 'image');
+          break;
+        case 'videos':
+          // Filter for VIDEO type
+          filtered = filteredFiles.filter(file => file.type === 'video');
+          break;
+        default:
+          filtered = filteredFiles;
+      }
+      
+      console.log(`🔍 Filtered view (${filteredView}) returning ${filtered.length} files from ${filteredFiles.length} total files`);
+      return filtered;
+    }
     
     // DEBUG: Log each item in fileSystem to see what we have
     if (fileSystem && Array.isArray(fileSystem)) {
@@ -490,6 +705,17 @@ const FileManager = () => {
             return include;
           }
           if (isFile) {
+            // Special case: For Received/Sent folders, ALL files in fileSystem should be shown
+            // because the backend already handles the filtering for shared documents
+            const currentFolderInStack = folderStack[folderStack.length - 1];
+            const isSpecialFolder = currentFolderInStack && 
+              (currentFolderInStack.name === 'Received' || currentFolderInStack.name === 'Sent');
+            
+            if (isSpecialFolder) {
+              console.log(`  → File ${item.name}: In ${currentFolderInStack.name} folder, showing ALL files from backend`);
+              return true; // Show all files returned by backend for special folders
+            }
+            
             const include = item.folderId === currentFolderId;
             console.log(`  → File ${item.name}: folderId=${item.folderId} === currentFolderId=${currentFolderId}? ${include}`);
             return include;
@@ -510,18 +736,49 @@ const FileManager = () => {
     let starredFiles = [];
     
     try {
-      // Check starred folders
-      if (blockchainFolders && Array.isArray(blockchainFolders)) {
-        starredFiles.push(...blockchainFolders.filter(folder => 
-          folder && starredItems.includes(folder.id)
-        ));
-      }
-      
-      // Check starred files  
-      if (blockchainFiles && Array.isArray(blockchainFiles)) {
-        starredFiles.push(...blockchainFiles.filter(file => 
-          file && starredItems.includes(file.id)
-        ));
+      // Use fileSystem array which has properly formatted data (name, size, modified, owner, etc.)
+      if (fileSystem && Array.isArray(fileSystem)) {
+        starredFiles = fileSystem.filter(item => 
+          item && starredItems.includes(item.id)
+        );
+      } else {
+        // Fallback: Check starred folders and files from blockchain data
+        if (blockchainFolders && Array.isArray(blockchainFolders)) {
+          const folders = blockchainFolders
+            .filter(folder => folder && starredItems.includes(folder.id))
+            .map(folder => ({
+              id: folder.id,
+              name: folder.name,
+              type: 'folder',
+              size: ((folder.documentCount || 0) + (folder.subfolderCount || 0)) > 0 
+                ? `${(folder.documentCount || 0) + (folder.subfolderCount || 0)} items` 
+                : 'Empty',
+              modified: formatDate(folder.updatedAt || folder.updated_at || folder.createdAt || folder.created_at),
+              owner: 'You',
+              isStarred: true,
+              isShared: folder.isShared || false
+            }));
+          starredFiles.push(...folders);
+        }
+        
+        // Check starred files  
+        if (blockchainFiles && Array.isArray(blockchainFiles)) {
+          const files = blockchainFiles
+            .filter(file => file && starredItems.includes(file.id))
+            .map(file => ({
+              id: file.id,
+              name: file.fileName || file.file_name,
+              type: getFileTypeFromMime(file.documentType || file.document_type),
+              size: formatFileSize(file.fileSize || file.file_size),
+              modified: formatDate(file.createdAt || file.created_at),
+              owner: 'You',
+              documentId: file.documentId || file.document_id,
+              ipfsHash: file.ipfsHash || file.ipfs_hash,
+              isStarred: true,
+              isShared: false
+            }));
+          starredFiles.push(...files);
+        }
       }
     } catch (error) {
       console.error('Error getting starred files:', error);
@@ -583,7 +840,9 @@ const FileManager = () => {
         type: 'folder',
         name: folder.name,
         modified: folder.trashDate || folder.trash_date || folder.updatedAt || folder.updated_at,
-        size: '-'
+        deletedDate: formatDate(folder.trashDate || folder.trash_date || folder.updatedAt || folder.updated_at),
+        size: '-',
+        originalPath: folder.path || folder.parent_path || '/'
       }));
       
       const trashedDocs = (docsResponse.data.documents || []).map(doc => ({
@@ -591,7 +850,9 @@ const FileManager = () => {
         type: doc.documentType || doc.document_type || 'file',
         name: doc.fileName || doc.file_name,
         modified: doc.trashDate || doc.trash_date || doc.updatedAt || doc.updated_at,
-        size: doc.fileSize || doc.file_size
+        deletedDate: formatDate(doc.trashDate || doc.trash_date || doc.updatedAt || doc.updated_at),
+        size: doc.fileSize || doc.file_size,
+        originalPath: doc.folder_path || doc.folderPath || '/'
       }));
       
       setTrashedItems([...trashedFolders, ...trashedDocs]);
@@ -627,6 +888,9 @@ const FileManager = () => {
         }));
         
         setSharedWithMeItems(sharedDocs);
+        
+        // Don't automatically add to recent - only add when user actually opens the file
+        
         console.log(`✅ Loaded ${sharedDocs.length} shared documents`);
       }
       
@@ -644,6 +908,93 @@ const FileManager = () => {
     );
   };
 
+  // Helper function to add recent activity
+  const addRecentActivity = useCallback((fileId, fileName, action, fileType = 'file', additionalData = {}) => {
+    const newItem = {
+      fileId: fileId,
+      id: fileId, // Add id for consistency
+      name: fileName,
+      action: action, // 'uploaded', 'updated', 'opened', 'received', 'created', 'folder-opened'
+      time: new Date().toISOString(),
+      type: fileType,
+      // Store additional data like size, owner, etc.
+      size: additionalData.size || 'Unknown',
+      owner: additionalData.owner || 'You',
+      modified: additionalData.modified || new Date().toISOString(),
+      ...additionalData // Include any other data passed
+    };
+    
+    // Update local state
+    setRecentItems(prev => {
+      // Remove any existing entry for this file/folder
+      const filtered = prev.filter(item => item.fileId !== fileId);
+      // Add new entry at the beginning and keep only last 20 items
+      return [newItem, ...filtered].slice(0, 20);
+    });
+    
+    // Save to database via API
+    addRecentActivityAPI({
+      fileId: fileId,
+      fileName: fileName,
+      action: action,
+      fileType: fileType,
+      size: additionalData.size,
+      owner: additionalData.owner,
+      documentId: additionalData.documentId,
+      ipfsHash: additionalData.ipfsHash
+    }).catch(error => {
+      console.error('Failed to save recent activity to database:', error);
+    });
+  }, []);
+
+  // Get file extension helper
+  const getFileExtension = (filename) => {
+    if (!filename) return 'file';
+    const ext = filename.split('.').pop().toLowerCase();
+    if (['pdf'].includes(ext)) return 'pdf';
+    if (['doc', 'docx'].includes(ext)) return 'doc';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return 'sheet';
+    if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(ext)) return 'image';
+    if (['mp4', 'avi', 'mov', 'wmv', 'mkv'].includes(ext)) return 'video';
+    return 'file';
+  };
+
+  // Format time ago helper
+  const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return 'Unknown';
+    
+    try {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+      if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      
+      return date.toLocaleDateString();
+    } catch (e) {
+      return 'Unknown';
+    }
+  };
+
+  // Get activity icon and color
+  const getActivityIcon = (action) => {
+    const icons = {
+      'uploaded': { icon: 'ri-upload-cloud-line', color: '#10b981' },
+      'updated': { icon: 'ri-refresh-line', color: '#3b82f6' },
+      'opened': { icon: 'ri-eye-line', color: '#6366f1' },
+      'received': { icon: 'ri-share-forward-line', color: '#8b5cf6' },
+      'created': { icon: 'ri-add-circle-line', color: '#f59e0b' },
+      'folder-opened': { icon: 'ri-folder-open-line', color: '#f59e0b' }
+    };
+    return icons[action] || { icon: 'ri-file-line', color: '#6b7280' };
+  };
+
   // Utility Functions
   const getFileColor = (type) => {
     const colors = {
@@ -651,7 +1002,8 @@ const FileManager = () => {
       doc: '#2563eb',
       sheet: '#059669',
       image: '#7c3aed',
-      video: '#dc2626'
+      video: '#dc2626',
+      folder: '#f59e0b'
     };
     return colors[type] || currentTheme.primary;
   };
@@ -667,43 +1019,89 @@ const FileManager = () => {
     return names[type] || 'File';
   };
 
-  // Generate quick access data based on blockchain files
+  // Generate quick access data based on total file counts
   const getQuickAccessItems = () => {
-    const documentTypes = ['pdf', 'doc', 'docx'];
-    const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'image'];
-    const videoTypes = ['mp4', 'avi', 'mov', 'wmv', 'video'];
-    
-    // Ensure blockchainFiles is an array before filtering
-    const files = Array.isArray(blockchainFiles) ? blockchainFiles : [];
-    
-    const docCount = files.filter(file => 
-      documentTypes.some(type => file.type?.toLowerCase().includes(type))
-    ).length;
-    
-    const imageCount = files.filter(file => 
-      imageTypes.some(type => file.type?.toLowerCase().includes(type))
-    ).length;
-    
-    const videoCount = files.filter(file => 
-      videoTypes.some(type => file.type?.toLowerCase().includes(type))
-    ).length;
-    
-    const sharedCount = files.filter(file => file.shared).length;
-    const recentCount = files.filter(file => {
-      const fileDate = new Date(file.modified);
-      const daysDiff = Math.floor((Date.now() - fileDate.getTime()) / (1000 * 60 * 60 * 24));
-      return daysDiff <= 7;
-    }).length;
+    // Use cached total counts instead of current folder files
+    const recentCount = Array.isArray(recentItems) ? recentItems.length : 0;
     const starredCount = Array.isArray(starredItems) ? starredItems.length : 0;
+    const sharedCount = Array.isArray(sharedWithMeItems) ? sharedWithMeItems.length : 0;
     
     return [
-      { id: 1, name: 'Documents', icon: 'ri-file-text-line', count: docCount },
-      { id: 2, name: 'Images', icon: 'ri-image-line', count: imageCount },
-      { id: 3, name: 'Videos', icon: 'ri-video-line', count: videoCount },
+      { id: 1, name: 'Documents', icon: 'ri-file-text-line', count: totalFileCounts.documents },
+      { id: 2, name: 'Images', icon: 'ri-image-line', count: totalFileCounts.images },
+      { id: 3, name: 'Videos', icon: 'ri-video-line', count: totalFileCounts.videos },
       { id: 4, name: 'Shared', icon: 'ri-share-line', count: sharedCount },
       { id: 5, name: 'Recent', icon: 'ri-time-line', count: recentCount },
       { id: 6, name: 'Starred', icon: 'ri-star-line', count: starredCount }
     ];
+  };
+
+  // Handle Quick Access card clicks
+  const handleQuickAccessClick = async (itemName) => {
+    console.log('🎯 Quick Access clicked:', itemName);
+    
+    switch(itemName.toLowerCase()) {
+      case 'documents':
+        setFilteredView('documents');
+        setCurrentSection('section-all');
+        // Reset folder navigation to show all files
+        setCurrentFolderId(null);
+        setCurrentPath('/');
+        setFolderStack([{id: null, name: 'Home', path: '/'}]);
+        // Load all files from all folders
+        const allDocsFiles = await getAllFilesRecursively();
+        setFilteredFiles(allDocsFiles);
+        showNotification('info', 'Documents Filter', 'Loading all documents from all folders...');
+        break;
+        
+      case 'images':
+        setFilteredView('images');
+        setCurrentSection('section-all');
+        setCurrentFolderId(null);
+        setCurrentPath('/');
+        setFolderStack([{id: null, name: 'Home', path: '/'}]);
+        // Load all files from all folders
+        const allImageFiles = await getAllFilesRecursively();
+        setFilteredFiles(allImageFiles);
+        showNotification('info', 'Images Filter', 'Loading all images from all folders...');
+        break;
+        
+      case 'videos':
+        setFilteredView('videos');
+        setCurrentSection('section-all');
+        setCurrentFolderId(null);
+        setCurrentPath('/');
+        setFolderStack([{id: null, name: 'Home', path: '/'}]);
+        // Load all files from all folders
+        const allVideoFiles = await getAllFilesRecursively();
+        setFilteredFiles(allVideoFiles);
+        showNotification('info', 'Videos Filter', 'Loading all videos from all folders...');
+        break;
+        
+      case 'shared':
+        setFilteredView(null);
+        setFilteredFiles([]);
+        setCurrentSection('section-shared');
+        showNotification('info', 'Shared Files', 'Showing files shared with you');
+        break;
+        
+      case 'recent':
+        setFilteredView(null);
+        setFilteredFiles([]);
+        setCurrentSection('section-recent');
+        showNotification('info', 'Recent Files', 'Showing your recent activity');
+        break;
+        
+      case 'starred':
+        setFilteredView(null);
+        setFilteredFiles([]);
+        setCurrentSection('section-starred');
+        showNotification('info', 'Starred Items', 'Showing your starred items');
+        break;
+        
+      default:
+        console.warn('Unknown Quick Access item:', itemName);
+    }
   };
 
   const showNotification = useCallback((type, title, message) => {
@@ -906,33 +1304,39 @@ const FileManager = () => {
     }
   };
 
-  // Load version history from blockchain
+  // Load version history from database API
   const loadVersionHistory = async (file) => {
     console.log('📜 Loading version history for:', file.name);
     
-    if (!file.documentId) {
-      console.warn('⚠️ No documentId found for file');
+    if (!file.id) {
+      console.warn('⚠️ No document ID found for file');
       showNotification('warning', 'No Version History', 'Document ID not found');
       return;
     }
 
     try {
-      showNotification('info', 'Loading...', 'Fetching version history from blockchain...');
+      showNotification('info', 'Loading...', 'Fetching version history from database...');
       
-      const result = await blockchainServiceV2.getDocumentVersionHistory(file.documentId);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `http://localhost:5000/api/documents/${file.id}/versions`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
       
-      if (result.success && result.versions.length > 0) {
+      if (response.data.success && response.data.versions.length > 0) {
         // Format versions for display
-        const formattedVersions = result.versions.map((v, index) => ({
+        const formattedVersions = response.data.versions.map(v => ({
           version: v.versionNumber,
-          action: v.changeLog || 'File updated',
-          user: `${v.updatedBy.substring(0, 6)}...${v.updatedBy.substring(38)}`,
-          date: v.date,
+          action: v.description || 'File updated',
+          user: file.owner || 'You',
+          date: v.createdAt,
           size: formatFileSize(v.fileSize),
           ipfsHash: v.ipfsHash,
           fileName: v.fileName,
           fileSize: v.fileSize,
-          isCurrent: index === 0
+          isCurrent: v.isCurrent
         }));
 
         setVersionHistory({
@@ -1053,6 +1457,9 @@ const FileManager = () => {
               : `${file.name} updated successfully!`;
             showNotification('success', 'File Updated', message);
             
+            // Track recent activity
+            addRecentActivity(file.id, newFile.name, 'updated', getFileExtension(newFile.name));
+            
             // Reload blockchain files to get updated data
             await loadBlockchainFiles();
             
@@ -1153,6 +1560,12 @@ const FileManager = () => {
 
       if (result.success) {
         await loadBlockchainFiles();
+        
+        // Track recent activity for folder creation
+        if (result.folder && result.folder.id) {
+          addRecentActivity(result.folder.id, newFolderName.trim(), 'created', 'folder');
+        }
+        
         showNotification('success', 'Folder Created', result.message);
         setNewFolderName('');
         setIsCreateFolderModalOpen(false);
@@ -1187,6 +1600,17 @@ const FileManager = () => {
       return;
     }
 
+    // Validate files before uploading
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    for (const file of files) {
+      const validation = pinataService.validateFile(file, maxSize);
+      if (!validation.isValid) {
+        console.error('❌ File validation failed:', validation.errors);
+        showNotification('error', 'Invalid File', validation.errors.join('. '));
+        return;
+      }
+    }
+
     setIsProgressModalOpen(true);
     setUploadProgress(0);
     setIsUploadingToBlockchain(true);
@@ -1194,7 +1618,7 @@ const FileManager = () => {
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        console.log(`📤 Processing file ${i + 1}/${files.length}: ${file.name}`);
+        console.log(`📤 Processing file ${i + 1}/${files.length}: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB)`);
         const baseProgress = (i / files.length) * 100;
         
         // Step 1: Upload to traditional database (25%)
@@ -1286,12 +1710,16 @@ const FileManager = () => {
           documentId: documentId
         });
         
+        // Track recent activity
+        addRecentActivity(result.document.id, file.name, 'uploaded', getFileExtension(file.name));
+        
         showNotification('success', 'File Uploaded', `${file.name} uploaded to blockchain successfully!`);
       }
 
       // Reload files after successful upload
       console.log('🔄 Reloading blockchain files');
       await loadBlockchainFiles();
+      await loadTotalFileCounts(); // Update Quick Access counts
     } catch (error) {
       console.error('💥 Upload error:', error);
       showNotification('error', 'Upload Failed', error.message);
@@ -1320,8 +1748,18 @@ const FileManager = () => {
       path: folder.path
     });
     
+    // Clear any filtered view when navigating into a folder
+    if (filteredView) {
+      setFilteredView(null);
+      setFilteredFiles([]);
+      console.log('🔄 Cleared filtered view when navigating into folder');
+    }
+    
     // Use folder_name if name is undefined
     const folderName = folder.name || folder.folder_name || folder.title || 'Unnamed Folder';
+    
+    // Track recent activity for folder opening
+    addRecentActivity(folder.id, folderName, 'folder-opened', 'folder');
     
     setCurrentFolderId(folder.id);
     setCurrentPath(folder.path || `${currentPath}${folderName}/`);
@@ -1403,15 +1841,38 @@ const FileManager = () => {
   };
 
   // File Operations
-  const toggleStar = (file) => {
-    const isStarred = starredItems.includes(file.id);
-    if (isStarred) {
-      setStarredItems(prev => prev.filter(id => id !== file.id));
-    } else {
-      setStarredItems(prev => [...prev, file.id]);
+  const toggleStar = async (file) => {
+    try {
+      const isFolder = file.type === 'folder';
+      const response = isFolder 
+        ? await toggleStarFolder(file.id)
+        : await toggleStarDocument(file.id);
+      
+      if (response.success) {
+        // Update starred items list
+        if (response.isStarred) {
+          setStarredItems(prev => [...prev, file.id]);
+        } else {
+          setStarredItems(prev => prev.filter(id => id !== file.id));
+        }
+        
+        // Update the file/folder in the lists
+        if (isFolder) {
+          setBlockchainFolders(prev => prev.map(f => 
+            f.id === file.id ? { ...f, isStarred: response.isStarred } : f
+          ));
+        } else {
+          setBlockchainFiles(prev => prev.map(f => 
+            f.id === file.id ? { ...f, isStarred: response.isStarred } : f
+          ));
+        }
+        
+        showNotification('success', 'Star Updated', response.message);
+      }
+    } catch (error) {
+      console.error('Error toggling star:', error);
+      showNotification('error', 'Error', 'Failed to update star status');
     }
-    showNotification('success', 'Star Updated', 
-      isStarred ? `Removed ${file.name} from starred` : `Added ${file.name} to starred`);
   };
 
   // Single click - show details
@@ -1422,21 +1883,31 @@ const FileManager = () => {
 
   // Double click - open file/folder
   const handleDoubleClick = (file) => {
+    console.log('🔍 Double-clicked file:', file);
+    
     if (file.type === 'folder') {
       // Navigate into folder
       navigateToFolder(file);
       const folderName = file.name || file.folder_name || file.title || 'Unnamed Folder';
+      addRecentActivity(file.id, folderName, 'folder-opened', 'folder', {
+        size: file.size || '-',
+        owner: file.owner || file.createdBy || 'You',
+        modified: file.modified || file.date || file.updatedAt || file.createdAt || new Date().toISOString()
+      });
       showNotification('info', 'Folder Opened', `Opened ${folderName} folder`);
     } else {
       // Open file for viewing/editing
-      setRecentItems(prev => {
-        const newItem = {
-          fileId: file.id,
-          action: 'opened',
-          time: new Date().toISOString().replace('T', ' ').slice(0, 16),
-          name: file.name
-        };
-        return [newItem, ...prev.filter(item => item.fileId !== file.id)].slice(0, 15);
+      const fileName = file.name || file.fileName || file.file_name || 'Unnamed File';
+      const fileSize = file.size || file.fileSize || file.file_size || 'Unknown';
+      const fileOwner = file.owner || file.createdBy || file.created_by || 'You';
+      const fileModified = file.modified || file.date || file.updatedAt || file.updated_at || file.createdAt || file.created_at || new Date().toISOString();
+      
+      addRecentActivity(file.id, fileName, 'opened', file.type, {
+        size: fileSize,
+        owner: fileOwner,
+        modified: fileModified,
+        documentId: file.documentId || file.document_id,
+        ipfsHash: file.ipfsHash || file.ipfs_hash
       });
       setCurrentFile(file);
       setIsFileModalOpen(true);
@@ -1461,13 +1932,20 @@ const FileManager = () => {
   };
 
   const openFile = (file) => {
-    setRecentItems(prev => {
-      const newItem = {
-        fileId: file.id,
-        action: 'opened',
-        time: new Date().toISOString().replace('T', ' ').slice(0, 16)
-      };
-      return [newItem, ...prev.filter(item => item.fileId !== file.id)].slice(0, 10);
+    console.log('📂 Opening file:', file);
+    
+    const fileName = file.name || file.fileName || file.file_name || 'Unnamed File';
+    const fileSize = file.size || file.fileSize || file.file_size || 'Unknown';
+    const fileOwner = file.owner || file.createdBy || file.created_by || 'You';
+    const fileModified = file.modified || file.date || file.updatedAt || file.updated_at || file.createdAt || file.created_at || new Date().toISOString();
+    const fileType = file.type || file.documentType || file.document_type || 'file';
+    
+    addRecentActivity(file.id, fileName, 'opened', fileType, {
+      size: fileSize,
+      owner: fileOwner,
+      modified: fileModified,
+      documentId: file.documentId || file.document_id,
+      ipfsHash: file.ipfsHash || file.ipfs_hash
     });
     setCurrentFile(file);
     setIsFileModalOpen(true);
@@ -1806,11 +2284,22 @@ const FileManager = () => {
         console.log('File data:', item);
         console.log(`  ID: ${fileId}, Blockchain ID: ${blockchainId}`);
         
+        // Check if blockchain ID is valid (must be 66 chars starting with 0x)
+        const isValidBlockchainId = blockchainId && 
+          typeof blockchainId === 'string' && 
+          blockchainId.startsWith('0x') && 
+          blockchainId.length === 66;
+        
+        if (!isValidBlockchainId) {
+          console.warn(`  ⚠️ Invalid or missing blockchain ID: "${blockchainId}"`);
+          console.warn(`  ⚠️ Skipping blockchain share, will only record in database`);
+        }
+        
         for (const recipient of selectedRecipients) {
           console.log(`  👤 Sharing with: ${recipient.username} (${recipient.email})`);
           console.log('  Recipient data:', recipient);
           
-          if (blockchainId) {
+          if (isValidBlockchainId) {
             console.log(`  ✅ File has blockchain ID: ${blockchainId}`);
             
             // Check if recipient has wallet address
@@ -1896,7 +2385,36 @@ const FileManager = () => {
               console.error(`  ❌ Blockchain share failed:`, blockchainResult);
             }
           } else {
-            console.warn(`  ⚠️ File has no blockchain ID, skipping: ${fileName}`);
+            // No valid blockchain ID - share only in database
+            console.warn(`  ⚠️ No valid blockchain ID - sharing only in database`);
+            try {
+              const shareResponse = await axios.post(
+                `http://localhost:5000/api/shares/document/${fileId}`,
+                {
+                  recipients: [{
+                    user_id: recipient.id,
+                    permission: recipient.permission
+                  }],
+                  transaction_hash: null,
+                  block_number: null
+                },
+                {
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                  }
+                }
+              );
+              
+              if (shareResponse.data.success) {
+                console.log(`  ✅ Database share successful (no blockchain)`);
+                successCount++;
+              } else {
+                console.error(`  ❌ Database share failed:`, shareResponse.data.error);
+              }
+            } catch (apiError) {
+              console.error(`  ❌ API error:`, apiError.response?.data || apiError.message);
+            }
           }
         }
       }
@@ -2234,7 +2752,12 @@ const FileManager = () => {
               </div>
               <div className="fm-qa" id="qaGrid">
                 {getQuickAccessItems().map(item => (
-                  <div key={item.id} className="fm-qa-card">
+                  <div 
+                    key={item.id} 
+                    className="fm-qa-card"
+                    onClick={() => handleQuickAccessClick(item.name)}
+                    style={{cursor: 'pointer'}}
+                  >
                     <div className="fm-qa-icon">
                       <i className={item.icon}></i>
                     </div>
@@ -2250,7 +2773,63 @@ const FileManager = () => {
           {currentSection === 'section-all' && (
             <section className="fm-section" id="section-all">
               <div className="fm-breadcrumb" id="breadcrumb">
-                {getBreadcrumbs().map((breadcrumb, index) => (
+                {/* Show filtered view indicator if active */}
+                {filteredView && (
+                  <>
+                    <a 
+                      href="#" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setFilteredView(null);
+                        setFilteredFiles([]);
+                        showNotification('info', 'Filter Cleared', 'Showing all files');
+                      }}
+                    >
+                      <i className="ri-home-4-line"></i>
+                    </a>
+                    <i className="ri-arrow-right-s-line"></i>
+                    <span className="fm-current" style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      backgroundColor: '#f0f9ff',
+                      padding: '4px 12px',
+                      borderRadius: '6px',
+                      color: '#0ea5e9'
+                    }}>
+                      <i className={
+                        filteredView === 'documents' ? 'ri-file-text-line' :
+                        filteredView === 'images' ? 'ri-image-line' :
+                        'ri-video-line'
+                      }></i>
+                      {filteredView.charAt(0).toUpperCase() + filteredView.slice(1)}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setFilteredView(null);
+                          setFilteredFiles([]);
+                          showNotification('info', 'Filter Cleared', 'Showing all files');
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '0',
+                          marginLeft: '4px',
+                          color: '#0ea5e9',
+                          fontSize: '16px',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <i className="ri-close-circle-line"></i>
+                      </button>
+                    </span>
+                  </>
+                )}
+                
+                {/* Regular breadcrumbs when not in filtered view */}
+                {!filteredView && getBreadcrumbs().map((breadcrumb, index) => (
                   <React.Fragment key={breadcrumb.path}>
                     {index > 0 && <i className="ri-arrow-right-s-line"></i>}
                     {index === getBreadcrumbs().length - 1 ? (
@@ -2267,6 +2846,8 @@ const FileManager = () => {
                             setCurrentFolderId(null);
                             setCurrentPath('/');
                             setFolderStack([{id: null, name: 'Home', path: '/'}]);
+                            setFilteredView(null); // Also clear any filtered view
+                            setFilteredFiles([]);
                             // useEffect will handle reloading files when currentFolderId changes
                           } else {
                             // Use navigateToBreadcrumb for non-home breadcrumbs
@@ -2461,7 +3042,7 @@ const FileManager = () => {
                             <i className="ri-star-fill" style={{position: 'absolute', top: '8px', right: '8px', color: '#fbbf24', fontSize: '12px'}}></i>
                           )}
                         </div>
-                        <div>{renameItem?.id === file.id ? (
+                        <div className="fm-card-name">{renameItem?.id === file.id ? (
                           <input 
                             value={newName}
                             onChange={(e) => setNewName(e.target.value)}
@@ -2567,255 +3148,497 @@ const FileManager = () => {
           {/* Other sections */}
           {currentSection === 'section-shared' && (
             <section className="fm-section" id="section-shared">
-              <div className="fm-section-head">
-                <h3 style={{margin:0}}>Shared with me</h3>
-                <span className="fm-pill">
-                  <i className="ri-share-line"></i> {sharedWithMeItems.length} {sharedWithMeItems.length === 1 ? 'document' : 'documents'}
+              <div className="fm-section-head" style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '24px'
+              }}>
+                <h3 style={{margin: 0, fontSize: '20px', fontWeight: '600'}}>Shared with me</h3>
+                <span className="fm-pill" style={{
+                  backgroundColor: currentTheme.primary + '15',
+                  color: currentTheme.primary,
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  fontSize: '13px',
+                  fontWeight: '500'
+                }}>
+                  <i className="ri-share-line" style={{marginRight: '6px'}}></i> 
+                  {sharedWithMeItems.length} {sharedWithMeItems.length === 1 ? 'document' : 'documents'}
                 </span>
               </div>
               
               {sharedWithMeItems.length === 0 ? (
-                <div className="fm-empty">
-                  <i className="ri-share-line" style={{fontSize: '48px', color: 'var(--icon)', marginBottom: '16px'}}></i>
-                  <p>No files shared with you yet.</p>
+                <div className="fm-empty" style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '80px 20px',
+                  color: '#9ca3af'
+                }}>
+                  <i className="ri-share-line" style={{
+                    fontSize: '64px',
+                    color: '#d1d5db',
+                    marginBottom: '20px',
+                    opacity: 0.5
+                  }}></i>
+                  <h4 style={{margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600', color: '#6b7280'}}>
+                    No shared files
+                  </h4>
+                  <p style={{margin: 0, fontSize: '14px', color: '#9ca3af'}}>
+                    Files shared with you will appear here
+                  </p>
                 </div>
               ) : (
-                <>
-                  <div className="fm-list-header">
-                    <div className="fm-header-icon"></div>
-                    <div className="fm-header-name">Name</div>
-                    <div className="fm-header-date fm-hide-mobile">Shared Date</div>
-                    <div className="fm-header-owner fm-hide-mobile">Shared By</div>
-                    <div className="fm-header-size fm-hide-mobile">Size</div>
-                    <div className="fm-header-shared fm-hide-mobile">Permission</div>
-                    <div className="fm-header-actions"></div>
-                  </div>
-
+                <div className="fm-files-list" style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
                   {sharedWithMeItems.map(item => (
                     <div
                       key={item.id}
                       className="fm-list-item"
+                      onClick={() => openFile(item)}
                       style={{
+                        display: 'grid',
+                        gridTemplateColumns: '50px 1fr auto',
+                        gap: '16px',
+                        padding: '16px',
+                        backgroundColor: selectedFiles.includes(item.id) 
+                          ? currentTheme.primary + '08'
+                          : 'transparent',
                         borderLeft: selectedFiles.includes(item.id) 
                           ? `3px solid ${currentTheme.primary}` 
-                          : '3px solid transparent'
+                          : `3px solid transparent`,
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        border: `1px solid ${currentTheme.border}`,
+                        alignItems: 'center'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!selectedFiles.includes(item.id)) {
+                          e.currentTarget.style.backgroundColor = currentTheme.hover;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!selectedFiles.includes(item.id)) {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }
                       }}
                     >
-                      <div className="fm-item-icon">
+                      {/* File Icon with Share Badge */}
+                      <div style={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
                         <i 
-                          className={`ri-${item.type === 'folder' ? 'folder' : 'file'}-line`}
-                          style={{color: getFileColor(item.type)}}
+                          className={`ri-${item.type === 'folder' ? 'folder' : 'file'}-fill`}
+                          style={{
+                            color: getFileColor(item.type),
+                            fontSize: '32px'
+                          }}
                         ></i>
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '-4px',
+                          right: '-4px',
+                          backgroundColor: '#8b5cf6',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: `2px solid ${currentTheme.background}`
+                        }}>
+                          <i className="ri-share-forward-line" style={{
+                            color: 'white',
+                            fontSize: '10px'
+                          }}></i>
+                        </div>
                       </div>
-                      <div className="fm-item-name">
-                        <div className="fm-item-title">{item.name}</div>
-                      </div>
-                      <div className="fm-item-date fm-hide-mobile">{formatDate(item.modified)}</div>
-                      <div className="fm-item-owner fm-hide-mobile">{item.owner}</div>
-                      <div className="fm-item-size fm-hide-mobile">{formatFileSize(item.size)}</div>
-                      <div className="fm-item-shared fm-hide-mobile">
-                        <span className={`fm-permission-badge ${item.permission === 'write' ? 'fm-badge-write' : 'fm-badge-read'}`}>
-                          {item.permission === 'write' ? 'Write' : 'Read'}
-                        </span>
-                      </div>
-                      <div className="fm-item-actions">
-                        <button 
-                          className="fm-action-btn"
-                          onClick={() => openFile(item)}
-                          title="View"
-                        >
-                          <i className="ri-eye-line"></i>
-                        </button>
-                        <button 
-                          className="fm-action-btn"
-                          onClick={() => downloadFile(item)}
-                          title="Download"
-                        >
-                          <i className="ri-download-line"></i>
-                        </button>
-                        {/* 3-dot menu for shared files */}
-                        <div className="fm-menu-container">
-                          <button 
-                            className="fm-action-btn fm-menu-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveMenu(activeMenu === item.id ? null : item.id);
-                            }}
-                            title="More options"
-                            id={`menu-btn-${item.id}`}
-                          >
-                            <i className="ri-more-2-fill"></i>
-                          </button>
-                          {activeMenu === item.id && (
-                            <div 
-                              className="fm-dropdown-menu" 
-                              onClick={(e) => e.stopPropagation()}
-                              style={{
-                                position: 'fixed',
-                                top: document.getElementById(`menu-btn-${item.id}`)?.getBoundingClientRect().bottom + 5 + 'px',
-                                right: window.innerWidth - (document.getElementById(`menu-btn-${item.id}`)?.getBoundingClientRect().right || 0) + 'px',
-                                backgroundColor: 'white',
-                                border: '1px solid var(--line)',
-                                borderRadius: '12px',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                                display: 'block',
-                                minWidth: '180px',
-                                padding: '6px',
-                                zIndex: 9999
-                              }}
-                            >
-                              <div className="fm-menu-item" onClick={() => { openFile(item); setActiveMenu(null); }}>
-                                <i className="ri-eye-line"></i>
-                                <span>View</span>
-                              </div>
-                              <div className="fm-menu-item" onClick={() => { downloadFile(item); setActiveMenu(null); }}>
-                                <i className="ri-download-line"></i>
-                                <span>Download</span>
-                              </div>
-                              {item.permission === 'write' && (
-                                <div className="fm-menu-item" onClick={() => { handleUpdateFile(item); setActiveMenu(null); }}>
-                                  <i className="ri-upload-line"></i>
-                                  <span>Update File</span>
-                                </div>
-                              )}
-                              <div className="fm-menu-item" onClick={() => { handleShowVersionHistory(item); setActiveMenu(null); }}>
-                                <i className="ri-history-line"></i>
-                                <span>Version History</span>
-                              </div>
-                              <div className="fm-menu-divider"></div>
-                              <div className="fm-menu-item" onClick={() => { handleShowFileInfo(item); setActiveMenu(null); }}>
-                                <i className="ri-information-line"></i>
-                                <span>Details</span>
-                              </div>
-                            </div>
+                      
+                      {/* File Info */}
+                      <div style={{display: 'flex', flexDirection: 'column', gap: '6px', overflow: 'hidden'}}>
+                        <div style={{
+                          fontWeight: '500',
+                          fontSize: '14px',
+                          color: currentTheme.text,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {item.name}
+                        </div>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#6b7280', flexWrap: 'wrap'}}>
+                          {/* Permission Badge */}
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '3px 10px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            backgroundColor: item.permission === 'write' 
+                              ? '#10b98120' 
+                              : '#3b82f620',
+                            color: item.permission === 'write' 
+                              ? '#059669' 
+                              : '#2563eb'
+                          }}>
+                            <i className={`ri-${item.permission === 'write' ? 'edit' : 'eye'}-line`} 
+                               style={{fontSize: '12px'}}></i>
+                            {item.permission === 'write' ? 'Can Edit' : 'View Only'}
+                          </span>
+                          
+                          <span>•</span>
+                          
+                          {/* Shared By */}
+                          <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                            <i className="ri-user-line" style={{fontSize: '14px'}}></i>
+                            {item.owner}
+                          </span>
+                          
+                          <span>•</span>
+                          
+                          {/* Date */}
+                          <span>{formatDate(item.modified)}</span>
+                          
+                          {/* Size */}
+                          {item.size && item.size !== '0 KB' && (
+                            <>
+                              <span>•</span>
+                              <span>{formatFileSize(item.size)}</span>
+                            </>
                           )}
                         </div>
                       </div>
+                      
+                      {/* Actions */}
+                      <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                        <button 
+                          className="fm-action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openFile(item);
+                          }}
+                          title="View"
+                          style={{
+                            padding: '8px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            color: '#6b7280',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = currentTheme.primary + '15';
+                            e.currentTarget.style.color = currentTheme.primary;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = '#6b7280';
+                          }}
+                        >
+                          <i className="ri-eye-line" style={{fontSize: '18px'}}></i>
+                        </button>
+                        <button 
+                          className="fm-action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadFile(item);
+                          }}
+                          title="Download"
+                          style={{
+                            padding: '8px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            color: '#6b7280',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = currentTheme.primary + '15';
+                            e.currentTarget.style.color = currentTheme.primary;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = '#6b7280';
+                          }}
+                        >
+                          <i className="ri-download-line" style={{fontSize: '18px'}}></i>
+                        </button>
+                        
+                        {/* 3-dot menu for shared files */}
+                        <button 
+                          className="fm-action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            showContextMenu(e, item, item.type === 'folder' ? 'folder' : 'file');
+                          }}
+                          title="More options"
+                          style={{
+                            padding: '8px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            color: '#6b7280',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = currentTheme.primary + '15';
+                            e.currentTarget.style.color = currentTheme.primary;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = '#6b7280';
+                          }}
+                        >
+                          <i className="ri-more-2-fill" style={{fontSize: '18px'}}></i>
+                        </button>
+                      </div>
                     </div>
                   ))}
-                </>
+                </div>
               )}
             </section>
           )}
 
           {currentSection === 'section-recent' && (
             <div className="fm-tab-content" id="recent" style={{display: 'block'}}>
-              <div className="fm-section-header">
-                <h3>Recent</h3>
-                <span className="fm-pill">
-                  <i className="ri-time-line"></i> Last 15 files
+              <div className="fm-section-header" style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '24px'
+              }}>
+                <h3 style={{margin: 0, fontSize: '20px', fontWeight: '600'}}>Recent Activity</h3>
+                <span className="fm-pill" style={{
+                  backgroundColor: currentTheme.primary + '15',
+                  color: currentTheme.primary,
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  fontSize: '13px',
+                  fontWeight: '500'
+                }}>
+                  <i className="ri-time-line" style={{marginRight: '6px'}}></i> 
+                  {recentItems.length} recent {recentItems.length === 1 ? 'item' : 'items'}
                 </span>
               </div>
               
               {recentItems.length === 0 ? (
-                <div className="fm-empty-state">
-                  <i className="ri-time-line"></i>
-                  <p>No recent activity</p>
+                <div className="fm-empty-state" style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '80px 20px',
+                  color: '#9ca3af'
+                }}>
+                  <i className="ri-time-line" style={{
+                    fontSize: '64px',
+                    color: '#d1d5db',
+                    marginBottom: '20px',
+                    opacity: 0.5
+                  }}></i>
+                  <h4 style={{margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600', color: '#6b7280'}}>
+                    No recent activity
+                  </h4>
+                  <p style={{margin: 0, fontSize: '14px', color: '#9ca3af'}}>
+                    Your file activity will appear here
+                  </p>
                 </div>
               ) : (
-                <>
-                  <div className="fm-list-header">
-                    <div className="fm-header-icon"></div>
-                    <div className="fm-header-name">Name</div>
-                    <div className="fm-header-date fm-hide-mobile">Date</div>
-                    <div className="fm-header-owner fm-hide-mobile">Owner</div>
-                    <div className="fm-header-size fm-hide-mobile">Size</div>
-                    <div className="fm-header-shared fm-hide-mobile">Shared</div>
-                    <div className="fm-header-actions"></div>
-                  </div>
-                  
-                  <div className="fm-files-grid">
-                    {recentItems.map((recentItem, index) => {
-                      // Find the actual file from blockchain data
-                      let file = null;
-                      
-                      // Check in blockchain files
-                      if (blockchainFiles) {
-                        file = blockchainFiles.find(f => f.id === recentItem.fileId);
-                      }
-                      
-                      // Check in blockchain folders if not found in files
-                      if (!file && blockchainFolders) {
-                        file = blockchainFolders.find(f => f.id === recentItem.fileId);
-                      }
-                      
-                      // If file not found, use recent item data
-                      if (!file) {
-                        file = {
-                          id: recentItem.fileId,
-                          name: recentItem.name || 'Unknown File',
-                          type: 'pdf', // default type
-                          size: '2.1 MB',
-                          modified: recentItem.time ? recentItem.time.split(' ')[0] : 'Unknown',
-                          owner: 'Me',
-                          sharedWith: 0
-                        };
-                      }
-                      
-                      return (
-                        <div 
-                          key={`${recentItem.fileId}-${index}`} 
-                          className="fm-row"
-                          onClick={() => handleFileClick(file)}
-                          onContextMenu={(e) => showContextMenu(e, file, file.type === 'folder' ? 'folder' : 'file')}>
-                          
-                          <div>
-                            <i className={getFileIcon(file.type)} style={{
-                              color: file.type === 'folder' ? '#f59e0b' : getFileColor(file.type),
-                              fontSize: '18px'
+                <div className="fm-files-list" style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
+                  {recentItems.map((recentItem, index) => {
+                    // Use recent item data directly (it now has all file details)
+                    const file = {
+                      id: recentItem.fileId || recentItem.id,
+                      name: recentItem.name || 'Unknown File',
+                      type: recentItem.type || 'pdf',
+                      size: recentItem.size || 'Unknown',
+                      modified: recentItem.modified || recentItem.time,
+                      owner: recentItem.owner || 'You',
+                      sharedWith: recentItem.sharedWith || 0,
+                      documentId: recentItem.documentId,
+                      ipfsHash: recentItem.ipfsHash
+                    };
+                    
+                    const activityInfo = getActivityIcon(recentItem.action);
+                    
+                    return (
+                      <div 
+                        key={`${recentItem.fileId}-${index}`} 
+                        className="fm-list-item"
+                        onClick={() => file.type !== 'folder' && openFile(file)}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '50px 1fr auto',
+                          gap: '16px',
+                          padding: '16px',
+                          backgroundColor: 'transparent',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          border: `1px solid ${currentTheme.border}`,
+                          alignItems: 'center'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = currentTheme.hover}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        {/* File Icon with Activity Badge */}
+                        <div style={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                          <i className={getFileIcon(file.type)} style={{
+                            color: file.type === 'folder' ? '#f59e0b' : getFileColor(file.type),
+                            fontSize: '32px'
+                          }}></i>
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '-4px',
+                            right: '-4px',
+                            backgroundColor: activityInfo.color,
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: `2px solid ${currentTheme.background}`
+                          }}>
+                            <i className={activityInfo.icon} style={{
+                              color: 'white',
+                              fontSize: '10px'
                             }}></i>
                           </div>
-                          
-                          <div className="fm-file-name">
-                            <span>{file.name}</span>
-                            <div className="fm-recent-badge">
-                              <i className={`ri-${recentItem.action === 'opened' ? 'eye' : recentItem.action === 'uploaded' ? 'upload' : 'add'}-line`}></i>
-                              {recentItem.action} • {recentItem.time}
-                            </div>
+                        </div>
+                        
+                        {/* File Info */}
+                        <div style={{display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden'}}>
+                          <div style={{
+                            fontWeight: '500',
+                            fontSize: '14px',
+                            color: currentTheme.text,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {file.name}
                           </div>
-                          
-                          <div className="fm-hide-mobile">{recentItem.time ? recentItem.time.split(' ')[0] : 'Unknown'}</div>
-                          <div className="fm-hide-mobile">{file.owner || 'Unknown'}</div>
-                          <div className="fm-hide-mobile">{file.size || 'Unknown'}</div>
-                          <div className="fm-hide-mobile">
-                            {file.sharedWith ? `${file.sharedWith} people` : 'Private'}
+                          <div style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#6b7280'}}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              backgroundColor: activityInfo.color + '20',
+                              color: activityInfo.color,
+                              fontWeight: '500',
+                              textTransform: 'capitalize'
+                            }}>
+                              {recentItem.action.replace('-', ' ')}
+                            </span>
+                            <span>•</span>
+                            <span>{formatTimeAgo(recentItem.time)}</span>
+                            {file.size && file.size !== '0 KB' && (
+                              <>
+                                <span>•</span>
+                                <span>{file.size}</span>
+                              </>
+                            )}
                           </div>
-                          
-                          <div>
-                            <div 
+                        </div>
+                        
+                        {/* Actions */}
+                        <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                          {file.type !== 'folder' && (
+                            <button 
                               className="fm-action-btn"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                showContextMenu(e, file, file.type === 'folder' ? 'folder' : 'file');
-                              }}>
-                              <i className="ri-more-2-line"></i>
-                            </div>
-                          </div>
+                                openFile(file);
+                              }}
+                              title="Open"
+                              style={{
+                                padding: '8px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                backgroundColor: 'transparent',
+                                color: '#6b7280',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = currentTheme.primary + '15';
+                                e.currentTarget.style.color = currentTheme.primary;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.color = '#6b7280';
+                              }}
+                            >
+                              <i className="ri-eye-line" style={{fontSize: '18px'}}></i>
+                            </button>
+                          )}
+                          <button 
+                            className="fm-action-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              showContextMenu(e, file, file.type === 'folder' ? 'folder' : 'file');
+                            }}
+                            title="More options"
+                            style={{
+                              padding: '8px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              backgroundColor: 'transparent',
+                              color: '#6b7280',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = currentTheme.primary + '15';
+                              e.currentTarget.style.color = currentTheme.primary;
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                              e.currentTarget.style.color = '#6b7280';
+                            }}
+                          >
+                            <i className="ri-more-2-line" style={{fontSize: '18px'}}></i>
+                          </button>
                         </div>
-                      );
-                    })}
-                  </div>
-                </>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
 
           {currentSection === 'section-starred' && (
             <section className="fm-section">
-              <div className="fm-section-head">
-                <h3 style={{margin:0}}>Starred</h3>
-                <span className="fm-pill">
-                  <i className="ri-star-line"></i> Favorites
+              <div className="fm-section-head" style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '24px'
+              }}>
+                <h3 style={{margin: 0, fontSize: '20px', fontWeight: '600'}}>Starred Files</h3>
+                <span className="fm-pill" style={{
+                  backgroundColor: '#fef3c7',
+                  color: '#d97706',
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  fontSize: '13px',
+                  fontWeight: '500'
+                }}>
+                  <i className="ri-star-fill" style={{marginRight: '6px'}}></i>
+                  {filterFiles(getStarredFiles()).length} starred
                 </span>
               </div>
-              {searchTerm && (
-                <div style={{marginBottom: '16px', padding: '12px', backgroundColor: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: '8px'}}>
-                  <span style={{fontSize: '14px', color: '#1e40af'}}>
-                    <i className="ri-search-line" style={{marginRight: '6px'}}></i>
-                    Showing results for "{searchTerm}"
-                  </span>
-                </div>
-              )}
               {searchTerm && (
                 <div style={{marginBottom: '16px', padding: '12px', backgroundColor: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: '8px'}}>
                   <span style={{fontSize: '14px', color: '#1e40af'}}>
@@ -2824,100 +3647,484 @@ const FileManager = () => {
                   </span>
                 </div>
               )}
-              <div className="fm-collection">
-                <div className="fm-grid">
+              {filterFiles(getStarredFiles()).length === 0 ? (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '80px 20px',
+                  color: '#9ca3af'
+                }}>
+                  <i className="ri-star-line" style={{
+                    fontSize: '64px',
+                    color: '#fbbf24',
+                    marginBottom: '20px',
+                    opacity: 0.3
+                  }}></i>
+                  <h4 style={{margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600', color: '#6b7280'}}>
+                    No starred files
+                  </h4>
+                  <p style={{margin: 0, fontSize: '14px', color: '#9ca3af'}}>
+                    Star your important files to find them quickly here
+                  </p>
+                </div>
+              ) : (
+                <div className="fm-files-list" style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
                   {filterFiles(getStarredFiles()).map(file => (
                     <div 
                       key={file.id} 
-                      className={`fm-card ${selectedFiles.includes(file.id) ? 'selected' : ''}`}
+                      className="fm-list-item"
                       onClick={() => handleFileClick(file)}
-                      onContextMenu={(e) => showContextMenu(e, file, file.type === 'folder' ? 'folder' : 'file')}>
-                      
-                      <div 
-                        className={`fm-selection-checkbox ${selectedFiles.includes(file.id) ? 'checked' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleFileSelect(file.id);
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '50px 1fr auto',
+                        gap: '16px',
+                        padding: '16px',
+                        backgroundColor: selectedFiles.includes(file.id) 
+                          ? currentTheme.primary + '08'
+                          : 'transparent',
+                        borderLeft: selectedFiles.includes(file.id) 
+                          ? `3px solid ${currentTheme.primary}` 
+                          : `3px solid transparent`,
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        border: `1px solid ${currentTheme.border}`,
+                        alignItems: 'center'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!selectedFiles.includes(file.id)) {
+                          e.currentTarget.style.backgroundColor = currentTheme.hover;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!selectedFiles.includes(file.id)) {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }
+                      }}
+                      onContextMenu={(e) => showContextMenu(e, file, file.type === 'folder' ? 'folder' : 'file')}
+                    >
+                      {/* File Icon with Star Badge */}
+                      <div style={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                        <i className={getFileIcon(file.type)} style={{
+                          color: file.type === 'folder' ? '#f59e0b' : getFileColor(file.type),
+                          fontSize: '32px'
+                        }}></i>
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '-4px',
+                          right: '-4px',
+                          backgroundColor: '#fbbf24',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: `2px solid ${currentTheme.background}`
                         }}>
-                        {selectedFiles.includes(file.id) && <i className="ri-check-line"></i>}
+                          <i className="ri-star-fill" style={{
+                            color: 'white',
+                            fontSize: '10px'
+                          }}></i>
+                        </div>
                       </div>
-
-                      <div className="fm-card-actions">
-                        {!file.isShared && (
-                          <div className="fm-action-btn" onClick={(e) => {
-                            e.stopPropagation();
-                            openShareModal([file.id]);
+                      
+                      {/* File Info */}
+                      <div style={{display: 'flex', flexDirection: 'column', gap: '6px', overflow: 'hidden'}}>
+                        <div style={{
+                          fontWeight: '500',
+                          fontSize: '14px',
+                          color: currentTheme.text,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {file.name}
+                        </div>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#6b7280', flexWrap: 'wrap'}}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
                           }}>
-                            <i className="ri-share-line"></i>
-                          </div>
+                            <i className="ri-folder-line" style={{fontSize: '14px'}}></i>
+                            {file.type === 'folder' ? 'Folder' : getFileTypeName(file.type)}
+                          </span>
+                          
+                          <span>•</span>
+                          
+                          <span>{formatDate(file.modified)}</span>
+                          
+                          {file.size && file.size !== '0 KB' && (
+                            <>
+                              <span>•</span>
+                              <span>{file.size}</span>
+                            </>
+                          )}
+                          
+                          {file.sharedWith > 0 && (
+                            <>
+                              <span>•</span>
+                              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                <i className="ri-share-line" style={{fontSize: '14px'}}></i>
+                                Shared with {file.sharedWith}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Actions */}
+                      <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                        {!file.isShared && file.type !== 'folder' && (
+                          <button 
+                            className="fm-action-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openShareModal([file.id]);
+                            }}
+                            title="Share"
+                            style={{
+                              padding: '8px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              backgroundColor: 'transparent',
+                              color: '#6b7280',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = currentTheme.primary + '15';
+                              e.currentTarget.style.color = currentTheme.primary;
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                              e.currentTarget.style.color = '#6b7280';
+                            }}
+                          >
+                            <i className="ri-share-line" style={{fontSize: '18px'}}></i>
+                          </button>
                         )}
-                        <div 
+                        <button 
+                          className="fm-action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleStar(file);
+                          }}
+                          title="Unstar"
+                          style={{
+                            padding: '8px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            color: '#fbbf24',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#fef3c7';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
+                          <i className="ri-star-fill" style={{fontSize: '18px'}}></i>
+                        </button>
+                        <button 
                           className="fm-action-btn"
                           onClick={(e) => {
                             e.stopPropagation();
                             showContextMenu(e, file, file.type === 'folder' ? 'folder' : 'file');
-                          }}>
-                          <i className="ri-more-2-line"></i>
-                        </div>
+                          }}
+                          title="More options"
+                          style={{
+                            padding: '8px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            color: '#6b7280',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = currentTheme.primary + '15';
+                            e.currentTarget.style.color = currentTheme.primary;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = '#6b7280';
+                          }}
+                        >
+                          <i className="ri-more-2-line" style={{fontSize: '18px'}}></i>
+                        </button>
                       </div>
-
-                      <div className="fm-thumb">
-                        <i className={getFileIcon(file.type)} style={{color: file.type === 'folder' ? '#f59e0b' : getFileColor(file.type)}}></i>
-                        <i className="ri-star-fill" style={{position: 'absolute', top: '8px', right: '8px', color: '#fbbf24', fontSize: '12px'}}></i>
-                      </div>
-                      <div className="fm-title">{file.name}</div>
-                      <div className="fm-meta">{file.size} • {file.modified}</div>
                     </div>
                   ))}
                 </div>
-              </div>
+              )}
             </section>
           )}
 
           {currentSection === 'section-trash' && (
             <section className="fm-section">
-              <div className="fm-section-head">
-                <h3 style={{margin:0}}>Trash</h3>
-                <button 
-                  className="fm-btn" 
-                  style={{color:'#9b1c1c', borderColor:'#ffd2d2', background:'#fff5f5'}}
-                  onClick={() => {
-                    setTrashedItems([]);
-                    showNotification('info', 'Trash Emptied', 'All items permanently deleted');
-                  }}
-                >
-                  <i className="ri-delete-bin-5-line"></i> Empty trash
-                </button>
+              <div className="fm-section-head" style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '24px'
+              }}>
+                <h3 style={{margin: 0, fontSize: '20px', fontWeight: '600'}}>Trash</h3>
+                {trashedItems.length > 0 && (
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to permanently delete all items in trash? This action cannot be undone.')) {
+                        setTrashedItems([]);
+                        showNotification('success', 'Trash Emptied', 'All items permanently deleted');
+                      }
+                    }}
+                    style={{
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#b91c1c';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#dc2626';
+                    }}
+                  >
+                    <i className="ri-delete-bin-line"></i>
+                    Empty Trash
+                  </button>
+                )}
               </div>
               {trashedItems.length === 0 ? (
-                <div className="fm-empty">Trash is empty.</div>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '80px 20px',
+                  color: '#9ca3af'
+                }}>
+                  <i className="ri-delete-bin-line" style={{
+                    fontSize: '64px',
+                    color: '#dc2626',
+                    marginBottom: '20px',
+                    opacity: 0.3
+                  }}></i>
+                  <h4 style={{margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600', color: '#6b7280'}}>
+                    Trash is empty
+                  </h4>
+                  <p style={{margin: 0, fontSize: '14px', color: '#9ca3af'}}>
+                    Deleted files will appear here
+                  </p>
+                </div>
               ) : (
-                <div className="fm-collection">
-                  <div className="fm-grid">
-                    {trashedItems.map(item => (
-                      <div key={item.id} className="fm-card" style={{opacity: 0.7}}>
-                        <div className="fm-thumb">
-                          <i className={getFileIcon(item.type)} style={{color: '#9b1c1c'}}></i>
-                        </div>
-                        <div className="fm-title">{item.name}</div>
-                        <div className="fm-meta">Deleted: {item.deletedDate}</div>
-                        <div className="fm-meta">From: {item.originalPath}</div>
-                        <div className="fm-card-actions">
-                          <button 
-                            className="fm-btn" 
-                            onClick={() => {
-                              // Restore functionality
-                              showNotification('success', 'Restored', `${item.name} restored`);
-                              setTrashedItems(prev => prev.filter(t => t.id !== item.id));
-                            }}
-                            style={{fontSize: '12px', padding: '4px 8px'}}
-                          >
-                            Restore
-                          </button>
+                <div className="fm-files-list" style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
+                  {trashedItems.map((item, index) => (
+                    <div 
+                      key={`trash-${item.id || index}`} 
+                      className="fm-list-item"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '50px 1fr 180px',
+                        gap: '16px',
+                        padding: '16px',
+                        backgroundColor: 'transparent',
+                        borderLeft: `3px solid transparent`,
+                        borderRadius: '8px',
+                        transition: 'all 0.2s ease',
+                        border: `1px solid ${currentTheme.border}`,
+                        alignItems: 'center',
+                        opacity: 0.7
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = currentTheme.hover;
+                        e.currentTarget.style.opacity = '1';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.opacity = '0.7';
+                      }}
+                    >
+                      {/* File Icon with Trash Badge */}
+                      <div style={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                        <i className={getFileIcon(item.type)} style={{
+                          color: item.type === 'folder' ? '#f59e0b' : getFileColor(item.type),
+                          fontSize: '32px'
+                        }}></i>
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '-4px',
+                          right: '-4px',
+                          backgroundColor: '#dc2626',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: `2px solid ${currentTheme.background}`
+                        }}>
+                          <i className="ri-delete-bin-line" style={{
+                            color: 'white',
+                            fontSize: '10px'
+                          }}></i>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      
+                      {/* File Info */}
+                      <div style={{display: 'flex', flexDirection: 'column', gap: '6px', overflow: 'hidden'}}>
+                        <div style={{
+                          fontWeight: '500',
+                          fontSize: '14px',
+                          color: currentTheme.text,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {item.name}
+                        </div>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#6b7280', flexWrap: 'wrap'}}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <i className="ri-folder-line" style={{fontSize: '14px'}}></i>
+                            {item.type === 'folder' ? 'Folder' : getFileTypeName(item.type)}
+                          </span>
+                          
+                          <span>•</span>
+                          
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            color: '#dc2626'
+                          }}>
+                            <i className="ri-calendar-line" style={{fontSize: '14px'}}></i>
+                            Deleted {item.deletedDate}
+                          </span>
+                          
+                          {item.size && item.size !== '0 KB' && (
+                            <>
+                              <span>•</span>
+                              <span>{item.size}</span>
+                            </>
+                          )}
+                          
+                          {item.originalPath && (
+                            <>
+                              <span>•</span>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                maxWidth: '300px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}>
+                                <i className="ri-folder-3-line" style={{fontSize: '14px'}}></i>
+                                From: {item.originalPath}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Actions */}
+                      <div style={{
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '8px',
+                        justifyContent: 'flex-end'
+                      }}>
+                        <button 
+                          className="fm-action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            showNotification('success', 'Restored', `${item.name} restored`);
+                            setTrashedItems(prev => prev.filter((_, i) => i !== index));
+                          }}
+                          title="Restore"
+                          style={{
+                            padding: '8px',
+                            borderRadius: '6px',
+                            border: '1px solid #3b82f6',
+                            backgroundColor: '#eff6ff',
+                            color: '#3b82f6',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '36px',
+                            height: '36px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#3b82f6';
+                            e.currentTarget.style.color = 'white';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#eff6ff';
+                            e.currentTarget.style.color = '#3b82f6';
+                          }}
+                        >
+                          <i className="ri-refresh-line" style={{fontSize: '18px'}}></i>
+                        </button>
+                        <button 
+                          className="fm-action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Permanently delete this item? This action cannot be undone.')) {
+                              setTrashedItems(prev => prev.filter((_, i) => i !== index));
+                              showNotification('success', 'Deleted', 'Item permanently deleted');
+                            }
+                          }}
+                          title="Delete Permanently"
+                          style={{
+                            padding: '8px',
+                            borderRadius: '6px',
+                            border: '1px solid #dc2626',
+                            backgroundColor: '#fef2f2',
+                            color: '#dc2626',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '36px',
+                            height: '36px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#dc2626';
+                            e.currentTarget.style.color = 'white';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#fef2f2';
+                            e.currentTarget.style.color = '#dc2626';
+                          }}
+                        >
+                          <i className="ri-delete-bin-line" style={{fontSize: '18px'}}></i>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
@@ -3934,6 +5141,7 @@ const FileManager = () => {
           type="file" 
           id="hiddenFileInput" 
           multiple 
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.gif,.svg,.webp,.bmp,.tiff,.mp4,.webm,.mov,.avi,.wmv,.ogg"
           onChange={handleFileUpload}
           style={{display:'none'}} 
         />

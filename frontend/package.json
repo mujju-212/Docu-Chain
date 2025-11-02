@@ -16,7 +16,9 @@
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^6.28.0",
     "react-scripts": "5.0.1",
-    "web3": "^4.3.0"
+    "web3": "^4.16.0",
+    "@pinata/sdk": "^1.1.26",
+    "ipfs-http-client": "^60.0.1"
   },
   "browserslist": {
     "production": [

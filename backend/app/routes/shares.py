@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models.document import Document, DocumentShare
 from app.models.user import User
+from app.models.folder import Folder
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from sqlalchemy import or_
@@ -58,6 +59,11 @@ def share_document(document_id):
         
         shares_created = []
         
+        # NOTE: We do NOT move the document - it stays in its original folder
+        # The Sent/Received folders will show documents by querying DocumentShare table
+        print(f"📁 Document stays in original folder: {document.folder_id}")
+        print(f"� Document will appear in Sent folder via share tracking")
+        
         for recipient in recipients:
             user_id = recipient.get('user_id')
             permission = recipient.get('permission', 'read')
@@ -93,6 +99,17 @@ def share_document(document_id):
                 )
                 db.session.add(new_share)
                 print(f"✅ Created new share with user: {user.email}")
+                
+                # Move document to "Received" folder for recipient
+                received_folder = Folder.query.filter_by(
+                    owner_id=user_id,
+                    name='Received'
+                ).first()
+                
+                if received_folder:
+                    # Create a reference/copy in recipient's Received folder
+                    # We'll update the document's folder for the recipient's view
+                    print(f"📁 Document will appear in Received folder for {user.email}")
             
             shares_created.append({
                 'user_id': user_id,

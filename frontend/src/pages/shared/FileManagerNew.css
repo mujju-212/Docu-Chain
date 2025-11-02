@@ -417,11 +417,19 @@ body {
     gap: 8px;
     cursor: pointer;
     position: relative;
+    transition: all 0.2s ease;
 }
 
 .fm-qa-card:hover {
     background: #ecfdf5;
     border-color: var(--g-300);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.fm-qa-card:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .fm-qa-icon {
@@ -751,6 +759,15 @@ body {
 
 .fm-star {
     color: #f59e0b;
+}
+
+.fm-card-name {
+    font-weight: 500;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
 }
 
 .fm-meta {

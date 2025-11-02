@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models.user import User
-from app.models.document import Document, DocumentShare
+from app.models.document import Document, DocumentShare, DocumentVersion
+from app.models.folder import Folder
 from app.routes.auth import token_required
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
@@ -17,33 +18,87 @@ def list_documents():
     try:
         current_user_id = get_jwt_identity()
         folder_id = request.args.get('folder_id')
+        get_all = request.args.get('all', 'false').lower() == 'true'
         
-        print(f"🔍 Listing documents for user: {current_user_id}, folder: {folder_id}")
+        print(f"🔍 Listing documents for user: {current_user_id}, folder: {folder_id}, all: {get_all}")
         
-        # Build query for active documents owned by current user
-        query = Document.query.filter_by(
-            owner_id=current_user_id, 
-            is_active=True,
-            is_in_trash=False
-        )
+        # Check if user is viewing special folders (Received/Sent)
+        is_received_folder = False
+        is_sent_folder = False
         
-        # Filter by folder if specified
         if folder_id:
-            query = query.filter_by(folder_id=folder_id)
+            folder = Folder.query.get(folder_id)
+            
+            # Convert both to strings for comparison (JWT returns string, DB has UUID)
+            if folder and str(folder.owner_id) == str(current_user_id):
+                if folder.name == 'Received':
+                    is_received_folder = True
+                    print(f"📥 Viewing Received folder - will show documents shared WITH user")
+                elif folder.name == 'Sent':
+                    is_sent_folder = True
+                    print(f"📤 Viewing Sent folder - will show documents shared BY user")
+        
+        documents = []
+        
+        # If viewing Received folder, show documents shared WITH this user
+        if is_received_folder:
+            from app.models.document import DocumentShare
+            shared_docs_query = db.session.query(Document).join(
+                DocumentShare, Document.id == DocumentShare.document_id
+            ).filter(
+                DocumentShare.shared_with_id == current_user_id,
+                Document.is_active == True
+            ).order_by(Document.created_at.desc()).all()
+            
+            documents = shared_docs_query
+            print(f"📥 Found {len(documents)} documents shared with user (Received)")
+        
+        # If viewing Sent folder, show documents shared BY this user
+        elif is_sent_folder:
+            from app.models.document import DocumentShare
+            sent_docs_query = db.session.query(Document).join(
+                DocumentShare, Document.id == DocumentShare.document_id
+            ).filter(
+                DocumentShare.shared_by_id == current_user_id,
+                Document.is_active == True
+            ).order_by(Document.created_at.desc()).all()
+            
+            documents = sent_docs_query
+            print(f"📤 Found {len(documents)} documents shared by user (Sent)")
+        
         else:
-            # If no folder_id specified, show root level documents (folder_id is None)
-            query = query.filter(Document.folder_id.is_(None))
-        
-        documents = query.order_by(Document.created_at.desc()).all()
-        
-        print(f"📄 Found {len(documents)} documents")
+            # Build query for active documents owned by current user
+            query = Document.query.filter_by(
+                owner_id=current_user_id, 
+                is_active=True,
+                is_in_trash=False
+            )
+            
+            # Filter by folder if specified, or get all documents if all=true
+            if get_all:
+                # Get ALL documents from all folders (for counting/filtering)
+                pass  # No additional filter needed
+            elif folder_id:
+                query = query.filter_by(folder_id=folder_id)
+            else:
+                # If no folder_id specified, show root level documents (folder_id is None)
+                query = query.filter(Document.folder_id.is_(None))
+            
+            documents = query.order_by(Document.created_at.desc()).all()
+            print(f"📄 Found {len(documents)} documents")
         
         # Convert to dict format using model's to_dict() method
         documents_data = []
         for doc in documents:
             doc_dict = doc.to_dict()
             documents_data.append(doc_dict)
-            print(f"📄 Document: {doc.file_name} in folder: {doc.folder_id}")
+            print(f"📄 Document: {doc.file_name} (ID: {doc.id}) in folder: {doc.folder_id}")
+        
+        print(f"✅ Returning {len(documents_data)} documents to frontend")
+        if is_received_folder and len(documents_data) > 0:
+            print(f"📥 RECEIVED FOLDER - Returning documents: {[d['fileName'] for d in documents_data]}")
+        elif is_sent_folder and len(documents_data) > 0:
+            print(f"📤 SENT FOLDER - Returning documents: {[d['fileName'] for d in documents_data]}")
         
         return jsonify({
             'success': True,
@@ -230,6 +285,9 @@ def update_document(document_id):
         
         # Check if this is a content update (IPFS hash change)
         is_content_update = 'ipfs_hash' in data
+        old_ipfs_hash = document.ipfs_hash
+        old_file_name = document.file_name
+        old_file_size = document.file_size
         
         # Update fields for this specific document
         if 'folder_id' in data:
@@ -250,6 +308,50 @@ def update_document(document_id):
         document.updated_at = datetime.utcnow()
         
         db.session.commit()
+        
+        # If this is a content update, create a version entry
+        # Skip version creation if this is the initial upload (old_ipfs_hash is None)
+        if is_content_update and old_ipfs_hash and old_ipfs_hash != data.get('ipfs_hash'):
+            print(f"📝 Creating version entry for document update")
+            
+            # Get the latest version number
+            latest_version = DocumentVersion.query.filter_by(
+                document_id=document.id
+            ).order_by(DocumentVersion.version_number.desc()).first()
+            
+            new_version_number = (latest_version.version_number + 1) if latest_version else 1
+            
+            # Create version entry for the OLD content (before update)
+            if latest_version is None:
+                # This is the first update, so save the original version
+                original_version = DocumentVersion(
+                    document_id=document.id,
+                    version_number=1,
+                    ipfs_hash=old_ipfs_hash,
+                    file_name=old_file_name,
+                    file_size=old_file_size,
+                    transaction_id=document.transaction_hash,
+                    changes_description='Original version',
+                    created_by=current_user_id
+                )
+                db.session.add(original_version)
+                new_version_number = 2
+            
+            # Create version entry for the NEW content
+            new_version = DocumentVersion(
+                document_id=document.id,
+                version_number=new_version_number,
+                ipfs_hash=data.get('ipfs_hash'),
+                file_name=data.get('name', document.file_name),
+                file_size=data.get('file_size', document.file_size),
+                transaction_id=data.get('transaction_hash'),
+                changes_description=data.get('description', f'Version {new_version_number}'),
+                created_by=current_user_id
+            )
+            db.session.add(new_version)
+            db.session.commit()
+            
+            print(f"✅ Created version {new_version_number} for document")
         
         # If this is a content update, update ALL copies (all documents with same blockchain document_id)
         if is_content_update and blockchain_document_id:
@@ -408,6 +510,162 @@ def copy_document(document_id):
     except Exception as e:
         print(f"❌ Error copying document: {str(e)}")
         db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@bp.route('/<document_id>/star', methods=['PUT'])
+@token_required
+def toggle_star_document(document_id):
+    """Toggle star status for a document"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Find the document
+        document = Document.query.filter_by(
+            id=document_id,
+            owner_id=current_user_id,
+            is_active=True
+        ).first()
+        
+        if not document:
+            return jsonify({
+                'success': False,
+                'error': 'Document not found'
+            }), 404
+        
+        # Toggle starred status
+        document.is_starred = not document.is_starred
+        document.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'isStarred': document.is_starred,
+            'message': f'Document {"starred" if document.is_starred else "unstarred"} successfully'
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error toggling star: {str(e)}")
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@bp.route('/starred', methods=['GET'])
+@token_required
+def list_starred_documents():
+    """Get all starred documents for the current user"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Query for starred documents
+        documents = Document.query.filter_by(
+            owner_id=current_user_id,
+            is_active=True,
+            is_in_trash=False,
+            is_starred=True
+        ).order_by(Document.updated_at.desc()).all()
+        
+        documents_data = [doc.to_dict() for doc in documents]
+        
+        return jsonify({
+            'success': True,
+            'documents': documents_data,
+            'count': len(documents_data)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error fetching starred documents: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route('/<document_id>/versions', methods=['GET'])
+@token_required
+def get_document_versions(document_id):
+    """Get version history for a document"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        print(f"📜 Fetching versions for document ID: {document_id}")
+        
+        # Find the document (check ownership or shared access)
+        document = Document.query.filter_by(id=document_id, is_active=True).first()
+        
+        if not document:
+            return jsonify({
+                'success': False,
+                'message': 'Document not found'
+            }), 404
+        
+        # Check if user has permission to view (owner OR has read/write access)
+        has_permission = False
+        
+        if str(document.owner_id) == str(current_user_id):
+            has_permission = True
+        else:
+            # Check for shared access
+            share = DocumentShare.query.filter_by(
+                document_id=document_id,
+                shared_with_id=current_user_id
+            ).first()
+            
+            if share:
+                has_permission = True
+        
+        if not has_permission:
+            return jsonify({
+                'success': False,
+                'message': 'You do not have permission to view this document'
+            }), 403
+        
+        # Get all versions for this document, ordered by version number descending (newest first)
+        versions = DocumentVersion.query.filter_by(
+            document_id=document.id
+        ).order_by(DocumentVersion.version_number.desc()).all()
+        
+        # If no versions exist, return current document as version 1
+        if not versions:
+            current_version = {
+                'versionNumber': 1,
+                'ipfsHash': document.ipfs_hash,
+                'fileName': document.file_name,
+                'fileSize': document.file_size,
+                'transactionId': document.transaction_hash,
+                'description': 'Current version',
+                'createdAt': document.created_at.isoformat() if document.created_at else None,
+                'ipfsUrl': f"https://gateway.pinata.cloud/ipfs/{document.ipfs_hash}",
+                'isCurrent': True
+            }
+            
+            return jsonify({
+                'success': True,
+                'versions': [current_version],
+                'count': 1
+            }), 200
+        
+        # Convert versions to dict and mark the latest as current
+        versions_data = []
+        for i, version in enumerate(versions):
+            version_dict = version.to_dict()
+            version_dict['isCurrent'] = (i == 0)  # First version (highest number) is current
+            versions_data.append(version_dict)
+        
+        print(f"✅ Found {len(versions_data)} versions")
+        
+        return jsonify({
+            'success': True,
+            'versions': versions_data,
+            'count': len(versions_data)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error fetching document versions: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)

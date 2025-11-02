@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { WalletProvider } from './contexts/WalletContext';
 import Login from './components/Login';
 import Register from './components/Register';
 import ForgotPassword from './components/ForgotPassword';
@@ -97,7 +98,9 @@ function App() {
     <Router>
       <AuthProvider>
         <ThemeProvider>
-          <AppRoutes />
+          <WalletProvider>
+            <AppRoutes />
+          </WalletProvider>
         </ThemeProvider>
       </AuthProvider>
     </Router>

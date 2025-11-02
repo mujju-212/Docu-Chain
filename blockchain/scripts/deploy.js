@@ -6,28 +6,70 @@ async function main() {
   // Get deployer account
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying contracts with account:", deployer.address);
-  console.log("Account balance:", (await deployer.getBalance()).toString(), "\n");
+  console.log("Account balance:", (await deployer.provider.getBalance(deployer.address)).toString(), "\n");
 
-  // Deploy DocumentManager
-  console.log("Deploying DocumentManager...");
-  const DocumentManager = await hre.ethers.getContractFactory("DocumentManager");
-  const documentManager = await DocumentManager.deploy();
-  await documentManager.deployed();
-  console.log("DocumentManager deployed to:", documentManager.address);
+  // Deploy DocuChainManager
+  console.log("Deploying DocuChainManager...");
+  const DocuChainManager = await hre.ethers.getContractFactory("DocuChainManager");
+  const docuChainManager = await DocuChainManager.deploy();
+  await docuChainManager.waitForDeployment();
+  
+  const contractAddress = await docuChainManager.getAddress();
+  console.log("DocuChainManager deployed to:", contractAddress);
 
-  // Deploy ApprovalWorkflow
-  console.log("\nDeploying ApprovalWorkflow...");
-  const ApprovalWorkflow = await hre.ethers.getContractFactory("ApprovalWorkflow");
-  const approvalWorkflow = await ApprovalWorkflow.deploy();
-  await approvalWorkflow.deployed();
-  console.log("ApprovalWorkflow deployed to:", approvalWorkflow.address);
+  // Wait for some confirmations
+  console.log("Waiting for confirmations...");
+  await docuChainManager.deploymentTransaction().wait(5);
 
+  console.log("\n=== Deployment Summary ===");
+  console.log("Network:", hre.network.name);
+  console.log("Deployer:", deployer.address);
+  console.log("DocuChainManager Contract:", contractAddress);
+  console.log("Gas Used:", docuChainManager.deploymentTransaction().gasLimit.toString());
+  
   // Save deployment info
   const deploymentInfo = {
     network: hre.network.name,
     deployer: deployer.address,
+    timestamp: new Date().toISOString(),
     contracts: {
-      DocumentManager: documentManager.address,
+      DocuChainManager: contractAddress,
+    },
+    transactionHash: docuChainManager.deploymentTransaction().hash
+  };
+
+  console.log("\n=== Contract Addresses ===");
+  console.log("Add this to your .env file:");
+  console.log(`REACT_APP_CONTRACT_ADDRESS=${contractAddress}`);
+
+  const fs = require('fs');
+  const path = require('path');
+  
+  // Save to deployment file
+  const deploymentsDir = path.join(__dirname, '..', 'deployments');
+  if (!fs.existsSync(deploymentsDir)) {
+    fs.mkdirSync(deploymentsDir, { recursive: true });
+  }
+  
+  const deploymentFile = path.join(deploymentsDir, `${hre.network.name}-deployment.json`);
+  fs.writeFileSync(deploymentFile, JSON.stringify(deploymentInfo, null, 2));
+  
+  console.log(`\nDeployment info saved to: ${deploymentFile}`);
+  
+  // Verify contract if on testnet/mainnet
+  if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
+    console.log("\nVerifying contract...");
+    try {
+      await hre.run("verify:verify", {
+        address: contractAddress,
+        constructorArguments: [],
+      });
+      console.log("Contract verified successfully");
+    } catch (error) {
+      console.log("Verification failed:", error.message);
+    }
+  }
+}
       ApprovalWorkflow: approvalWorkflow.address,
     },
     timestamp: new Date().toISOString(),
@@ -46,7 +88,7 @@ async function main() {
   // Wait for block confirmations before verifying
   if (hre.network.name !== "localhost" && hre.network.name !== "hardhat") {
     console.log("\nWaiting for block confirmations...");
-    await documentManager.deployTransaction.wait(6);
+    await enhancedDocumentManager.deployTransaction.wait(6);
     await approvalWorkflow.deployTransaction.wait(6);
 
     console.log("\nVerifying contracts on Etherscan...");

@@ -236,17 +236,55 @@ export const ThemeProvider = ({ children }) => {
   };
 
   const loadUserTheme = async () => {
-    if (!isAuthenticated || !user) return;
+    if (!isAuthenticated || !user) {
+      console.log('🎨 ThemeContext: Not authenticated or no user, skipping theme load');
+      return;
+    }
 
     try {
+      console.log('🎨 ThemeContext: Loading user theme...');
       const response = await api.get('/users/profile');
-      const userTheme = response.data.theme || 'green';
-      setCurrentTheme(userTheme);
-      applyTheme(userTheme);
+      console.log('🎨 ThemeContext: Profile response:', response.data);
+      
+      if (response.data.success && response.data.user) {
+        const userTheme = response.data.user.theme || 'green';
+        console.log('🎨 ThemeContext: Setting theme to:', userTheme);
+        setCurrentTheme(userTheme);
+        applyTheme(userTheme);
+      } else {
+        console.log('🎨 ThemeContext: No user data, using default theme');
+        setCurrentTheme('green');
+        applyTheme('green');
+      }
     } catch (error) {
-      console.error('Failed to load user theme:', error);
+      console.error('🎨 ThemeContext: Failed to load user theme:', error);
       setCurrentTheme('green');
       applyTheme('green');
+    }
+  };
+
+  const loadUserThemeDirectly = async () => {
+    try {
+      console.log('🎨 ThemeContext: Loading user theme directly...');
+      const response = await api.get('/users/profile');
+      console.log('🎨 ThemeContext: Direct profile response:', response.data);
+      
+      if (response.data.success && response.data.user) {
+        const userTheme = response.data.user.theme || 'green';
+        console.log('🎨 ThemeContext: Setting theme directly to:', userTheme);
+        setCurrentTheme(userTheme);
+        applyTheme(userTheme);
+      } else {
+        console.log('🎨 ThemeContext: No user data, using default theme');
+        const savedTheme = localStorage.getItem('docu-chain-theme') || 'green';
+        setCurrentTheme(savedTheme);
+        applyTheme(savedTheme);
+      }
+    } catch (error) {
+      console.error('🎨 ThemeContext: Failed to load user theme directly:', error);
+      const savedTheme = localStorage.getItem('docu-chain-theme') || 'green';
+      setCurrentTheme(savedTheme);
+      applyTheme(savedTheme);
     }
   };
 
@@ -276,12 +314,22 @@ export const ThemeProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    console.log('🎨 ThemeContext: useEffect triggered', { isAuthenticated, user: !!user });
     if (isAuthenticated && user) {
+      console.log('🎨 ThemeContext: Loading user theme...');
       loadUserTheme();
     } else {
-      const savedTheme = localStorage.getItem('docu-chain-theme') || 'green';
-      setCurrentTheme(savedTheme);
-      applyTheme(savedTheme);
+      // Check if there's a token but AuthContext hasn't finished loading
+      const token = localStorage.getItem('token');
+      if (token && !isAuthenticated) {
+        console.log('🎨 ThemeContext: Token exists but not authenticated yet, trying to load theme directly');
+        loadUserThemeDirectly();
+      } else {
+        console.log('🎨 ThemeContext: Using default/saved theme');
+        const savedTheme = localStorage.getItem('docu-chain-theme') || 'green';
+        setCurrentTheme(savedTheme);
+        applyTheme(savedTheme);
+      }
     }
   }, [isAuthenticated, user]);
 

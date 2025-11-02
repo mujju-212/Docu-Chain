@@ -3,11 +3,120 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from app import db
 from app.models.user import User
 from app.models.institution import Institution
+from app.models.folder import Folder
 from app.services.email_service import EmailService
 from datetime import datetime, timedelta
 from functools import wraps
 import random
 import string
+
+bp = Blueprint('auth', __name__)
+
+
+def create_default_folders_for_user(user):
+    """Create default folder structure for a new user"""
+    try:
+        # 1. Shared folder with subfolders
+        shared_folder = Folder(
+            name="Shared",
+            owner_id=user.id,
+            parent_id=None,
+            path="/Shared",
+            level=0,
+            is_system_folder=True
+        )
+        db.session.add(shared_folder)
+        db.session.flush()
+        
+        # Sent subfolder
+        sent_folder = Folder(
+            name="Sent",
+            owner_id=user.id,
+            parent_id=shared_folder.id,
+            path="/Shared/Sent",
+            level=1,
+            is_system_folder=True
+        )
+        db.session.add(sent_folder)
+        
+        # Received subfolder
+        received_folder = Folder(
+            name="Received",
+            owner_id=user.id,
+            parent_id=shared_folder.id,
+            path="/Shared/Received",
+            level=1,
+            is_system_folder=True
+        )
+        db.session.add(received_folder)
+        
+        # 2. Generated folder (root level - empty, no subfolders)
+        generated_folder = Folder(
+            name="Generated",
+            owner_id=user.id,
+            parent_id=None,
+            path="/Generated",
+            level=0,
+            is_system_folder=True
+        )
+        db.session.add(generated_folder)
+        
+        # 3. Approved folder (root level - separate from Generated)
+        approved_folder = Folder(
+            name="Approved",
+            owner_id=user.id,
+            parent_id=None,
+            path="/Approved",
+            level=0,
+            is_system_folder=True
+        )
+        db.session.add(approved_folder)
+        
+        # 4. Rejected folder (root level - separate from Generated)
+        rejected_folder = Folder(
+            name="Rejected",
+            owner_id=user.id,
+            parent_id=None,
+            path="/Rejected",
+            level=0,
+            is_system_folder=True
+        )
+        db.session.add(rejected_folder)
+        
+        # 5. Department folder (if user has department)
+        if user.department_id:
+            from app.models.institution import Department
+            department = Department.query.get(user.department_id)
+            if department:
+                dept_folder = Folder(
+                    name=department.name,
+                    owner_id=user.id,
+                    parent_id=None,
+                    path=f"/{department.name}",
+                    level=0,
+                    is_system_folder=True
+                )
+                db.session.add(dept_folder)
+        
+        # 6. Institution folder
+        if user.institution_id:
+            institution = Institution.query.get(user.institution_id)
+            if institution:
+                inst_folder = Folder(
+                    name=institution.name,
+                    owner_id=user.id,
+                    parent_id=None,
+                    path=f"/{institution.name}",
+                    level=0,
+                    is_system_folder=True
+                )
+                db.session.add(inst_folder)
+        
+        print(f"✅ Created default folders for user: {user.email}")
+        
+    except Exception as e:
+        print(f"❌ Error creating default folders for {user.email}: {str(e)}")
+        raise
 import os
 
 bp = Blueprint('auth', __name__)
@@ -64,6 +173,14 @@ def register():
         
         db.session.add(user)
         db.session.commit()
+        
+        # Create default folder structure for the new user
+        try:
+            create_default_folders_for_user(user)
+            db.session.commit()
+        except Exception as e:
+            print(f"Warning: Failed to create default folders: {str(e)}")
+            # Don't fail registration if folder creation fails
         
         # Send welcome email
         try:

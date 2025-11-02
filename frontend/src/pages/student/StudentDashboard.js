@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { WalletProvider, useWallet } from '../../contexts/WalletContext';
 import Settings from '../shared/Settings';
+import FileManager from '../shared/FileManagerNew';
 import Profile from '../../components/shared/Profile';
 import './StudentDashboard.css';
 
@@ -9,10 +11,260 @@ const StudentDashboard = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState('');
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
+
+  // Custom Wallet Component with dropdown
+  const CustomWalletButton = () => {
+    const { 
+      isConnected, 
+      address, 
+      isLoading, 
+      isMetaMaskInstalled, 
+      networkInfo,
+      connect, 
+      disconnect, 
+      getFormattedAddress 
+    } = useWallet();
+    
+    const [showDropdown, setShowDropdown] = useState(false);
+
+    const handleConnect = async () => {
+      try {
+        await connect();
+      } catch (error) {
+        console.error('Connect wallet error:', error);
+        alert('Failed to connect wallet. Please try again.');
+      }
+    };
+
+    const handleDisconnect = () => {
+      try {
+        disconnect();
+        setShowDropdown(false);
+      } catch (error) {
+        console.error('Disconnect wallet error:', error);
+      }
+    };
+
+    const handleSwitchWallet = async () => {
+      setShowDropdown(false);
+      try {
+        console.log('🔀 Switch Wallet clicked');
+        const accounts = await window.ethereum.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }]
+        }).then(() => window.ethereum.request({
+          method: 'eth_requestAccounts'
+        }));
+        
+        console.log('✅ Switched to account:', accounts[0]);
+      } catch (error) {
+        console.error('❌ Error switching wallet:', error);
+        if (error.code !== 4001) {
+          alert('Failed to switch wallet');
+        }
+      }
+    };
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (e) => {
+        if (!e.target.closest('[data-wallet-dropdown]') && !e.target.closest('.wallet-dropdown-btn')) {
+          setShowDropdown(false);
+        }
+      };
+      
+      if (showDropdown) {
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+      }
+    }, [showDropdown]);
+
+    if (!isMetaMaskInstalled) {
+      return (
+        <button 
+          className="btn primary" 
+          onClick={() => window.open('https://metamask.io/download/', '_blank')}
+        >
+          <i className="ri-download-line"></i> Install MetaMask
+        </button>
+      );
+    }
+
+    if (isLoading) {
+      return (
+        <button className="btn primary" disabled>
+          <i className="ri-loader-4-line"></i> Connecting...
+        </button>
+      );
+    }
+
+    if (isConnected) {
+      return (
+        <div style={{ position: 'relative' }}>
+          <button 
+            className="btn success wallet-dropdown-btn" 
+            onClick={() => setShowDropdown(!showDropdown)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 12px',
+              backgroundColor: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: '#374151',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <i className="ri-wallet-3-line" style={{ fontSize: '16px', color: '#10b981' }}></i> 
+            <span style={{ fontWeight: '500' }}>{getFormattedAddress()}</span>
+            <i className={`ri-arrow-${showDropdown ? 'up' : 'down'}-s-line`} style={{ fontSize: '16px' }}></i>
+          </button>
+
+          {showDropdown && (
+            <div 
+              data-wallet-dropdown
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: '-50px',
+                backgroundColor: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                zIndex: 9999,
+                minWidth: '280px',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Wallet Address Section */}
+              <div style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #f3f4f6',
+                backgroundColor: '#f9fafb'
+              }}>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px', fontWeight: '500' }}>
+                  Wallet Address:
+                </div>
+                <div style={{
+                  fontSize: '13px',
+                  color: '#111827',
+                  fontFamily: 'monospace',
+                  wordBreak: 'break-all',
+                  marginBottom: '8px'
+                }}>
+                  {address}
+                </div>
+                <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                  <i className="ri-user-line"></i> {user?.username || 'Student'}
+                </div>
+              </div>
+
+              {/* Network Info */}
+              <div style={{
+                padding: '8px 16px',
+                borderBottom: '1px solid #f3f4f6',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: networkInfo?.isCorrectNetwork ? '#22c55e' : '#ef4444'
+                }}></div>
+                <span style={{ 
+                  fontSize: '12px', 
+                  color: networkInfo?.isCorrectNetwork ? '#059669' : '#dc2626', 
+                  fontWeight: '500' 
+                }}>
+                  {networkInfo?.networkName || 'Unknown Network'}
+                </span>
+              </div>
+
+              {/* Warning if wrong network */}
+              {networkInfo && !networkInfo.isCorrectNetwork && (
+                <div style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#fef2f2',
+                  borderBottom: '1px solid #fecaca',
+                  fontSize: '11px',
+                  color: '#991b1b'
+                }}>
+                  ⚠️ Please switch to Sepolia Testnet
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div style={{ padding: '8px' }}>
+                {/* Switch Wallet */}
+                <button
+                  onClick={handleSwitchWallet}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '4px',
+                    transition: 'background-color 0.2s',
+                    textAlign: 'left'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <i className="ri-arrow-left-right-line" style={{ fontSize: '16px', color: '#6b7280' }}></i>
+                  <span>Switch Wallet</span>
+                </button>
+
+                {/* Disconnect Wallet */}
+                <button
+                  onClick={handleDisconnect}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#dc2626',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'background-color 0.2s',
+                    textAlign: 'left'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <i className="ri-logout-box-r-line" style={{ fontSize: '16px' }}></i>
+                  <span>Disconnect Wallet</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <button className="btn primary" onClick={handleConnect}>
+        <i className="ri-wallet-3-line"></i> Connect Wallet
+      </button>
+    );
+  };
 
   useEffect(() => {
     // Load RemixIcon CSS
@@ -58,21 +310,6 @@ const StudentDashboard = () => {
     };
   }, [isResizing]);
 
-  const connectWallet = async () => {
-    if (typeof window.ethereum !== 'undefined') {
-      try {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        setWalletConnected(true);
-        setWalletAddress(accounts[0]);
-      } catch (error) {
-        console.error('Error connecting wallet:', error);
-        alert('Failed to connect wallet. Please try again.');
-      }
-    } else {
-      alert('Please install MetaMask to connect your wallet');
-    }
-  };
-
   const getUserName = () => {
     if (user?.name) return user.name;
     if (user?.email) {
@@ -83,7 +320,8 @@ const StudentDashboard = () => {
   };
 
   return (
-    <div className="admin-container student-dashboard">
+    <WalletProvider>
+      <div className="admin-container student-dashboard">
       <div 
         className={`frame ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
         style={{
@@ -111,7 +349,11 @@ const StudentDashboard = () => {
               >
                 <i className="ri-dashboard-line"></i> <span>Overview</span>
               </a>
-              <a>
+              <a
+                className={currentPage === 'files' ? 'active' : ''}
+                onClick={() => setCurrentPage('files')}
+                style={{cursor: 'pointer'}}
+              >
                 <i className="ri-folder-line"></i> <span>My Files</span>
                 <span className="badge alert">24</span>
               </a>
@@ -164,16 +406,7 @@ const StudentDashboard = () => {
             </div>
 
             {/* Connect Wallet Button */}
-            <button 
-              className={`btn ${walletConnected ? 'success' : 'primary'}`}
-              onClick={connectWallet}
-              style={{ marginLeft: '10px' }}
-            >
-              <i className="ri-wallet-3-line"></i>
-              {walletConnected 
-                ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` 
-                : 'Connect Wallet'}
-            </button>
+            <CustomWalletButton />
 
             <div className="search">
               <i className="ri-search-line"></i>
@@ -201,12 +434,17 @@ const StudentDashboard = () => {
           <div className="content">
             {currentPage === 'settings' ? (
               <Settings />
+            ) : currentPage === 'files' ? (
+              <div style={{ padding: '20px' }}>
+                <h2>File Manager</h2>
+                <FileManager />
+              </div>
             ) : (
               <div className="dashboard-content">
             {/* Welcome Header */}
             <div className="page-title">
               <h1 style={{fontWeight: 800, fontSize: '28px'}}>Welcome back, {getUserName()}!</h1>
-              <p>Here's your academic dashboard overview.</p>
+              <p>Here's your academic dashboard overview. Current page: {currentPage}</p>
             </div>
 
             {/* First Row - Main Document Stats */}
@@ -409,7 +647,8 @@ const StudentDashboard = () => {
         isOpen={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
       />
-    </div>
+      </div>
+    </WalletProvider>
   );
 };
 

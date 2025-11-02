@@ -1,0 +1,28 @@
+{
+  "blockchain": {
+    "network": "sepolia",
+    "rpcUrl": "https://sepolia.infura.io/v3/edc6ea5d5f0245c3b3c10b06ffa69e18",
+    "chainId": 11155111,
+    "contracts": {
+      "DocumentManagerV2": {
+        "address": "0xb19f78B9c32dceaA01DE778Fa46784F5437DF373",
+        "abi": "./src/contracts/DocumentManagerV2.json"
+      }
+    }
+  },
+  "ipfs": {
+    "pinata": {
+      "apiKey": "666431232e6f1cac113f",
+      "secretKey": "c4742fe6cab13f82ef00353e1dbea3ce0009dec241c91ec4c7cb14968805febe",
+      "jwtToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI1MGMyNWZlOC0yMDMxLTRjYTQtYmI2MS01NGM2MzRkMTM5ZTIiLCJlbWFpbCI6Im11amp1NzE4MjYzQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiI2NjY0MzEyMzJlNmYxY2FjMTEzZiIsInNjb3BlZEtleVNlY3JldCI6ImM0NzQyZmU2Y2FiMTNmODJlZjAwMzUzZTFkYmVhM2NlMDAwOWRlYzI0MWM5MWVjNGM3Y2IxNDk2ODgwNWZlYmUiLCJleHAiOjE3OTMxMzMwMzN9.g_FTqQGdPjKv9wCkoxk-hlJjEYvVG5AwZUT22sC8-nQ",
+      "gateway": "https://gateway.pinata.cloud/ipfs/"
+    }
+  },
+  "features": {
+    "enableVersionControl": true,
+    "enablePermissions": true,
+    "enableFolders": true,
+    "maxFileSize": 10485760,
+    "allowedFileTypes": ["*"]
+  }
+}

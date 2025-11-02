@@ -17,11 +17,11 @@ def get_profile():
         current_user_id = get_jwt_identity()
         user = User.query.get(current_user_id)
         if not user:
-            return jsonify({'error': 'User not found'}), 404
-        return jsonify(user.to_dict()), 200
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        return jsonify({'success': True, 'user': user.to_dict()}), 200
     except Exception as e:
         logger.error(f"Error getting user profile: {str(e)}")
-        return jsonify({'error': 'Failed to get profile'}), 500
+        return jsonify({'success': False, 'error': 'Failed to get profile'}), 500
 
 @bp.route('/theme', methods=['PUT'])
 @token_required
@@ -83,6 +83,9 @@ def update_profile():
             user.last_name = data['lastName']
         if 'phone' in data:
             user.phone = data['phone']
+        if 'walletAddress' in data:
+            user.wallet_address = data['walletAddress']
+            logger.info(f"User {user.email} updated wallet address to {data['walletAddress']}")
         if 'theme' in data:
             valid_themes = ['green', 'blue', 'purple', 'orange', 'pink', 'teal', 'red']
             if data['theme'] in valid_themes:
@@ -101,3 +104,48 @@ def update_profile():
         db.session.rollback()
         logger.error(f"Error updating profile: {str(e)}")
         return jsonify({'error': 'Failed to update profile'}), 500
+
+@bp.route('/institution', methods=['GET'])
+@token_required
+def get_institution_users():
+    """Get all users from the same institution for sharing functionality"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Get all users from the same institution, excluding current user
+        institution_users = User.query.filter(
+            User.institution_id == current_user.institution_id,
+            User.id != current_user_id,
+            User.status == 'active'  # Only include active users
+        ).all()
+        
+        # Format users for frontend
+        users_data = []
+        for user in institution_users:
+            users_data.append({
+                'id': user.id,
+                'email': user.email,
+                'firstName': user.first_name,
+                'lastName': user.last_name,
+                'fullName': f"{user.first_name} {user.last_name}",
+                'role': user.role,
+                'department': getattr(user, 'department', 'N/A'),
+                'walletAddress': getattr(user, 'wallet_address', None)
+            })
+        
+        return jsonify({
+            'success': True,
+            'users': users_data,
+            'count': len(users_data)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting institution users: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'error': 'Failed to get institution users'
+        }), 500
