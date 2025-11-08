@@ -6,6 +6,31 @@
   --shadow-soft: 0 4px 16px rgba(15,23,42,.06);
 }
 
+/* Custom Scrollbar for the entire page */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-color, #10b981) var(--bg-secondary, #f3f4f6);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--bg-secondary, #f3f4f6);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--primary-color, #10b981);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-dark, #059669);
+}
+
 .admin-container {
   min-height: 100vh;
   background: var(--bg-primary);
@@ -24,7 +49,8 @@
   overflow: hidden;
   display: grid;
   grid-template-columns: var(--sidebar-width, 280px) 1fr;
-  min-height: 780px;
+  height: calc(100vh - 80px);
+  max-height: 900px;
   transition: grid-template-columns 0.3s ease;
   position: relative;
 }
@@ -44,6 +70,7 @@
   overflow-x: hidden;
   transition: all 0.3s ease;
   max-height: 100vh;
+  width: 100%;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -108,6 +135,9 @@
 
 .sidebar-collapsed .sidebar{
   padding: 24px 10px;
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
 }
 
 .sidebar-content{
@@ -227,6 +257,11 @@
   padding: 12px 10px;
 }
 
+.sidebar-collapsed .menu a i {
+  flex-shrink: 0;
+  font-size: 20px;
+}
+
 .sidebar-collapsed .menu a span:not(.badge){
   display: none;
 }
@@ -272,7 +307,7 @@
 .main{ 
   display:flex; 
   flex-direction:column;
-  min-height: 100%;
+  height: 100%;
 }
 
 .topbar{
@@ -468,6 +503,18 @@
   flex-direction:column;
   gap:20px;
   background: #ffffff;
+}
+
+/* Special styling when chat is active - full height with no padding */
+.content.chat-content {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  margin: 0;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .page-title{

@@ -557,6 +557,18 @@
   background: #ffffff;
 }
 
+/* Special styling when chat is active - full height with no padding */
+.content.chat-content {
+  padding: 0;
+  gap: 0;
+  flex: 1;
+  overflow: hidden;
+  margin: 0;
+  background: none;
+  display: flex;
+  flex-direction: column;
+}
+
 .page-title{
   padding: 0 0 4px 4px;
 }

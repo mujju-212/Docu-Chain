@@ -3,6 +3,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { WalletProvider, useWallet } from '../../contexts/WalletContext';
 import Settings from '../shared/Settings';
 import FileManager from '../shared/FileManagerNew';
+import ChatInterface from '../shared/ChatInterface';
+import DocumentGenerator from '../shared/DocumentGenerator';
+import DocumentApproval from '../shared/DocumentApproval';
 import Profile from '../../components/shared/Profile';
 import './StudentDashboard.css';
 
@@ -357,15 +360,27 @@ const StudentDashboard = () => {
                 <i className="ri-folder-line"></i> <span>My Files</span>
                 <span className="badge alert">24</span>
               </a>
-              <a>
+              <a
+                onClick={() => setCurrentPage('chat')}
+                className={currentPage === 'chat' ? 'active' : ''}
+                style={{cursor: 'pointer'}}
+              >
                 <i className="ri-chat-3-line"></i> <span>Chat Messages</span>
                 <span className="badge alert">5</span>
               </a>
-              <a>
+              <a
+                onClick={() => setCurrentPage('document-generator')}
+                className={currentPage === 'document-generator' ? 'active' : ''}
+                style={{cursor: 'pointer'}}
+              >
                 <i className="ri-file-add-line"></i> <span>Generate Document</span>
               </a>
-              <a>
-                <i className="ri-shield-check-line"></i> <span>Document Verifier</span>
+              <a
+                onClick={() => setCurrentPage('document-approval')}
+                className={currentPage === 'document-approval' ? 'active' : ''}
+                style={{cursor: 'pointer'}}
+              >
+                <i className="ri-shield-check-line"></i> <span>Document Approval</span>
               </a>
             </nav>
 
@@ -431,7 +446,7 @@ const StudentDashboard = () => {
           </div>
 
           {/* Main Dashboard Content */}
-          <div className="content">
+          <div className={`content ${currentPage === 'chat' ? 'chat-content' : ''}`}>
             {currentPage === 'settings' ? (
               <Settings />
             ) : currentPage === 'files' ? (
@@ -439,6 +454,12 @@ const StudentDashboard = () => {
                 <h2>File Manager</h2>
                 <FileManager />
               </div>
+            ) : currentPage === 'chat' ? (
+              <ChatInterface />
+            ) : currentPage === 'document-generator' ? (
+              <DocumentGenerator />
+            ) : currentPage === 'document-approval' ? (
+              <DocumentApproval userRole="student" />
             ) : (
               <div className="dashboard-content">
             {/* Welcome Header */}
