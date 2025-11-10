@@ -16,6 +16,18 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   const [showPreview, setShowPreview] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [showDocumentDetails, setShowDocumentDetails] = useState(false);
+  const [selectedDocForDetails, setSelectedDocForDetails] = useState(null);
+  const [activeHistoryTab, setActiveHistoryTab] = useState('all'); // 'all', 'approved', 'pending', 'rejected', 'draft'
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historySortBy, setHistorySortBy] = useState('date'); // 'date', 'name', 'status'
+  
+  // Receive tab states
+  const [activeReceiveTab, setActiveReceiveTab] = useState('pending'); // 'pending', 'approved', 'rejected'
+  const [receiveSearchQuery, setReceiveSearchQuery] = useState('');
+  const [receiveSortBy, setReceiveSortBy] = useState('date'); // 'date', 'name', 'requester'
+  const [receiveFilterType, setReceiveFilterType] = useState('all'); // 'all', 'digital', 'standard'
+  const [receiveFilterDepartment, setReceiveFilterDepartment] = useState('all');
 
   // Sample blockchain documents (from File Manager)
   const blockchainDocuments = [
@@ -95,6 +107,88 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       currentApprovers: ['Prof. Priya Sharma (Principal)', 'Mr. Anil Desai (Dean)'],
       approvedBy: [],
       pendingWith: ['Prof. Priya Sharma (Principal)', 'Mr. Anil Desai (Dean)']
+    },
+    {
+      id: 'req3',
+      documentName: 'Research_Paper_Publication.pdf',
+      documentSize: '580 KB',
+      ipfsHash: 'QmAbc...xyz789',
+      txId: '0x8h9i0j1k2l3m4n5o...',
+      requestorName: 'Ms. Priya Reddy',
+      requestorId: 'FAC-2210',
+      requestorDepartment: 'Computer Science',
+      requestorEmail: 'priya.r@edu.in',
+      requestorPhone: '+91 98765 12345',
+      purpose: 'Approval for international conference publication',
+      approvalType: 'digital',
+      status: 'approved',
+      submittedDate: '2025-03-14 11:00 AM',
+      approvedDate: '2025-03-15 09:30 AM',
+      currentApprovers: ['Dr. Rajesh Kumar (HOD)'],
+      approvedBy: ['Dr. Rajesh Kumar (HOD)'],
+      pendingWith: []
+    },
+    {
+      id: 'req4',
+      documentName: 'Salary_Increment_Request.pdf',
+      documentSize: '320 KB',
+      ipfsHash: 'QmDef...abc456',
+      txId: '0x1a2b3c4d5e6f7g8h...',
+      requestorName: 'Mr. Amit Sharma',
+      requestorId: 'FAC-2108',
+      requestorDepartment: 'Mathematics',
+      requestorEmail: 'amit.s@edu.in',
+      requestorPhone: '+91 98123 67890',
+      purpose: 'Annual salary increment approval',
+      approvalType: 'standard',
+      status: 'approved',
+      submittedDate: '2025-03-12 03:45 PM',
+      approvedDate: '2025-03-13 10:15 AM',
+      currentApprovers: ['Prof. Priya Sharma (Principal)'],
+      approvedBy: ['Prof. Priya Sharma (Principal)'],
+      pendingWith: []
+    },
+    {
+      id: 'req5',
+      documentName: 'Equipment_Purchase_Proposal.pdf',
+      documentSize: '690 KB',
+      ipfsHash: 'QmGhi...jkl123',
+      txId: '0x9i0j1k2l3m4n5o6p...',
+      requestorName: 'Dr. Kavita Menon',
+      requestorId: 'FAC-2015',
+      requestorDepartment: 'Physics',
+      requestorEmail: 'kavita.m@edu.in',
+      requestorPhone: '+91 98234 56789',
+      purpose: 'Purchase of new lab equipment for research',
+      approvalType: 'digital',
+      status: 'rejected',
+      submittedDate: '2025-03-10 01:30 PM',
+      rejectedDate: '2025-03-11 11:00 AM',
+      rejectionReason: 'Budget constraints. Please revise the proposal with lower cost alternatives.',
+      currentApprovers: ['Mr. Anil Desai (Dean)'],
+      approvedBy: [],
+      pendingWith: []
+    },
+    {
+      id: 'req6',
+      documentName: 'Conference_Attendance_Request.pdf',
+      documentSize: '290 KB',
+      ipfsHash: 'QmJkl...mno567',
+      txId: '0x2b3c4d5e6f7g8h9i...',
+      requestorName: 'Ms. Neha Gupta',
+      requestorId: 'FAC-2312',
+      requestorDepartment: 'Computer Science',
+      requestorEmail: 'neha.g@edu.in',
+      requestorPhone: '+91 98345 78901',
+      purpose: 'Permission to attend national conference',
+      approvalType: 'standard',
+      status: 'rejected',
+      submittedDate: '2025-03-09 09:15 AM',
+      rejectedDate: '2025-03-09 04:30 PM',
+      rejectionReason: 'Department already has two representatives attending this conference.',
+      currentApprovers: ['Dr. Rajesh Kumar (HOD)'],
+      approvedBy: [],
+      pendingWith: []
     }
   ]);
 
@@ -103,21 +197,89 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     {
       id: 'sent1',
       documentName: 'Conference_Travel_Request.pdf',
+      documentId: 'doc1',
       recipients: ['Prof. Priya Sharma (Principal)'],
       status: 'approved',
       submittedDate: '2025-03-14',
       approvedDate: '2025-03-15',
-      approvalType: 'digital'
+      approvalType: 'digital',
+      purpose: 'Attending International Conference on AI',
+      currentVersion: 'v2.0',
+      versions: [
+        { version: 'v1.0', date: '2025-03-14', hash: 'QmXyZ...abc123', status: 'draft' },
+        { version: 'v2.0', date: '2025-03-15', hash: 'QmAbc...def456', status: 'approved', approvedBy: 'Prof. Priya Sharma' }
+      ],
+      ipfsHash: 'QmAbc...def456',
+      txId: '0x7a8b9c1d2e3f4a5b...'
     },
     {
       id: 'sent2',
       documentName: 'Research_Grant_Application.pdf',
+      documentId: 'doc2',
       recipients: ['Dr. Rajesh Kumar (HOD)', 'Mr. Anil Desai (Dean)'],
       status: 'partial',
       submittedDate: '2025-03-13',
       approvedBy: ['Dr. Rajesh Kumar'],
       pendingWith: ['Mr. Anil Desai'],
-      approvalType: 'standard'
+      approvalType: 'standard',
+      purpose: 'Research grant for AI lab equipment',
+      currentVersion: 'v1.5',
+      versions: [
+        { version: 'v1.0', date: '2025-03-13', hash: 'QmDef...ghi789', status: 'submitted' },
+        { version: 'v1.5', date: '2025-03-14', hash: 'QmGhi...jkl012', status: 'partial', approvedBy: 'Dr. Rajesh Kumar' }
+      ],
+      ipfsHash: 'QmGhi...jkl012',
+      txId: '0x9f8e7d6c5b4a3e2f...'
+    },
+    {
+      id: 'sent3',
+      documentName: 'Leave_Application_May.pdf',
+      documentId: 'doc3',
+      recipients: ['Dr. Rajesh Kumar (HOD)'],
+      status: 'pending',
+      submittedDate: '2025-03-16',
+      approvalType: 'standard',
+      purpose: 'Medical leave for 5 days',
+      currentVersion: 'v1.0',
+      versions: [
+        { version: 'v1.0', date: '2025-03-16', hash: 'QmJkl...mno345', status: 'pending' }
+      ],
+      ipfsHash: 'QmJkl...mno345',
+      txId: '0x1a2b3c4d5e6f7g8h...'
+    },
+    {
+      id: 'sent4',
+      documentName: 'Budget_Proposal_Draft.pdf',
+      documentId: 'doc4',
+      recipients: [],
+      status: 'draft',
+      submittedDate: '2025-03-12',
+      approvalType: 'digital',
+      purpose: 'Annual budget proposal for department',
+      currentVersion: 'v0.1',
+      versions: [
+        { version: 'v0.1', date: '2025-03-12', hash: 'QmMno...pqr678', status: 'draft' }
+      ],
+      ipfsHash: 'QmMno...pqr678',
+      txId: null
+    },
+    {
+      id: 'sent5',
+      documentName: 'Academic_Certificate_Request.pdf',
+      documentId: 'doc5',
+      recipients: ['Ms. Meera Patel (Class Teacher)'],
+      status: 'rejected',
+      submittedDate: '2025-03-11',
+      rejectedDate: '2025-03-11',
+      approvalType: 'standard',
+      purpose: 'Certificate for scholarship application',
+      currentVersion: 'v1.0',
+      rejectionReason: 'Incomplete information, please add attendance records',
+      versions: [
+        { version: 'v1.0', date: '2025-03-11', hash: 'QmPqr...stu901', status: 'rejected' }
+      ],
+      ipfsHash: 'QmPqr...stu901',
+      txId: '0x3c4d5e6f7g8h9i0j...'
     }
   ]);
 
@@ -215,12 +377,95 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     setShowRequestModal(true);
   };
 
-  const filteredIncomingRequests = incomingRequests.filter(req => {
-    const matchesSearch = req.documentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         req.requestorName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || req.status === filterStatus;
-    return matchesSearch && matchesFilter;
+  const handleViewDocumentDetails = (doc) => {
+    setSelectedDocForDetails(doc);
+    setShowDocumentDetails(true);
+  };
+
+  const handleDownloadVersion = (version) => {
+    alert(`⬇️ Downloading Version ${version.version}...\n\n📦 IPFS Hash: ${version.hash}\n📅 Date: ${version.date}\n✅ Status: ${version.status}\n\nFile will be downloaded from IPFS...`);
+  };
+
+  const handleContinueDraft = (doc) => {
+    // Pre-fill form with draft data
+    alert(`📝 Continuing Draft...\n\nDocument: ${doc.documentName}\nPurpose: ${doc.purpose}\n\nForm will be pre-filled with saved data.`);
+    setActiveTab('send');
+    // Here you would actually populate the form fields
+  };
+
+  const handleCancelApproval = (docId) => {
+    if (confirm('❌ Cancel Approval Request?\n\nThis will:\n• Withdraw the request from all approvers\n• Update blockchain status\n• Notify all recipients\n\nAre you sure?')) {
+      alert('✅ Approval request cancelled successfully!');
+      setSentRequests(prev => prev.map(req => 
+        req.id === docId ? { ...req, status: 'cancelled' } : req
+      ));
+    }
+  };
+
+  const filteredSentRequests = sentRequests.filter(req => {
+    if (activeHistoryTab === 'all') return true;
+    return req.status === activeHistoryTab;
+  }).filter(req => {
+    // Search filter
+    if (!historySearchQuery) return true;
+    const query = historySearchQuery.toLowerCase();
+    return (
+      req.documentName.toLowerCase().includes(query) ||
+      req.purpose.toLowerCase().includes(query) ||
+      req.recipients.some(r => r.toLowerCase().includes(query))
+    );
+  }).sort((a, b) => {
+    // Sort functionality
+    switch (historySortBy) {
+      case 'name':
+        return a.documentName.localeCompare(b.documentName);
+      case 'status':
+        return a.status.localeCompare(b.status);
+      case 'date':
+      default:
+        return new Date(b.submittedDate) - new Date(a.submittedDate);
+    }
   });
+
+  const filteredIncomingRequests = incomingRequests.filter(req => {
+    // Status filter based on active tab
+    if (activeReceiveTab === 'pending' && req.status !== 'pending') return false;
+    if (activeReceiveTab === 'approved' && req.status !== 'approved') return false;
+    if (activeReceiveTab === 'rejected' && req.status !== 'rejected') return false;
+
+    // Search filter
+    if (receiveSearchQuery) {
+      const query = receiveSearchQuery.toLowerCase();
+      const matchesSearch = 
+        req.documentName.toLowerCase().includes(query) ||
+        req.requestorName.toLowerCase().includes(query) ||
+        req.requestorDepartment.toLowerCase().includes(query) ||
+        req.purpose.toLowerCase().includes(query);
+      if (!matchesSearch) return false;
+    }
+
+    // Type filter
+    if (receiveFilterType !== 'all' && req.approvalType !== receiveFilterType) return false;
+
+    // Department filter
+    if (receiveFilterDepartment !== 'all' && req.requestorDepartment !== receiveFilterDepartment) return false;
+
+    return true;
+  }).sort((a, b) => {
+    // Sort logic
+    switch (receiveSortBy) {
+      case 'name':
+        return a.documentName.localeCompare(b.documentName);
+      case 'requester':
+        return a.requestorName.localeCompare(b.requestorName);
+      case 'date':
+      default:
+        return new Date(b.submittedDate) - new Date(a.submittedDate);
+    }
+  });
+
+  // Get unique departments for filter
+  const departments = ['all', ...new Set(incomingRequests.map(r => r.requestorDepartment))];
 
   return (
     <div className="document-approval">
@@ -533,54 +778,193 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               <div className="card-header">
                 <h3>
                   <i className="ri-history-line"></i>
-                  My Sent Requests
+                  Document Approval History
                 </h3>
+                <span className="request-count">{filteredSentRequests.length} documents</span>
               </div>
-              <div className="requests-table">
-                <table>
+
+              {/* Search and Filter Bar */}
+              <div className="history-search-bar">
+                <div className="search-box">
+                  <i className="ri-search-line"></i>
+                  <input 
+                    type="text" 
+                    placeholder="Search by document name, purpose, or recipient..."
+                    value={historySearchQuery}
+                    onChange={(e) => setHistorySearchQuery(e.target.value)}
+                  />
+                  {historySearchQuery && (
+                    <button 
+                      className="clear-search"
+                      onClick={() => setHistorySearchQuery('')}
+                      title="Clear search"
+                    >
+                      <i className="ri-close-line"></i>
+                    </button>
+                  )}
+                </div>
+                <div className="filter-group">
+                  <label>Sort by:</label>
+                  <select value={historySortBy} onChange={(e) => setHistorySortBy(e.target.value)}>
+                    <option value="date">Latest First</option>
+                    <option value="name">Document Name</option>
+                    <option value="status">Status</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* History Filter Tabs */}
+              <div className="history-tabs">
+                <button 
+                  className={`history-tab ${activeHistoryTab === 'all' ? 'active' : ''}`}
+                  onClick={() => setActiveHistoryTab('all')}
+                >
+                  All <span className="count">{sentRequests.length}</span>
+                </button>
+                <button 
+                  className={`history-tab ${activeHistoryTab === 'approved' ? 'active' : ''}`}
+                  onClick={() => setActiveHistoryTab('approved')}
+                >
+                  <i className="ri-checkbox-circle-line"></i> Approved <span className="count">{sentRequests.filter(r => r.status === 'approved').length}</span>
+                </button>
+                <button 
+                  className={`history-tab ${activeHistoryTab === 'pending' ? 'active' : ''}`}
+                  onClick={() => setActiveHistoryTab('pending')}
+                >
+                  <i className="ri-time-line"></i> Pending <span className="count">{sentRequests.filter(r => r.status === 'pending').length}</span>
+                </button>
+                <button 
+                  className={`history-tab ${activeHistoryTab === 'partial' ? 'active' : ''}`}
+                  onClick={() => setActiveHistoryTab('partial')}
+                >
+                  <i className="ri-progress-3-line"></i> Partial <span className="count">{sentRequests.filter(r => r.status === 'partial').length}</span>
+                </button>
+                <button 
+                  className={`history-tab ${activeHistoryTab === 'draft' ? 'active' : ''}`}
+                  onClick={() => setActiveHistoryTab('draft')}
+                >
+                  <i className="ri-draft-line"></i> Drafts <span className="count">{sentRequests.filter(r => r.status === 'draft').length}</span>
+                </button>
+                <button 
+                  className={`history-tab ${activeHistoryTab === 'rejected' ? 'active' : ''}`}
+                  onClick={() => setActiveHistoryTab('rejected')}
+                >
+                  <i className="ri-close-circle-line"></i> Rejected <span className="count">{sentRequests.filter(r => r.status === 'rejected').length}</span>
+                </button>
+              </div>
+
+              <div className="requests-table-wrapper">
+                <table className="requests-table">
                   <thead>
                     <tr>
                       <th>Document</th>
+                      <th>Purpose</th>
                       <th>Recipients</th>
                       <th>Status</th>
+                      <th>Version</th>
                       <th>Date</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sentRequests.map(req => (
+                    {filteredSentRequests.map(req => (
                       <tr key={req.id}>
                         <td>
                           <div className="doc-cell">
                             <i className="ri-file-pdf-line"></i>
-                            {req.documentName}
+                            <span>{req.documentName}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="purpose-cell">
+                            {req.purpose}
                           </div>
                         </td>
                         <td>
                           <div className="recipients-cell">
-                            {req.recipients.map((r, i) => (
-                              <span key={i} className="recipient-tag">{r}</span>
-                            ))}
+                            {req.recipients.length > 0 ? (
+                              req.recipients.slice(0, 2).map((r, i) => (
+                                <span key={i} className="recipient-tag">{r}</span>
+                              ))
+                            ) : (
+                              <span className="no-recipients">Not sent yet</span>
+                            )}
+                            {req.recipients.length > 2 && (
+                              <span className="more-count">+{req.recipients.length - 2}</span>
+                            )}
                           </div>
                         </td>
                         <td>
                           <span className={`status-badge ${req.status}`}>
                             {req.status === 'approved' && <i className="ri-checkbox-circle-fill"></i>}
-                            {req.status === 'partial' && <i className="ri-time-line"></i>}
-                            {req.status === 'pending' && <i className="ri-loader-line"></i>}
+                            {req.status === 'partial' && <i className="ri-progress-3-line"></i>}
+                            {req.status === 'pending' && <i className="ri-time-line"></i>}
+                            {req.status === 'draft' && <i className="ri-draft-line"></i>}
+                            {req.status === 'rejected' && <i className="ri-close-circle-fill"></i>}
                             {req.status}
                           </span>
+                          {req.status === 'partial' && req.approvedBy && (
+                            <div className="sub-status">
+                              {req.approvedBy.length} of {req.recipients.length} approved
+                            </div>
+                          )}
                         </td>
-                        <td>{req.submittedDate}</td>
                         <td>
-                          <button className="btn-sm">
-                            <i className="ri-eye-line"></i> View
-                          </button>
+                          <span className="version-badge">{req.currentVersion}</span>
+                        </td>
+                        <td>
+                          <div className="date-cell">
+                            {req.submittedDate}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="action-buttons-group">
+                            <button 
+                              className="btn-icon" 
+                              onClick={() => handleViewDocumentDetails(req)}
+                              title="View Details"
+                            >
+                              <i className="ri-eye-line"></i>
+                            </button>
+                            {req.status === 'approved' && (
+                              <button 
+                                className="btn-icon success" 
+                                onClick={() => handleDownloadVersion(req.versions[req.versions.length - 1])}
+                                title="Download Approved Version"
+                              >
+                                <i className="ri-download-cloud-line"></i>
+                              </button>
+                            )}
+                            {req.status === 'draft' && (
+                              <button 
+                                className="btn-icon primary" 
+                                onClick={() => handleContinueDraft(req)}
+                                title="Continue Draft"
+                              >
+                                <i className="ri-edit-line"></i>
+                              </button>
+                            )}
+                            {(req.status === 'pending' || req.status === 'partial') && (
+                              <button 
+                                className="btn-icon danger" 
+                                onClick={() => handleCancelApproval(req.id)}
+                                title="Cancel Request"
+                              >
+                                <i className="ri-close-circle-line"></i>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                {filteredSentRequests.length === 0 && (
+                  <div className="empty-table-state">
+                    <i className="ri-folder-open-line"></i>
+                    <p>No documents in this category</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -589,97 +973,259 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         {/* RECEIVE REQUEST TAB (Faculty & Admin only) */}
         {activeTab === 'receive' && userRole !== 'student' && (
           <div className="receive-request-section">
-            {/* Search and Filter Bar */}
+            {/* Section Header with Tabs */}
             <div className="approval-card">
-              <div className="search-filter-bar">
-                <div className="search-box">
-                  <i className="ri-search-line"></i>
-                  <input 
-                    type="text" 
-                    placeholder="Search by document name or requestor..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
+              <div className="receive-tabs-container">
+                <div className="receive-tabs">
+                  <button 
+                    className={`receive-tab ${activeReceiveTab === 'pending' ? 'active' : ''}`}
+                    onClick={() => setActiveReceiveTab('pending')}
+                  >
+                    <i className="ri-time-line"></i>
+                    <div className="tab-content">
+                      <span className="tab-title">Pending Requests</span>
+                      <span className="tab-count">{incomingRequests.filter(r => r.status === 'pending').length}</span>
+                    </div>
+                  </button>
+                  <button 
+                    className={`receive-tab ${activeReceiveTab === 'approved' ? 'active' : ''}`}
+                    onClick={() => setActiveReceiveTab('approved')}
+                  >
+                    <i className="ri-checkbox-circle-line"></i>
+                    <div className="tab-content">
+                      <span className="tab-title">Approved</span>
+                      <span className="tab-count">{incomingRequests.filter(r => r.status === 'approved').length}</span>
+                    </div>
+                  </button>
+                  <button 
+                    className={`receive-tab ${activeReceiveTab === 'rejected' ? 'active' : ''}`}
+                    onClick={() => setActiveReceiveTab('rejected')}
+                  >
+                    <i className="ri-close-circle-line"></i>
+                    <div className="tab-content">
+                      <span className="tab-title">Rejected</span>
+                      <span className="tab-count">{incomingRequests.filter(r => r.status === 'rejected').length}</span>
+                    </div>
+                  </button>
                 </div>
-                <div className="filter-group">
-                  <label>Filter:</label>
-                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                    <option value="all">All Requests</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </div>
-                <button className="btn-outline">
-                  <i className="ri-sort-desc"></i>
-                  Sort
-                </button>
               </div>
             </div>
 
-            {/* Incoming Requests */}
+            {/* Advanced Search and Filters */}
             <div className="approval-card">
-              <div className="card-header">
-                <h3>
-                  <i className="ri-inbox-line"></i>
-                  Pending Approval Requests
-                </h3>
-                <span className="request-count">{filteredIncomingRequests.length} requests</span>
-              </div>
+              <div className="advanced-filters">
+                {/* Search Bar */}
+                <div className="filter-row">
+                  <div className="search-box large">
+                    <i className="ri-search-line"></i>
+                    <input 
+                      type="text" 
+                      placeholder="Search by document, requester, department, or purpose..."
+                      value={receiveSearchQuery}
+                      onChange={(e) => setReceiveSearchQuery(e.target.value)}
+                    />
+                    {receiveSearchQuery && (
+                      <button 
+                        className="clear-search"
+                        onClick={() => setReceiveSearchQuery('')}
+                        title="Clear search"
+                      >
+                        <i className="ri-close-line"></i>
+                      </button>
+                    )}
+                  </div>
+                </div>
 
+                {/* Filter Options Row */}
+                <div className="filter-row multi-filter">
+                  <div className="filter-group">
+                    <label><i className="ri-sort-desc"></i> Sort by:</label>
+                    <select value={receiveSortBy} onChange={(e) => setReceiveSortBy(e.target.value)}>
+                      <option value="date">Latest First</option>
+                      <option value="name">Document Name</option>
+                      <option value="requester">Requester Name</option>
+                    </select>
+                  </div>
+
+                  <div className="filter-group">
+                    <label><i className="ri-shield-keyhole-line"></i> Type:</label>
+                    <select value={receiveFilterType} onChange={(e) => setReceiveFilterType(e.target.value)}>
+                      <option value="all">All Types</option>
+                      <option value="digital">Digital Signature</option>
+                      <option value="standard">Standard Approval</option>
+                    </select>
+                  </div>
+
+                  <div className="filter-group">
+                    <label><i className="ri-building-line"></i> Department:</label>
+                    <select value={receiveFilterDepartment} onChange={(e) => setReceiveFilterDepartment(e.target.value)}>
+                      {departments.map(dept => (
+                        <option key={dept} value={dept}>
+                          {dept === 'all' ? 'All Departments' : dept}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {(receiveSearchQuery || receiveFilterType !== 'all' || receiveFilterDepartment !== 'all') && (
+                    <button 
+                      className="btn-clear-filters"
+                      onClick={() => {
+                        setReceiveSearchQuery('');
+                        setReceiveFilterType('all');
+                        setReceiveFilterDepartment('all');
+                      }}
+                    >
+                      <i className="ri-filter-off-line"></i> Clear Filters
+                    </button>
+                  )}
+                </div>
+
+                {/* Results Summary */}
+                <div className="results-summary">
+                  <span className="results-count">
+                    Showing <strong>{filteredIncomingRequests.length}</strong> of <strong>{incomingRequests.filter(r => {
+                      if (activeReceiveTab === 'pending') return r.status === 'pending';
+                      if (activeReceiveTab === 'approved') return r.status === 'approved';
+                      if (activeReceiveTab === 'rejected') return r.status === 'rejected';
+                      return true;
+                    }).length}</strong> requests
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Requests List */}
+            <div className="approval-card">
               {filteredIncomingRequests.length > 0 ? (
-                <div className="requests-grid">
+                <div className="requests-list">
                   {filteredIncomingRequests.map(request => (
-                    <div key={request.id} className="request-card" onClick={() => handleViewRequest(request)}>
-                      <div className="request-header">
-                        <div className="doc-icon-large">
-                          <i className="ri-file-pdf-line"></i>
+                    <div key={request.id} className="request-list-item">
+                      <div className="request-list-header">
+                        <div className="request-icon">
+                          <i className="ri-file-text-line"></i>
                         </div>
-                        <div className="request-title-area">
-                          <h4>{request.documentName}</h4>
-                          <span className={`status-badge ${request.status}`}>
-                            {request.status === 'pending' ? <i className="ri-time-line"></i> : <i className="ri-checkbox-circle-fill"></i>}
-                            {request.status}
+                        <div className="request-main-info">
+                          <div className="request-title-row">
+                            <h4 className="request-doc-name">{request.documentName}</h4>
+                            <div className="request-badges">
+                              <span className={`type-badge ${request.approvalType}`}>
+                                {request.approvalType === 'digital' ? (
+                                  <><i className="ri-shield-keyhole-line"></i> Digital</>
+                                ) : (
+                                  <><i className="ri-checkbox-circle-line"></i> Standard</>
+                                )}
+                              </span>
+                              <span className="size-badge">{request.documentSize}</span>
+                            </div>
+                          </div>
+                          <div className="request-meta-row">
+                            <span className="meta-item">
+                              <i className="ri-user-line"></i>
+                              <strong>From:</strong> {request.requestorName}
+                            </span>
+                            <span className="meta-separator">•</span>
+                            <span className="meta-item">
+                              <i className="ri-building-line"></i>
+                              {request.requestorDepartment}
+                            </span>
+                            <span className="meta-separator">•</span>
+                            <span className="meta-item">
+                              <i className="ri-calendar-line"></i>
+                              {request.submittedDate}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="request-list-body">
+                        <div className="request-purpose">
+                          <strong>Purpose:</strong>
+                          <p>{request.purpose}</p>
+                        </div>
+
+                        {request.status === 'approved' && (
+                          <div className="request-status-info approved">
+                            <i className="ri-checkbox-circle-fill"></i>
+                            <span>Approved on {request.approvedDate}</span>
+                          </div>
+                        )}
+
+                        {request.status === 'rejected' && (
+                          <div className="request-status-info rejected">
+                            <i className="ri-close-circle-fill"></i>
+                            <div>
+                              <span>Rejected on {request.rejectedDate}</span>
+                              <p className="rejection-reason">Reason: {request.rejectionReason}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="request-list-footer">
+                        <div className="request-blockchain-info">
+                          <span className="blockchain-item">
+                            <i className="ri-link"></i>
+                            <code>{request.ipfsHash}</code>
                           </span>
                         </div>
+                        <div className="request-actions">
+                          <button 
+                            className="btn-action view"
+                            onClick={() => handleViewRequest(request)}
+                          >
+                            <i className="ri-eye-line"></i>
+                            View Details
+                          </button>
+                          {request.status === 'pending' && (
+                            <>
+                              <button 
+                                className="btn-action approve"
+                                onClick={() => handleApproveRequest(request.id)}
+                              >
+                                <i className="ri-checkbox-circle-line"></i>
+                                {request.approvalType === 'digital' ? 'Sign & Approve' : 'Approve'}
+                              </button>
+                              <button 
+                                className="btn-action reject"
+                                onClick={() => handleRejectRequest(request.id)}
+                              >
+                                <i className="ri-close-circle-line"></i>
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {(request.status === 'approved' || request.status === 'rejected') && (
+                            <button 
+                              className="btn-action download"
+                              onClick={() => alert('⬇️ Downloading from IPFS...')}
+                            >
+                              <i className="ri-download-line"></i>
+                              Download
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      
-                      <div className="request-details">
-                        <div className="detail-row">
-                          <i className="ri-user-line"></i>
-                          <span><strong>From:</strong> {request.requestorName}</span>
-                        </div>
-                        <div className="detail-row">
-                          <i className="ri-building-line"></i>
-                          <span><strong>Department:</strong> {request.requestorDepartment}</span>
-                        </div>
-                        <div className="detail-row">
-                          <i className="ri-calendar-line"></i>
-                          <span><strong>Submitted:</strong> {request.submittedDate}</span>
-                        </div>
-                        <div className="detail-row">
-                          <i className="ri-shield-keyhole-line"></i>
-                          <span><strong>Type:</strong> {request.approvalType === 'digital' ? 'Digital Signature' : 'Standard Approval'}</span>
-                        </div>
-                      </div>
-
-                      <div className="request-purpose">
-                        <strong>Purpose:</strong>
-                        <p>{request.purpose}</p>
-                      </div>
-
-                      <button className="btn-view-full">
-                        <i className="ri-eye-line"></i>
-                        View Full Details & Take Action
-                      </button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="empty-state">
-                  <i className="ri-inbox-line"></i>
-                  <p>No approval requests found</p>
-                  <small>All caught up! No pending approval requests at the moment.</small>
+                <div className="empty-state large">
+                  <i className={
+                    activeReceiveTab === 'pending' ? 'ri-time-line' :
+                    activeReceiveTab === 'approved' ? 'ri-checkbox-circle-line' :
+                    'ri-close-circle-line'
+                  }></i>
+                  <h3>No {activeReceiveTab} requests found</h3>
+                  {(receiveSearchQuery || receiveFilterType !== 'all' || receiveFilterDepartment !== 'all') ? (
+                    <p>Try adjusting your search or filter criteria</p>
+                  ) : (
+                    <p>
+                      {activeReceiveTab === 'pending' && 'All caught up! No pending approval requests at the moment.'}
+                      {activeReceiveTab === 'approved' && 'No approved requests yet.'}
+                      {activeReceiveTab === 'rejected' && 'No rejected requests yet.'}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -862,6 +1408,215 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                     Approve
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Details Modal with Version History */}
+      {showDocumentDetails && selectedDocForDetails && (
+        <div className="modal-overlay" onClick={(e) => e.target.className === 'modal-overlay' && setShowDocumentDetails(false)}>
+          <div className="modal-box large document-details-modal">
+            <div className="modal-header">
+              <h3>
+                <i className="ri-file-list-3-line"></i>
+                Document Details & Version History
+              </h3>
+              <button className="btn-close" onClick={() => setShowDocumentDetails(false)}>
+                <i className="ri-close-line"></i>
+              </button>
+            </div>
+            <div className="modal-body">
+              {/* Document Overview */}
+              <div className="detail-section">
+                <h4><i className="ri-file-info-line"></i> Document Overview</h4>
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <label>Document Name:</label>
+                    <span>{selectedDocForDetails.documentName}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Current Version:</label>
+                    <span className="version-badge large">{selectedDocForDetails.currentVersion}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Status:</label>
+                    <span className={`status-badge ${selectedDocForDetails.status}`}>
+                      {selectedDocForDetails.status === 'approved' && <i className="ri-checkbox-circle-fill"></i>}
+                      {selectedDocForDetails.status === 'partial' && <i className="ri-progress-3-line"></i>}
+                      {selectedDocForDetails.status === 'pending' && <i className="ri-time-line"></i>}
+                      {selectedDocForDetails.status === 'draft' && <i className="ri-draft-line"></i>}
+                      {selectedDocForDetails.status === 'rejected' && <i className="ri-close-circle-fill"></i>}
+                      {selectedDocForDetails.status}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Approval Type:</label>
+                    <span>
+                      {selectedDocForDetails.approvalType === 'digital' ? (
+                        <><i className="ri-shield-keyhole-line"></i> Digital Signature</>
+                      ) : (
+                        <><i className="ri-checkbox-circle-line"></i> Standard Approval</>
+                      )}
+                    </span>
+                  </div>
+                  <div className="detail-item full-width">
+                    <label>Purpose:</label>
+                    <p className="purpose-text">{selectedDocForDetails.purpose}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recipients & Approval Status */}
+              {selectedDocForDetails.recipients && selectedDocForDetails.recipients.length > 0 && (
+                <div className="detail-section">
+                  <h4><i className="ri-team-line"></i> Approval Progress</h4>
+                  <div className="approval-progress-list">
+                    {selectedDocForDetails.recipients.map((recipient, idx) => {
+                      const isApproved = selectedDocForDetails.approvedBy?.includes(recipient);
+                      const isPending = selectedDocForDetails.pendingWith?.includes(recipient);
+                      return (
+                        <div key={idx} className={`approval-progress-item ${isApproved ? 'approved' : isPending ? 'pending' : ''}`}>
+                          <div className="progress-icon">
+                            {isApproved ? (
+                              <i className="ri-checkbox-circle-fill"></i>
+                            ) : isPending ? (
+                              <i className="ri-time-line"></i>
+                            ) : (
+                              <i className="ri-radio-button-line"></i>
+                            )}
+                          </div>
+                          <div className="progress-info">
+                            <strong>{recipient}</strong>
+                            <span className={`progress-status ${isApproved ? 'approved' : isPending ? 'pending' : 'waiting'}`}>
+                              {isApproved ? 'Approved' : isPending ? 'Pending Review' : 'Waiting'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Rejection Info */}
+              {selectedDocForDetails.status === 'rejected' && selectedDocForDetails.rejectionReason && (
+                <div className="detail-section rejection-section">
+                  <h4><i className="ri-error-warning-line"></i> Rejection Details</h4>
+                  <div className="rejection-info">
+                    <p><strong>Reason:</strong> {selectedDocForDetails.rejectionReason}</p>
+                    <p><strong>Date:</strong> {selectedDocForDetails.rejectedDate}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Blockchain Information */}
+              <div className="detail-section">
+                <h4><i className="ri-links-line"></i> Blockchain Information</h4>
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <label>Current IPFS Hash:</label>
+                    <code className="hash-code">{selectedDocForDetails.ipfsHash}</code>
+                  </div>
+                  {selectedDocForDetails.txId && (
+                    <div className="detail-item">
+                      <label>Transaction ID:</label>
+                      <code className="hash-code">{selectedDocForDetails.txId}</code>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Version History */}
+              <div className="detail-section">
+                <h4><i className="ri-history-line"></i> Version History</h4>
+                <div className="version-history-container">
+                  {selectedDocForDetails.versions?.map((version, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`version-history-item ${idx === 0 ? 'current-version' : ''}`}
+                    >
+                      <div className="version-header-row">
+                        <div className="version-title">
+                          <strong>Version {version.version}</strong>
+                          {idx === 0 && <span className="current-badge">(Current)</span>}
+                        </div>
+                        <span className="version-size">{version.size || '---'}</span>
+                      </div>
+                      
+                      <div className="version-action-text">
+                        {version.status === 'approved' && version.approvedBy 
+                          ? `Approved by ${version.approvedBy}` 
+                          : version.status === 'draft' 
+                          ? 'Draft version - Not submitted'
+                          : version.status === 'rejected'
+                          ? 'Version rejected'
+                          : version.status === 'submitted'
+                          ? 'Submitted for approval'
+                          : 'File updated'
+                        }
+                      </div>
+                      
+                      <div className="version-meta">
+                        <span>By {selectedDocForDetails.requestorName || 'You'}</span>
+                        <span>•</span>
+                        <span>{version.date}</span>
+                      </div>
+
+                      <div className="version-hash-info">
+                        <small>IPFS:</small>
+                        <code>{version.hash}</code>
+                      </div>
+                      
+                      <div className="version-actions-row">
+                        <button 
+                          className="version-btn download-btn"
+                          onClick={() => handleDownloadVersion(version)}
+                        >
+                          <i className="ri-download-line"></i> Download
+                        </button>
+                        {idx !== 0 && (
+                          <button 
+                            className="version-btn restore-btn"
+                            onClick={() => {
+                              if (confirm(`Restore version ${version.version}? This will create a new version with the old file content.`)) {
+                                alert('🔄 Restore functionality will create a new version based on this one.');
+                              }
+                            }}
+                          >
+                            <i className="ri-restart-line"></i> Restore
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              {selectedDocForDetails.status === 'draft' && (
+                <button className="btn-primary" onClick={() => handleContinueDraft(selectedDocForDetails)}>
+                  <i className="ri-edit-line"></i>
+                  Continue Editing
+                </button>
+              )}
+              {selectedDocForDetails.status === 'approved' && (
+                <button className="btn-success" onClick={() => handleDownloadVersion(selectedDocForDetails.versions[selectedDocForDetails.versions.length - 1])}>
+                  <i className="ri-download-cloud-line"></i>
+                  Download Approved Version
+                </button>
+              )}
+              {(selectedDocForDetails.status === 'pending' || selectedDocForDetails.status === 'partial') && (
+                <button className="btn-danger" onClick={() => handleCancelApproval(selectedDocForDetails.id)}>
+                  <i className="ri-close-circle-line"></i>
+                  Cancel Approval Request
+                </button>
+              )}
+              <button className="btn-outline" onClick={() => setShowDocumentDetails(false)}>
+                <i className="ri-close-line"></i>
+                Close
               </button>
             </div>
           </div>
