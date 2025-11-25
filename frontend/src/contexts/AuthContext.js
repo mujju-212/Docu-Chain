@@ -70,6 +70,12 @@ export const AuthProvider = ({ children }) => {
         // Store token
         localStorage.setItem('token', token)
         
+        // Store user info for easy access
+        localStorage.setItem('userId', user.id)
+        localStorage.setItem('userEmail', user.email)
+        localStorage.setItem('userRole', user.role)
+        localStorage.setItem('userName', `${user.firstName} ${user.lastName}`)
+        
         // Handle remember me
         if (remember) {
           localStorage.setItem('docuchain_email', email)
@@ -121,6 +127,12 @@ export const AuthProvider = ({ children }) => {
         // Store token
         localStorage.setItem('token', token)
         
+        // Store user info
+        localStorage.setItem('userId', user.id)
+        localStorage.setItem('userEmail', user.email)
+        localStorage.setItem('userRole', user.role)
+        localStorage.setItem('userName', `${user.firstName} ${user.lastName}`)
+        
         // Update state
         setUser(user)
         setIsAuthenticated(true)
@@ -145,6 +157,10 @@ export const AuthProvider = ({ children }) => {
     } finally {
       // Clear local storage
       localStorage.removeItem('token')
+      localStorage.removeItem('userId')
+      localStorage.removeItem('userEmail')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('userName')
       
       // Clear state
       setUser(null)

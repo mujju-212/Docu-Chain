@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LocalStorage Debug Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        .section { margin: 20px 0; padding: 15px; background: #252526; border-left: 3px solid #007acc; }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .warning { color: #dcdcaa; }
+        pre { background: #1e1e1e; padding: 10px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; background: #007acc; color: white; border: none; cursor: pointer; }
+        button:hover { background: #005a9e; }
+    </style>
+</head>
+<body>
+    <h1>🔍 DocuChain LocalStorage Debug Tool</h1>
+    
+    <div class="section">
+        <h2>Current LocalStorage Values</h2>
+        <div id="current-values"></div>
+    </div>
+
+    <div class="section">
+        <h2>Set Test Values (Meera Patel)</h2>
+        <button onclick="setMeeraValues()">Set Meera Patel Login Data</button>
+        <button onclick="clearAll()">Clear All</button>
+    </div>
+
+    <div class="section">
+        <h2>Expected vs Actual</h2>
+        <div id="comparison"></div>
+    </div>
+
+    <script>
+        const expectedValues = {
+            userId: '46a7c52e-7dab-42cd-b6cd-bff51c435106',
+            userEmail: 'meera.patel@mu.ac.in',
+            userRole: 'faculty',
+            userName: 'Dr. Meera Patel'
+        };
+
+        function displayCurrentValues() {
+            const div = document.getElementById('current-values');
+            const keys = ['userId', 'userEmail', 'userRole', 'userName', 'token', 'docuchain_email'];
+            
+            let html = '<pre>';
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                const className = value ? 'success' : 'error';
+                html += `<span class="${className}">${key}: ${value || 'NOT SET'}</span>\n`;
+            });
+            html += '</pre>';
+            div.innerHTML = html;
+            
+            compareValues();
+        }
+
+        function compareValues() {
+            const div = document.getElementById('comparison');
+            let html = '<table border="1" style="width:100%; border-collapse: collapse;">';
+            html += '<tr><th>Key</th><th>Expected</th><th>Actual</th><th>Status</th></tr>';
+            
+            Object.keys(expectedValues).forEach(key => {
+                const expected = expectedValues[key];
+                const actual = localStorage.getItem(key);
+                const match = actual === expected;
+                const status = match ? '✅ MATCH' : '❌ MISMATCH';
+                const className = match ? 'success' : 'error';
+                
+                html += `<tr>
+                    <td>${key}</td>
+                    <td>${expected}</td>
+                    <td>${actual || '<span class="error">NULL</span>'}</td>
+                    <td class="${className}">${status}</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            div.innerHTML = html;
+        }
+
+        function setMeeraValues() {
+            localStorage.setItem('userId', expectedValues.userId);
+            localStorage.setItem('userEmail', expectedValues.userEmail);
+            localStorage.setItem('userRole', expectedValues.userRole);
+            localStorage.setItem('userName', expectedValues.userName);
+            localStorage.setItem('token', 'test-token-12345');
+            displayCurrentValues();
+            alert('✅ Meera Patel login data set! Now refresh the DocuChain page.');
+        }
+
+        function clearAll() {
+            localStorage.clear();
+            displayCurrentValues();
+            alert('🗑️ All localStorage cleared!');
+        }
+
+        // Initial display
+        displayCurrentValues();
+        
+        // Auto-refresh every 2 seconds
+        setInterval(displayCurrentValues, 2000);
+    </script>
+
+    <div class="section">
+        <h2>Instructions</h2>
+        <ol>
+            <li><span class="warning">Option 1:</span> Click "Set Meera Patel Login Data" button above to manually set the values</li>
+            <li><span class="warning">Option 2:</span> Logout and login again in DocuChain app (this will set values automatically)</li>
+            <li>Refresh the DocuChain page (Ctrl+F5)</li>
+            <li>Check the console logs for status matching</li>
+        </ol>
+        
+        <h3>Why is this needed?</h3>
+        <p>The frontend needs <code>userId</code> to match your user account with the approval step. 
+        Without it, the code can't determine if the approval is for you, so it defaults to showing "PENDING".</p>
+        
+        <h3>Expected Console Output (after fix):</h3>
+        <pre class="success">🆔 My userId from localStorage: 46a7c52e-7dab-42cd-b6cd-bff51c435106
+📋 Available steps: [{approverId: "46a7c52e-7dab-42cd-b6cd-bff51c435106", approverName: "Dr. Meera Patel"}]
+🔍 Comparing: 46a7c52e-7dab-42cd-b6cd-bff51c435106 with 46a7c52e-7dab-42cd-b6cd-bff51c435106 → Match: true
+🔍 Status from backend: APPROVED
+🔍 hasApproved: true hasRejected: false
+🔍 Computed myStepStatus: approved</pre>
+    </div>
+</body>
+</html>

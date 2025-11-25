@@ -404,15 +404,15 @@ contract DocuChainManager {
     
     // Search Functions
     function searchUsersByInstitution(
-        string memory _institutionId
-    ) public view returns (address[] memory) {
+        string memory /* _institutionId */
+    ) public pure returns (address[] memory) {
         // This would need to be implemented with a separate mapping
         // for efficient searching in a real implementation
         address[] memory result = new address[](0);
         return result;
     }
     
-    function getAllUsers() public view returns (address[] memory) {
+    function getAllUsers() public pure returns (address[] memory) {
         // This would need a separate array to track all users
         // for efficient retrieval in a real implementation
         address[] memory result = new address[](0);

@@ -1,7 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './DocumentApproval.css';
+import {
+  requestApprovalOnBlockchain,
+  approveDocumentOnBlockchain,
+  rejectDocumentOnBlockchain,
+  getApprovalRequestFromBlockchain,
+  getApprovalStatusFromBlockchain,
+  getMyApprovalRequests,
+  getMyApprovalTasks
+} from '../../utils/metamask';
+import Web3 from 'web3';
 
 const DocumentApproval = ({ userRole = 'faculty' }) => {
+  // Utility function to format file size
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 'N/A') return 'N/A';
+    const numBytes = parseInt(bytes);
+    if (isNaN(numBytes)) return bytes;
+    
+    if (numBytes < 1024) return numBytes + ' B';
+    if (numBytes < 1024 * 1024) return (numBytes / 1024).toFixed(2) + ' KB';
+    if (numBytes < 1024 * 1024 * 1024) return (numBytes / (1024 * 1024)).toFixed(2) + ' MB';
+    return (numBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  };
+
   // State Management
   const [activeTab, setActiveTab] = useState('send'); // 'send' or 'receive'
   const [selectedDocument, setSelectedDocument] = useState(null);
@@ -28,260 +50,316 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   const [receiveSortBy, setReceiveSortBy] = useState('date'); // 'date', 'name', 'requester'
   const [receiveFilterType, setReceiveFilterType] = useState('all'); // 'all', 'digital', 'standard'
   const [receiveFilterDepartment, setReceiveFilterDepartment] = useState('all');
+  const [documentSearchQuery, setDocumentSearchQuery] = useState('');
+  const [recipientSearchQuery, setRecipientSearchQuery] = useState('');
 
-  // Sample blockchain documents (from File Manager)
-  const blockchainDocuments = [
-    {
-      id: 'doc1',
-      name: 'Leave_Application_March_2025.pdf',
-      size: '245 KB',
-      ipfsHash: 'QmXyZ...abc123',
-      txId: '0x7a8b9c1d2e3f4a5b...',
-      uploadDate: '2025-03-15',
-      status: 'verified'
-    },
-    {
-      id: 'doc2',
-      name: 'Student_Bonafide_Certificate.pdf',
-      size: '180 KB',
-      ipfsHash: 'QmAbc...def456',
-      txId: '0x9f8e7d6c5b4a3e2f...',
-      uploadDate: '2025-03-10',
-      status: 'verified'
-    },
-    {
-      id: 'doc3',
-      name: 'Salary_Increment_Request.pdf',
-      size: '320 KB',
-      ipfsHash: 'QmDef...ghi789',
-      txId: '0x1a2b3c4d5e6f7g8h...',
-      uploadDate: '2025-03-08',
-      status: 'verified'
+  // Confirmation modal states
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [confirmRequestId, setConfirmRequestId] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  // Loading and error states
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Real data states (replacing dummy data)
+  const [blockchainDocuments, setBlockchainDocuments] = useState([]);
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [incomingRequests, setIncomingRequests] = useState([]);
+  const [sentRequests, setSentRequests] = useState([]);
+  const [drafts, setDrafts] = useState([]);
+  const [previewData, setPreviewData] = useState(null);
+  const [notification, setNotification] = useState(null);
+  const [currentDraftId, setCurrentDraftId] = useState(null);
+
+  // API Configuration
+  const API_URL = 'http://localhost:5000';
+  const getAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('token')}`
+  });
+
+  // Fetch blockchain documents from backend (ALL documents from all folders)
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      try {
+        setIsLoading(true);
+        // Add 'all=true' to get documents from ALL folders recursively
+        const response = await fetch(`${API_URL}/api/documents?all=true`, {
+          headers: getAuthHeaders()
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📄 Fetched documents:', data.documents?.length || 0, 'documents');
+          console.log('Documents data:', data.documents);
+          setBlockchainDocuments(data.documents || []);
+        } else {
+          console.error('Failed to fetch documents:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error fetching documents:', error);
+        setError('Failed to load documents');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDocuments();
+  }, []);
+
+  // Fetch available users for approval
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/users/institution`, {
+          headers: getAuthHeaders()
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('👥 Fetched users:', data.users?.length || 0, 'users');
+          setAvailableUsers(data.users || []);
+        } else {
+          console.error('Failed to fetch users:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  // Load drafts from localStorage on mount
+  useEffect(() => {
+    const savedDrafts = JSON.parse(localStorage.getItem('approvalDrafts') || '[]');
+    setDrafts(savedDrafts);
+    
+    // CHECK: Verify localStorage has required user data
+    const userId = localStorage.getItem('userId');
+    const userEmail = localStorage.getItem('userEmail');
+    
+    console.log('='.repeat(60));
+    console.log('🔐 LOCALSTORAGE CHECK');
+    console.log('='.repeat(60));
+    console.log('userId:', userId || '❌ NOT SET - PLEASE RE-LOGIN');
+    console.log('userEmail:', userEmail || '❌ NOT SET - PLEASE RE-LOGIN');
+    console.log('='.repeat(60));
+    
+    if (!userId || !userEmail) {
+      console.error('⚠️ CRITICAL: localStorage not set! Approval status will not display correctly.');
+      console.error('👉 Solution: LOGOUT and LOGIN again to populate localStorage.');
     }
-  ];
+  }, []);
 
-  // Sample users for recipient selection
-  const availableUsers = [
-    { id: 'user1', name: 'Dr. Rajesh Kumar', role: 'HOD', department: 'Computer Science', email: 'rajesh.k@edu.in' },
-    { id: 'user2', name: 'Prof. Priya Sharma', role: 'Principal', department: 'Administration', email: 'priya.s@edu.in' },
-    { id: 'user3', name: 'Mr. Anil Desai', role: 'Dean', department: 'Academic Affairs', email: 'anil.d@edu.in' },
-    { id: 'user4', name: 'Ms. Meera Patel', role: 'Class Teacher', department: 'Mathematics', email: 'meera.p@edu.in' }
-  ];
+  // Fetch incoming approval requests (my tasks)
+  useEffect(() => {
+    const fetchIncomingRequests = async () => {
+      try {
+        const timestamp = new Date().getTime();
+        const response = await fetch(`${API_URL}/api/approvals/my-tasks?t=${timestamp}`, {
+          headers: getAuthHeaders(),
+          cache: 'no-cache'
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('📥 Raw backend response:', result);
+          console.log('📥 My userId from localStorage:', localStorage.getItem('userId'));
+          console.log('📥 Number of requests:', result.data?.length || 0);
+          
+          // Transform backend format to match UI expectations
+          const transformedRequests = (result.data || []).map(req => {
+            console.log('🔍 Processing request:', req.id);
+            console.log('🔍 Request steps:', req.steps);
+            console.log('🔍 Requester data:', req.requester);
+            console.log('🔍 Document size:', req.documentSize, req.documentFileSize);
+            
+            // Find my step (where I'm the approver) - compare as strings
+            const myUserId = localStorage.getItem('userId');
+            console.log('🆔 My userId from localStorage:', myUserId);
+            console.log('📋 Available steps:', req.steps?.map(s => ({ approverId: s.approverId, approverName: s.approver?.name })));
+            const myStep = req.steps?.find(s => {
+              console.log('🔍 Comparing:', s.approverId, 'with', myUserId, '→ Match:', s.approverId === myUserId);
+              return s.approverId === myUserId || String(s.approverId) === String(myUserId);
+            });
+            
+            console.log('🔍 My step found:', myStep);
+            console.log('🔍 Status from backend:', req.status);
+            console.log('🔍 hasApproved:', myStep?.hasApproved, 'hasRejected:', myStep?.hasRejected);
+            
+            // Use backend status directly (like sentRequests does)
+            const overallStatus = (req.status || '').toLowerCase();
+            const myStepStatus = myStep?.hasApproved ? 'approved' : (myStep?.hasRejected ? 'rejected' : 'pending');
+            console.log('🔍 Overall Status:', overallStatus, 'My Step Status:', myStepStatus);
+            
+            return {
+              id: req.id,
+              requestId: req.requestId, // Blockchain request ID
+              documentName: req.documentName,
+              documentSize: formatFileSize(req.documentSize || req.documentFileSize),
+              documentSizeRaw: req.documentSize || req.documentFileSize,
+              ipfsHash: req.documentIpfsHash,
+              txId: req.blockchainTxHash,
+              requestorName: req.requester ? (req.requester.name || `${req.requester.firstName || ''} ${req.requester.lastName || ''}`.trim()) : 'Unknown',
+              requestorId: req.requesterId,
+              requestorDepartment: req.requester?.department || 'N/A',
+              requestorEmail: req.requester?.email || 'N/A',
+              purpose: req.purpose || '',
+              approvalType: req.approvalType || 'standard',
+              status: overallStatus, // Use backend status directly
+              myStepStatus: myStepStatus, // Keep for individual step tracking
+              submittedDate: new Date(req.createdAt).toLocaleDateString(),
+              approvedBy: req.steps?.filter(s => s.hasApproved).map(s => s.approver?.name || 'Unknown') || [],
+              pendingWith: req.steps?.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approver?.name || 'Unknown') || [],
+              myStep: myStep,
+              approvedDate: myStep?.hasApproved ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
+              rejectedDate: myStep?.hasRejected ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
+              rejectionReason: myStep?.reason || ''
+            };
+          });
+          
+          console.log('✅ Transformed incoming requests:', transformedRequests);
+          setIncomingRequests(transformedRequests);
+        } else {
+          console.error('Failed to fetch incoming requests:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error fetching incoming requests:', error);
+      }
+    };
 
-  // Sample incoming approval requests
-  const [incomingRequests, setIncomingRequests] = useState([
-    {
-      id: 'req1',
-      documentName: 'Leave_Application_Staff.pdf',
-      documentSize: '210 KB',
-      ipfsHash: 'QmPqr...stu012',
-      txId: '0x3c4d5e6f7g8h9i0j...',
-      requestorName: 'Mr. Suresh Nair',
-      requestorId: 'FAC-2401',
-      requestorDepartment: 'Physics',
-      requestorEmail: 'suresh.n@edu.in',
-      requestorPhone: '+91 98765 43210',
-      purpose: 'Medical leave approval required from HOD',
-      approvalType: 'digital',
-      status: 'pending',
-      submittedDate: '2025-03-16 10:30 AM',
-      currentApprovers: ['Dr. Rajesh Kumar (HOD)'],
-      approvedBy: [],
-      pendingWith: ['Dr. Rajesh Kumar (HOD)']
-    },
-    {
-      id: 'req2',
-      documentName: 'Budget_Proposal_2025.pdf',
-      documentSize: '450 KB',
-      ipfsHash: 'QmVwx...yz345',
-      txId: '0x6g7h8i9j0k1l2m3n...',
-      requestorName: 'Dr. Anita Verma',
-      requestorId: 'FAC-2305',
-      requestorDepartment: 'Chemistry',
-      requestorEmail: 'anita.v@edu.in',
-      requestorPhone: '+91 98123 45678',
-      purpose: 'Budget approval for lab equipment',
-      approvalType: 'standard',
-      status: 'pending',
-      submittedDate: '2025-03-15 02:15 PM',
-      currentApprovers: ['Prof. Priya Sharma (Principal)', 'Mr. Anil Desai (Dean)'],
-      approvedBy: [],
-      pendingWith: ['Prof. Priya Sharma (Principal)', 'Mr. Anil Desai (Dean)']
-    },
-    {
-      id: 'req3',
-      documentName: 'Research_Paper_Publication.pdf',
-      documentSize: '580 KB',
-      ipfsHash: 'QmAbc...xyz789',
-      txId: '0x8h9i0j1k2l3m4n5o...',
-      requestorName: 'Ms. Priya Reddy',
-      requestorId: 'FAC-2210',
-      requestorDepartment: 'Computer Science',
-      requestorEmail: 'priya.r@edu.in',
-      requestorPhone: '+91 98765 12345',
-      purpose: 'Approval for international conference publication',
-      approvalType: 'digital',
-      status: 'approved',
-      submittedDate: '2025-03-14 11:00 AM',
-      approvedDate: '2025-03-15 09:30 AM',
-      currentApprovers: ['Dr. Rajesh Kumar (HOD)'],
-      approvedBy: ['Dr. Rajesh Kumar (HOD)'],
-      pendingWith: []
-    },
-    {
-      id: 'req4',
-      documentName: 'Salary_Increment_Request.pdf',
-      documentSize: '320 KB',
-      ipfsHash: 'QmDef...abc456',
-      txId: '0x1a2b3c4d5e6f7g8h...',
-      requestorName: 'Mr. Amit Sharma',
-      requestorId: 'FAC-2108',
-      requestorDepartment: 'Mathematics',
-      requestorEmail: 'amit.s@edu.in',
-      requestorPhone: '+91 98123 67890',
-      purpose: 'Annual salary increment approval',
-      approvalType: 'standard',
-      status: 'approved',
-      submittedDate: '2025-03-12 03:45 PM',
-      approvedDate: '2025-03-13 10:15 AM',
-      currentApprovers: ['Prof. Priya Sharma (Principal)'],
-      approvedBy: ['Prof. Priya Sharma (Principal)'],
-      pendingWith: []
-    },
-    {
-      id: 'req5',
-      documentName: 'Equipment_Purchase_Proposal.pdf',
-      documentSize: '690 KB',
-      ipfsHash: 'QmGhi...jkl123',
-      txId: '0x9i0j1k2l3m4n5o6p...',
-      requestorName: 'Dr. Kavita Menon',
-      requestorId: 'FAC-2015',
-      requestorDepartment: 'Physics',
-      requestorEmail: 'kavita.m@edu.in',
-      requestorPhone: '+91 98234 56789',
-      purpose: 'Purchase of new lab equipment for research',
-      approvalType: 'digital',
-      status: 'rejected',
-      submittedDate: '2025-03-10 01:30 PM',
-      rejectedDate: '2025-03-11 11:00 AM',
-      rejectionReason: 'Budget constraints. Please revise the proposal with lower cost alternatives.',
-      currentApprovers: ['Mr. Anil Desai (Dean)'],
-      approvedBy: [],
-      pendingWith: []
-    },
-    {
-      id: 'req6',
-      documentName: 'Conference_Attendance_Request.pdf',
-      documentSize: '290 KB',
-      ipfsHash: 'QmJkl...mno567',
-      txId: '0x2b3c4d5e6f7g8h9i...',
-      requestorName: 'Ms. Neha Gupta',
-      requestorId: 'FAC-2312',
-      requestorDepartment: 'Computer Science',
-      requestorEmail: 'neha.g@edu.in',
-      requestorPhone: '+91 98345 78901',
-      purpose: 'Permission to attend national conference',
-      approvalType: 'standard',
-      status: 'rejected',
-      submittedDate: '2025-03-09 09:15 AM',
-      rejectedDate: '2025-03-09 04:30 PM',
-      rejectionReason: 'Department already has two representatives attending this conference.',
-      currentApprovers: ['Dr. Rajesh Kumar (HOD)'],
-      approvedBy: [],
-      pendingWith: []
+    fetchIncomingRequests();
+  }, []);
+
+  // Refresh incoming requests when switching to receive tab
+  useEffect(() => {
+    if (activeTab === 'receive') {
+      const fetchIncomingRequests = async () => {
+        try {
+          const timestamp = new Date().getTime();
+          const response = await fetch(`${API_URL}/api/approvals/my-tasks?t=${timestamp}`, {
+            headers: getAuthHeaders(),
+            cache: 'no-cache'
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            console.log('🔄 Refreshing incoming requests on tab switch');
+            
+            const transformedRequests = (result.data || []).map(req => {
+              const myUserId = localStorage.getItem('userId');
+              const myStep = req.steps?.find(s => {
+                return s.approverId === myUserId || String(s.approverId) === String(myUserId);
+              });
+              
+              return {
+                id: req.id,
+                requestId: req.requestId, // Blockchain request ID
+                documentName: req.documentName,
+                documentSize: formatFileSize(req.documentSize || req.documentFileSize),
+                documentSizeRaw: req.documentSize || req.documentFileSize,
+                ipfsHash: req.documentIpfsHash,
+                txId: req.blockchainTxHash,
+                requestorName: req.requester ? (req.requester.name || `${req.requester.firstName || ''} ${req.requester.lastName || ''}`.trim()) : 'Unknown',
+                requestorId: req.requesterId,
+                requestorDepartment: req.requester?.department || 'N/A',
+                requestorEmail: req.requester?.email || 'N/A',
+                purpose: req.purpose || '',
+                approvalType: req.approvalType || 'standard',
+                status: req.status,
+                submittedDate: new Date(req.createdAt).toLocaleDateString(),
+                approvedBy: req.steps?.filter(s => s.hasApproved).map(s => s.approver?.name || 'Unknown') || [],
+                pendingWith: req.steps?.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approver?.name || 'Unknown') || [],
+                myStep: myStep,
+                myStepStatus: myStep?.hasApproved ? 'approved' : (myStep?.hasRejected ? 'rejected' : 'pending'),
+                approvedDate: myStep?.hasApproved ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
+                rejectedDate: myStep?.hasRejected ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
+                rejectionReason: myStep?.reason || ''
+              };
+            });
+            
+            console.log('✅ Refreshed incoming requests:', transformedRequests);
+            setIncomingRequests(transformedRequests);
+          }
+        } catch (error) {
+          console.error('Error refreshing incoming requests:', error);
+        }
+      };
+      
+      fetchIncomingRequests();
     }
-  ]);
+  }, [activeTab]);
 
-  // Sample sent requests
-  const [sentRequests, setSentRequests] = useState([
-    {
-      id: 'sent1',
-      documentName: 'Conference_Travel_Request.pdf',
-      documentId: 'doc1',
-      recipients: ['Prof. Priya Sharma (Principal)'],
-      status: 'approved',
-      submittedDate: '2025-03-14',
-      approvedDate: '2025-03-15',
-      approvalType: 'digital',
-      purpose: 'Attending International Conference on AI',
-      currentVersion: 'v2.0',
-      versions: [
-        { version: 'v1.0', date: '2025-03-14', hash: 'QmXyZ...abc123', status: 'draft' },
-        { version: 'v2.0', date: '2025-03-15', hash: 'QmAbc...def456', status: 'approved', approvedBy: 'Prof. Priya Sharma' }
-      ],
-      ipfsHash: 'QmAbc...def456',
-      txId: '0x7a8b9c1d2e3f4a5b...'
-    },
-    {
-      id: 'sent2',
-      documentName: 'Research_Grant_Application.pdf',
-      documentId: 'doc2',
-      recipients: ['Dr. Rajesh Kumar (HOD)', 'Mr. Anil Desai (Dean)'],
-      status: 'partial',
-      submittedDate: '2025-03-13',
-      approvedBy: ['Dr. Rajesh Kumar'],
-      pendingWith: ['Mr. Anil Desai'],
-      approvalType: 'standard',
-      purpose: 'Research grant for AI lab equipment',
-      currentVersion: 'v1.5',
-      versions: [
-        { version: 'v1.0', date: '2025-03-13', hash: 'QmDef...ghi789', status: 'submitted' },
-        { version: 'v1.5', date: '2025-03-14', hash: 'QmGhi...jkl012', status: 'partial', approvedBy: 'Dr. Rajesh Kumar' }
-      ],
-      ipfsHash: 'QmGhi...jkl012',
-      txId: '0x9f8e7d6c5b4a3e2f...'
-    },
-    {
-      id: 'sent3',
-      documentName: 'Leave_Application_May.pdf',
-      documentId: 'doc3',
-      recipients: ['Dr. Rajesh Kumar (HOD)'],
-      status: 'pending',
-      submittedDate: '2025-03-16',
-      approvalType: 'standard',
-      purpose: 'Medical leave for 5 days',
-      currentVersion: 'v1.0',
-      versions: [
-        { version: 'v1.0', date: '2025-03-16', hash: 'QmJkl...mno345', status: 'pending' }
-      ],
-      ipfsHash: 'QmJkl...mno345',
-      txId: '0x1a2b3c4d5e6f7g8h...'
-    },
-    {
-      id: 'sent4',
-      documentName: 'Budget_Proposal_Draft.pdf',
-      documentId: 'doc4',
-      recipients: [],
-      status: 'draft',
-      submittedDate: '2025-03-12',
-      approvalType: 'digital',
-      purpose: 'Annual budget proposal for department',
-      currentVersion: 'v0.1',
-      versions: [
-        { version: 'v0.1', date: '2025-03-12', hash: 'QmMno...pqr678', status: 'draft' }
-      ],
-      ipfsHash: 'QmMno...pqr678',
-      txId: null
-    },
-    {
-      id: 'sent5',
-      documentName: 'Academic_Certificate_Request.pdf',
-      documentId: 'doc5',
-      recipients: ['Ms. Meera Patel (Class Teacher)'],
-      status: 'rejected',
-      submittedDate: '2025-03-11',
-      rejectedDate: '2025-03-11',
-      approvalType: 'standard',
-      purpose: 'Certificate for scholarship application',
-      currentVersion: 'v1.0',
-      rejectionReason: 'Incomplete information, please add attendance records',
-      versions: [
-        { version: 'v1.0', date: '2025-03-11', hash: 'QmPqr...stu901', status: 'rejected' }
-      ],
-      ipfsHash: 'QmPqr...stu901',
-      txId: '0x3c4d5e6f7g8h9i0j...'
-    }
-  ]);
+  // Fetch sent approval requests
+  useEffect(() => {
+    const fetchSentRequests = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/approvals/my-requests`, {
+          headers: getAuthHeaders()
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Fetched sent requests:', data); // Debug
+          console.log('✅ Response structure:', JSON.stringify(data, null, 2)); // Debug
+          
+          // Backend returns 'data' array with camelCase fields
+          const transformedRequests = (data.data || []).map(req => {
+            console.log('📄 Transforming request:', req.documentName); // Debug
+            const steps = req.steps || [];
+            console.log('👥 Steps found:', steps.length, steps); // Debug
+            
+            // Extract recipient names with full details
+            let recipientNames = ['No recipients'];
+            if (steps.length > 0) {
+              recipientNames = steps.map(s => {
+                console.log('🔍 Step approver:', s.approver); // Debug
+                if (s.approver && s.approver.name) {
+                  return `${s.approver.name} (${s.approver.department || s.approverRole || 'Unknown'})`;
+                }
+                return s.approverRole || 'Unknown Approver';
+              });
+              console.log('✅ Recipient names:', recipientNames); // Debug
+            } else {
+              console.warn('⚠️ No steps found for request:', req.documentName);
+            }
+            
+            return {
+              id: req.id,
+              documentName: req.documentName,
+              documentId: req.documentId,
+              documentSize: req.documentFileSize || 'N/A',
+              ipfsHash: req.documentIpfsHash,
+              txId: req.blockchainTxHash,
+              purpose: req.metadata?.purpose || req.purpose || 'No purpose specified',
+              approvalType: (req.approvalType || '').toLowerCase(),
+              approvalProcess: (req.processType || '').toLowerCase(),
+              priority: (req.priority || '').toLowerCase(),
+              status: (req.status || '').toLowerCase(),
+              submittedDate: req.createdAt,
+              approvalSteps: steps,
+              approvedBy: steps.filter(s => s.hasApproved).map(s => s.approverRole || 'Unknown'),
+              pendingWith: steps.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approverRole || 'Unknown'),
+              recipients: recipientNames,
+              currentVersion: req.version || 'v1.0',
+              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash }]
+            };
+          });
+          setSentRequests(transformedRequests);
+        } else {
+          console.error('Failed to fetch sent requests:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error fetching sent requests:', error);
+      }
+    };
+
+    fetchSentRequests();
+  }, []);
 
   // Handlers
   const handleDocumentSelect = (doc) => {
@@ -309,66 +387,615 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     setRecipients(newRecipients);
   };
 
-  const handleSaveDraft = () => {
-    alert('✅ Draft saved successfully!\n\nYou can continue this approval request later from "My Drafts" section.');
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleGenerateRequest = () => {
+  const handleSaveDraft = () => {
     if (!selectedDocument) {
-      alert('⚠️ Please select a document first.');
+      showNotification('Please select a document first.', 'warning');
+      return;
+    }
+    
+    const existingDrafts = JSON.parse(localStorage.getItem('approvalDrafts') || '[]');
+    
+    // Check if we're updating an existing draft
+    if (currentDraftId) {
+      const draftIndex = existingDrafts.findIndex(d => d.id === currentDraftId);
+      if (draftIndex !== -1) {
+        // Update existing draft
+        existingDrafts[draftIndex] = {
+          id: currentDraftId,
+          document: selectedDocument,
+          recipients: recipients,
+          approvalType: approvalType,
+          approvalProcess: approvalProcess,
+          purpose: purpose,
+          savedAt: new Date().toISOString()
+        };
+        localStorage.setItem('approvalDrafts', JSON.stringify(existingDrafts));
+        setDrafts(existingDrafts);
+        showNotification('Draft updated successfully!');
+        return;
+      }
+    }
+    
+    // Create new draft
+    const newDraftId = Date.now().toString();
+    const draft = {
+      id: newDraftId,
+      document: selectedDocument,
+      recipients: recipients,
+      approvalType: approvalType,
+      approvalProcess: approvalProcess,
+      purpose: purpose,
+      savedAt: new Date().toISOString()
+    };
+    
+    existingDrafts.push(draft);
+    localStorage.setItem('approvalDrafts', JSON.stringify(existingDrafts));
+    setDrafts(existingDrafts);
+    setCurrentDraftId(newDraftId);
+    showNotification('Draft saved successfully!');
+  };
+  
+  const handlePreview = () => {
+    if (!selectedDocument) {
+      showNotification('Please select a document first.', 'warning');
       return;
     }
     if (recipients.length === 0) {
-      alert('⚠️ Please add at least one recipient.');
+      showNotification('Please add at least one recipient.', 'warning');
+      return;
+    }
+    
+    setPreviewData({
+      document: selectedDocument,
+      recipients: recipients,
+      approvalType: approvalType,
+      approvalProcess: approvalProcess,
+      purpose: purpose
+    });
+    setShowPreview(true);
+  };
+  
+  const handleLoadDraft = (draft) => {
+    setSelectedDocument(draft.document);
+    setRecipients(draft.recipients);
+    setApprovalType(draft.approvalType);
+    setApprovalProcess(draft.approvalProcess);
+    setPurpose(draft.purpose);
+    setCurrentDraftId(draft.id);
+    setActiveHistoryTab('all');
+    showNotification('Draft loaded successfully! You can now continue and generate the request.');
+  };
+  
+  const handleDeleteDraft = (draftId) => {
+    const existingDrafts = JSON.parse(localStorage.getItem('approvalDrafts') || '[]');
+    const updatedDrafts = existingDrafts.filter(d => d.id !== draftId);
+    localStorage.setItem('approvalDrafts', JSON.stringify(updatedDrafts));
+    setDrafts(updatedDrafts);
+    
+    // Clear current draft ID if deleting the active draft
+    if (currentDraftId === draftId) {
+      setCurrentDraftId(null);
+    }
+    
+    showNotification('Draft deleted successfully!', 'success');
+  };
+
+  const handleGenerateRequest = async () => {
+    // Validation
+    if (!selectedDocument) {
+      showNotification('Please select a document first.', 'warning');
+      return;
+    }
+    if (recipients.length === 0) {
+      showNotification('Please add at least one recipient.', 'warning');
       return;
     }
     if (!purpose.trim()) {
-      alert('⚠️ Please enter the purpose of approval request.');
+      showNotification('Please enter the purpose of approval request.', 'warning');
       return;
     }
 
-    alert(`✅ Approval Request Generated!\n\n📄 Document: ${selectedDocument.name}\n👥 Recipients: ${recipients.length}\n🔐 Type: ${approvalType === 'digital' ? 'Digital Signature' : 'Standard Approval'}\n📋 Process: ${recipients.length > 1 ? (approvalProcess === 'sequential' ? 'Sequential' : 'Parallel') : 'Single Approver'}\n\n⛓️ Blockchain transaction initiated...\nRequest sent to all recipients!`);
-
-    // Reset form
-    setSelectedDocument(null);
-    setRecipients([]);
-    setPurpose('');
-  };
-
-  const handleApproveRequest = (requestId) => {
-    const request = incomingRequests.find(r => r.id === requestId);
-    if (!request) return;
-
-    const isDigital = request.approvalType === 'digital';
-    const confirmMsg = isDigital 
-      ? `🔐 Digitally Sign & Approve Document?\n\n✍️ This will:\n• Add your digital signature to the document\n• Generate new version with QR code and hash\n• Update blockchain with approval record\n• Move to next approver (if sequential)\n• Notify requestor of progress\n\nProceed with digital signature?`
-      : `✅ Approve Document?\n\n📝 This will:\n• Record your approval on blockchain\n• Generate new version with approval stamp\n• Move to next approver (if sequential)\n• Notify requestor of progress\n\nProceed with approval?`;
-
-    if (confirm(confirmMsg)) {
-      alert(`⏳ Processing ${isDigital ? 'Digital Signature' : 'Approval'}...\n\n🔄 Status:\n• Generating document version\n• Creating QR code with approval details\n• Updating blockchain smart contract\n• Calculating new document hash\n• Uploading to IPFS\n\n✅ ${isDigital ? 'Document signed and approved!' : 'Document approved!'}\n\nRequestor will be notified of the progress.`);
-
-      // Update request status
-      setIncomingRequests(prev => prev.map(req => 
-        req.id === requestId 
-          ? { ...req, status: 'approved', approvedBy: [...req.approvedBy, 'You'] }
-          : req
-      ));
-      setShowRequestModal(false);
+    try {
+      setIsGenerating(true);
+      
+      // Step 1: Generate unique document ID (bytes32) for blockchain
+      const web3Instance = new Web3(window.ethereum);
+      const documentId = web3Instance.utils.randomHex(32);
+      
+      // Step 2: Get current user's wallet address
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const currentWallet = accounts[0];
+      
+      // Get actual wallet addresses from recipients
+      // If recipient doesn't have wallet, use a placeholder
+      const approverWallets = recipients.map((recipient, index) => {
+        // Use recipient's actual wallet if they have one
+        if (recipient.walletAddress || recipient.wallet_address) {
+          return recipient.walletAddress || recipient.wallet_address;
+        }
+        // If no wallet, use placeholder (but this shouldn't happen in production)
+        const placeholders = [
+          '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+          '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
+          '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+          '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
+          '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc'
+        ];
+        console.warn(`⚠️ Recipient ${recipient.name || recipient.fullName} has no wallet address, using placeholder`);
+        return placeholders[index % placeholders.length];
+      });
+      
+      console.log('📍 Approver wallets:', approverWallets);
+      console.log('📍 Recipients data:', recipients);
+      
+      // Step 3: Call blockchain contract
+      showNotification('Please confirm the blockchain transaction in MetaMask...', 'warning');
+      
+      // Convert process type to string format expected by blockchain function
+      const processTypeStr = approvalProcess === 'sequential' ? 'SEQUENTIAL' : 'PARALLEL';
+      const approvalTypeStr = approvalType === 'digital' ? 'DIGITAL_SIGNATURE' : 'STANDARD';
+      
+      const result = await requestApprovalOnBlockchain(
+        documentId,                                                  // documentId (bytes32) - blockchain will generate requestId
+        selectedDocument.ipfsHash || selectedDocument.ipfs_hash,     // ipfsHash
+        approverWallets,                                             // approverAddresses array
+        processTypeStr,                                              // processType: 'SEQUENTIAL' or 'PARALLEL'
+        approvalTypeStr,                                             // approvalType: 'STANDARD' or 'DIGITAL_SIGNATURE'
+        'NORMAL',                                                    // priority: 'LOW', 'NORMAL', 'HIGH', 'URGENT'
+        0,                                                           // expiryTimestamp (0 = no expiry)
+        'v1.0'                                                       // version
+      );
+      
+      // Step 4: Get the blockchain-generated request ID from the result
+      const requestId = result.requestId;  // This is the ACTUAL blockchain request ID
+      const txHash = result.transactionHash;
+      
+      if (!requestId) {
+        throw new Error('Blockchain did not return a request ID. Transaction may have failed.');
+      }
+      
+      showNotification('✅ Blockchain transaction confirmed! Saving to database...', 'success');
+      console.log('📦 Blockchain TX Hash:', txHash);
+      console.log('📦 Request ID from blockchain:', requestId);
+      console.log('📦 Document ID:', documentId);
+      
+      // Step 5: ONLY save to database AFTER blockchain confirmation with CORRECT requestId
+      const response = await fetch(`${API_URL}/api/approvals/request`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          requestId: requestId,  // Use the blockchain-generated request ID
+          documentId: documentId,  // Also save the document ID
+          documentName: selectedDocument.name || selectedDocument.fileName,
+          documentIpfsHash: selectedDocument.ipfsHash || selectedDocument.ipfs_hash,
+          documentFileSize: selectedDocument.fileSize || selectedDocument.file_size,
+          documentFileType: selectedDocument.documentType || 'application/pdf',
+          requesterWallet: currentWallet,
+          approvers: recipients.map((recipient, index) => ({
+            userId: recipient.id,  // Send actual user ID
+            wallet: approverWallets[index],  // Test wallet for blockchain
+            role: recipient.customRole || recipient.role,
+            stepOrder: index + 1
+          })),
+          processType: approvalProcess.toUpperCase(),
+          approvalType: approvalType === 'digital' ? 'DIGITAL_SIGNATURE' : 'STANDARD',
+          priority: 'NORMAL',
+          version: 'v1.0',
+          expiryTimestamp: 0,
+          purpose: purpose || 'Approval request',
+          blockchainTxHash: txHash,
+          metadata: {
+            purpose: purpose,
+            document_size: selectedDocument.fileSize || selectedDocument.file_size,
+            recipients: recipients.map(r => ({ id: r.id, name: r.fullName || r.name, email: r.email }))
+          }
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Delete draft if this was from a loaded draft
+        if (currentDraftId) {
+          const existingDrafts = JSON.parse(localStorage.getItem('approvalDrafts') || '[]');
+          const updatedDrafts = existingDrafts.filter(d => d.id !== currentDraftId);
+          localStorage.setItem('approvalDrafts', JSON.stringify(updatedDrafts));
+          setDrafts(updatedDrafts);
+          setCurrentDraftId(null);
+        }
+        
+        showNotification(`Approval request generated successfully! Blockchain TX: ${txHash.substring(0, 20)}...`, 'success');
+        
+        // Refresh sent requests
+        const refreshResponse = await fetch(`${API_URL}/api/approvals/my-requests`, {
+          headers: getAuthHeaders()
+        });
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json();
+          // Backend returns 'data' array with camelCase fields
+          const transformedRequests = (refreshData.data || []).map(req => {
+            const steps = req.steps || [];
+            
+            // Extract recipient names with full details
+            const recipientNames = steps.length > 0 
+              ? steps.map(s => {
+                  if (s.approver && s.approver.name) {
+                    return `${s.approver.name} (${s.approver.department || s.approverRole || 'Unknown'})`;
+                  }
+                  return s.approverRole || 'Unknown Approver';
+                })
+              : ['No recipients'];
+            
+            return {
+              id: req.id,
+              documentName: req.documentName,
+              documentId: req.documentId,
+              documentSize: req.documentFileSize || 'N/A',
+              ipfsHash: req.documentIpfsHash,
+              txId: req.blockchainTxHash,
+              purpose: req.metadata?.purpose || req.purpose || 'No purpose specified',
+              approvalType: (req.approvalType || '').toLowerCase(),
+              approvalProcess: (req.processType || '').toLowerCase(),
+              priority: (req.priority || '').toLowerCase(),
+              status: (req.status || '').toLowerCase(),
+              submittedDate: req.createdAt,
+              approvalSteps: steps,
+              approvedBy: steps.filter(s => s.hasApproved).map(s => s.approverRole || 'Unknown'),
+              pendingWith: steps.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approverRole || 'Unknown'),
+              recipients: recipientNames,
+              currentVersion: req.version || 'v1.0',
+              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash }]
+            };
+          });
+          setSentRequests(transformedRequests);
+        }
+        
+        // Reset form
+        setSelectedDocument(null);
+        setRecipients([]);
+        setPurpose('');
+      } else {
+        const errorData = await response.json();
+        showNotification(`Error saving to database: ${errorData.error || 'Unknown error'}`, 'error');
+      }
+      
+    } catch (error) {
+      console.error('Error creating approval request:', error);
+      if (error.message && error.message.includes('User denied')) {
+        showNotification('Transaction cancelled by user.', 'warning');
+      } else if (error.message && error.message.includes('insufficient funds')) {
+        showNotification('Insufficient gas funds. Please add ETH to your wallet.', 'error');
+      } else {
+        showNotification(`Failed to create approval request: ${error.message || 'Unknown error'}. Check console for details.`, 'error');
+      }
+    } finally {
+      setIsGenerating(false);
     }
   };
 
-  const handleRejectRequest = (requestId) => {
-    const reason = prompt('❌ Reject Approval Request\n\nPlease provide a reason for rejection:\n(This will be sent to the requestor)');
-    
-    if (reason && reason.trim()) {
-      alert(`❌ Request Rejected\n\n📋 Details:\n• Rejection reason sent to requestor\n• Blockchain record updated\n• No document version generated\n• Requestor can revise and resubmit\n\n✅ Rejection recorded successfully.`);
+  const handleApproveRequest = async (requestId) => {
+    // Show confirmation modal instead of browser confirm
+    setConfirmRequestId(requestId);
+    setShowApproveConfirm(true);
+  };
 
-      setIncomingRequests(prev => prev.map(req => 
-        req.id === requestId 
-          ? { ...req, status: 'rejected', rejectionReason: reason }
-          : req
-      ));
-      setShowRequestModal(false);
+  const confirmApproveRequest = async () => {
+    const requestId = confirmRequestId;
+    const request = incomingRequests.find(r => r.id === requestId);
+    if (!request) {
+      console.error('❌ Request not found in incoming requests');
+      return;
+    }
+
+    if (!request.requestId) {
+      console.error('❌ Request missing blockchain requestId:', request);
+      showNotification('❌ This request is missing blockchain ID. Please create a new approval request.', 'error');
+      return;
+    }
+
+    setShowApproveConfirm(false);
+    setIsLoading(true);
+
+    try {
+      console.log('🔍 Approving request:', request);
+      console.log('🔍 Database ID:', request.id);
+      console.log('🔍 Blockchain requestId:', request.requestId);
+      console.log('🔍 Full request object:', JSON.stringify(request, null, 2));
+      
+      if (!request.requestId) {
+        console.error('❌ requestId is missing:', request.requestId);
+      }
+      
+      // Step 1: Generate signature hash
+      const web3Instance = new Web3(window.ethereum);
+      const signatureHash = web3Instance.utils.randomHex(32); // In production, use actual signature
+      
+      // Step 2: Approve on blockchain FIRST
+      showNotification('Please confirm blockchain transaction in MetaMask...', 'info');
+      
+      const result = await approveDocumentOnBlockchain(request.requestId, '', signatureHash);
+      const txHash = result.transactionHash;
+      showNotification('✅ Blockchain approval confirmed! Updating database...', 'success');
+      
+      // Step 3: ONLY update database AFTER blockchain success
+      const response = await fetch(`${API_URL}/api/approvals/approve/${request.requestId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          signatureHash: signatureHash,
+          blockchainTxHash: txHash
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const isDigital = request.approvalType === 'digital';
+        showNotification(`${isDigital ? 'Document signed and approved!' : 'Document approved!'} TX: ${txHash.substring(0, 20)}...`, 'success');
+      
+        // Refresh both incoming and sent requests to update counts
+        const timestamp = new Date().getTime();
+        
+        // Refresh incoming requests
+        const refreshResponse = await fetch(`${API_URL}/api/approvals/my-tasks?t=${timestamp}`, {
+          headers: getAuthHeaders(),
+          cache: 'no-cache'
+        });
+        if (refreshResponse.ok) {
+          const result = await refreshResponse.json();
+          const transformedRequests = (result.data || []).map(req => {
+            const myStep = req.steps?.find(s => s.approverId === localStorage.getItem('userId'));
+            return {
+              id: req.id,
+              requestId: req.requestId,
+              documentName: req.documentName,
+              documentSize: formatFileSize(req.documentSize || req.documentFileSize),
+              documentSizeRaw: req.documentSize || req.documentFileSize,
+              ipfsHash: req.documentIpfsHash,
+              txId: req.blockchainTxHash,
+              requestorName: req.requester?.name || `${req.requester?.firstName || ''} ${req.requester?.lastName || ''}`.trim() || 'Unknown',
+              requestorId: req.requesterId,
+              requestorDepartment: req.requester?.department || 'N/A',
+              requestorEmail: req.requester?.email,
+              purpose: req.purpose || '',
+              approvalType: req.approvalType || 'standard',
+              status: req.status,
+              submittedDate: new Date(req.createdAt).toLocaleDateString(),
+              approvedBy: req.steps?.filter(s => s.hasApproved).map(s => s.approver?.name || 'Unknown') || [],
+              pendingWith: req.steps?.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approver?.name || 'Unknown') || [],
+              myStep: myStep,
+              myStepStatus: myStep?.hasApproved ? 'approved' : (myStep?.hasRejected ? 'rejected' : 'pending'),
+              approvedDate: myStep?.hasApproved ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
+              rejectedDate: myStep?.hasRejected ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
+              rejectionReason: myStep?.reason || ''
+            };
+          });
+          setIncomingRequests(transformedRequests);
+        }
+        
+        // Refresh sent requests
+        const sentResponse = await fetch(`${API_URL}/api/approvals/my-requests?t=${timestamp}`, {
+          headers: getAuthHeaders(),
+          cache: 'no-cache'
+        });
+        if (sentResponse.ok) {
+          const sentData = await sentResponse.json();
+          const transformedSentRequests = (sentData.data || []).map(req => {
+            const steps = req.steps || [];
+            let recipientNames = ['No recipients'];
+            if (steps.length > 0) {
+              recipientNames = steps.map(s => {
+                if (s.approver && s.approver.name) {
+                  return `${s.approver.name} (${s.approver.department || s.approverRole || 'Unknown'})`;
+                }
+                return s.approverRole || 'Unknown Approver';
+              });
+            }
+            
+            return {
+              id: req.id,
+              documentName: req.documentName,
+              documentId: req.documentId,
+              documentSize: req.documentFileSize || 'N/A',
+              ipfsHash: req.documentIpfsHash,
+              txId: req.blockchainTxHash,
+              purpose: req.metadata?.purpose || req.purpose || 'No purpose specified',
+              approvalType: (req.approvalType || '').toLowerCase(),
+              approvalProcess: (req.processType || '').toLowerCase(),
+              priority: (req.priority || '').toLowerCase(),
+              status: (req.status || '').toLowerCase(),
+              submittedDate: req.createdAt,
+              approvalSteps: steps,
+              approvedBy: steps.filter(s => s.hasApproved).map(s => s.approverRole || 'Unknown'),
+              pendingWith: steps.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approverRole || 'Unknown'),
+              recipients: recipientNames,
+              currentVersion: req.version || 'v1.0',
+              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash }]
+            };
+          });
+          setSentRequests(transformedSentRequests);
+        }
+        
+        setShowRequestModal(false);
+      } else {
+        const errorData = await response.json();
+        showNotification(`Error updating database: ${errorData.error || 'Unknown error'}`, 'error');
+      }
+      
+    } catch (error) {
+      console.error('Error approving document:', error);
+      if (error.message && error.message.includes('User denied')) {
+        showNotification('Transaction cancelled by user', 'warning');
+      } else if (error.message && error.message.includes('Request not active')) {
+        showNotification('❌ Request not found on blockchain. Please create a new approval request.', 'error');
+      } else {
+        showNotification(`Failed to approve: ${error.message || 'Unknown error'}`, 'error');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRejectRequest = async (requestId) => {
+    // Show rejection modal instead of browser prompt
+    setConfirmRequestId(requestId);
+    setRejectionReason('');
+    setShowRejectConfirm(true);
+  };
+
+  const confirmRejectRequest = async () => {
+    const requestId = confirmRequestId;
+    const reason = rejectionReason.trim();
+    
+    if (!reason) {
+      showNotification('Please provide a reason for rejection', 'warning');
+      return;
+    }
+
+    const request = incomingRequests.find(r => r.id === requestId);
+    if (!request) {
+      console.error('❌ Request not found in incoming requests');
+      return;
+    }
+
+    if (!request.requestId) {
+      console.error('❌ Request missing blockchain requestId:', request);
+      showNotification('❌ This request is missing blockchain ID. Please create a new approval request.', 'error');
+      return;
+    }
+
+    setShowRejectConfirm(false);
+    setIsLoading(true);
+
+    try {
+      console.log('🔍 Rejecting request:', request);
+      console.log('🔍 Database ID:', request.id);
+      console.log('🔍 Blockchain requestId:', request.requestId);
+      
+      // Step 1: Reject on blockchain FIRST
+      showNotification('Please confirm blockchain transaction in MetaMask...', 'info');
+      
+      const result = await rejectDocumentOnBlockchain(request.requestId, reason);
+      const txHash = result.transactionHash;
+      showNotification('✅ Blockchain rejection confirmed! Updating database...', 'success');
+      
+      // Step 2: ONLY update database AFTER blockchain success
+      const response = await fetch(`${API_URL}/api/approvals/reject/${request.requestId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          reason: reason,
+          blockchainTxHash: txHash
+        })
+      });
+      
+      if (response.ok) {
+        showNotification(`Request rejected successfully. TX: ${txHash.substring(0, 20)}...`, 'success');
+        
+        // Refresh both incoming and sent requests to update counts
+        const timestamp = new Date().getTime();
+        
+        // Refresh incoming requests
+        const refreshResponse = await fetch(`${API_URL}/api/approvals/my-tasks?t=${timestamp}`, {
+          headers: getAuthHeaders(),
+          cache: 'no-cache'
+        });
+        if (refreshResponse.ok) {
+          const result = await refreshResponse.json();
+          const transformedRequests = (result.data || []).map(req => {
+            const myStep = req.steps?.find(s => s.approverId === localStorage.getItem('userId'));
+            return {
+              id: req.id,
+              requestId: req.requestId,
+              documentName: req.documentName,
+              documentSize: formatFileSize(req.documentSize || req.documentFileSize),
+              documentSizeRaw: req.documentSize || req.documentFileSize,
+              ipfsHash: req.documentIpfsHash,
+              txId: req.blockchainTxHash,
+              requestorName: req.requester?.name || `${req.requester?.firstName || ''} ${req.requester?.lastName || ''}`.trim() || 'Unknown',
+              requestorId: req.requesterId,
+              requestorDepartment: req.requester?.department || 'N/A',
+              requestorEmail: req.requester?.email,
+              purpose: req.purpose || '',
+              approvalType: req.approvalType || 'standard',
+              status: req.status,
+              submittedDate: new Date(req.createdAt).toLocaleDateString(),
+              approvedBy: req.steps?.filter(s => s.hasApproved).map(s => s.approver?.name || 'Unknown') || [],
+              pendingWith: req.steps?.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approver?.name || 'Unknown') || [],
+              myStep: myStep,
+              myStepStatus: myStep?.hasApproved ? 'approved' : (myStep?.hasRejected ? 'rejected' : 'pending'),
+              approvedDate: myStep?.hasApproved ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
+              rejectedDate: myStep?.hasRejected ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
+              rejectionReason: myStep?.reason || ''
+            };
+          });
+          setIncomingRequests(transformedRequests);
+        }
+        
+        // Refresh sent requests
+        const sentResponse = await fetch(`${API_URL}/api/approvals/my-requests?t=${timestamp}`, {
+          headers: getAuthHeaders(),
+          cache: 'no-cache'
+        });
+        if (sentResponse.ok) {
+          const sentData = await sentResponse.json();
+          const transformedSentRequests = (sentData.data || []).map(req => {
+            const steps = req.steps || [];
+            let recipientNames = ['No recipients'];
+            if (steps.length > 0) {
+              recipientNames = steps.map(s => {
+                if (s.approver && s.approver.name) {
+                  return `${s.approver.name} (${s.approver.department || s.approverRole || 'Unknown'})`;
+                }
+                return s.approverRole || 'Unknown Approver';
+              });
+            }
+            
+            return {
+              id: req.id,
+              documentName: req.documentName,
+              documentId: req.documentId,
+              documentSize: req.documentFileSize || 'N/A',
+              ipfsHash: req.documentIpfsHash,
+              txId: req.blockchainTxHash,
+              purpose: req.metadata?.purpose || req.purpose || 'No purpose specified',
+              approvalType: (req.approvalType || '').toLowerCase(),
+              approvalProcess: (req.processType || '').toLowerCase(),
+              priority: (req.priority || '').toLowerCase(),
+              status: (req.status || '').toLowerCase(),
+              submittedDate: req.createdAt,
+              approvalSteps: steps,
+              approvedBy: steps.filter(s => s.hasApproved).map(s => s.approverRole || 'Unknown'),
+              pendingWith: steps.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approverRole || 'Unknown'),
+              recipients: recipientNames,
+              currentVersion: req.version || 'v1.0',
+              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash }]
+            };
+          });
+          setSentRequests(transformedSentRequests);
+        }
+        
+        setShowRequestModal(false);
+      } else {
+        const errorData = await response.json();
+        showNotification(`Error updating database: ${errorData.error || 'Unknown error'}`, 'error');
+      }
+      
+    } catch (error) {
+      console.error('Error rejecting document:', error);
+      if (error.message && error.message.includes('User denied')) {
+        showNotification('Transaction cancelled by user', 'warning');
+      } else if (error.message && error.message.includes('Request not active')) {
+        showNotification('❌ Request not found on blockchain. Please create a new approval request.', 'error');
+      } else {
+        showNotification(`Failed to reject: ${error.message || 'Unknown error'}`, 'error');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -378,32 +1005,109 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   };
 
   const handleViewDocumentDetails = (doc) => {
+    console.log('Document details:', doc); // Debug log
     setSelectedDocForDetails(doc);
     setShowDocumentDetails(true);
   };
 
-  const handleDownloadVersion = (version) => {
-    alert(`⬇️ Downloading Version ${version.version}...\n\n📦 IPFS Hash: ${version.hash}\n📅 Date: ${version.date}\n✅ Status: ${version.status}\n\nFile will be downloaded from IPFS...`);
+  const handlePreviewDocument = (ipfsHash) => {
+    if (!ipfsHash) {
+      showNotification('No IPFS hash available for preview', 'error');
+      return;
+    }
+    const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+    window.open(ipfsUrl, '_blank');
+  };
+
+  const handleDownloadVersion = async (version) => {
+    try {
+      const ipfsHash = version.hash || version.ipfsHash;
+      if (!ipfsHash) {
+        showNotification('No IPFS hash available for download', 'error');
+        return;
+      }
+      
+      showNotification(`Downloading from IPFS: ${ipfsHash.substring(0, 20)}...`, 'success');
+      
+      // Download from IPFS gateway
+      const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+      window.open(ipfsUrl, '_blank');
+    } catch (error) {
+      console.error('Download error:', error);
+      showNotification('Failed to download document', 'error');
+    }
+  };
+
+  const handleDownloadDocument = async (ipfsHash, fileName) => {
+    try {
+      if (!ipfsHash) {
+        showNotification('No IPFS hash available for download', 'error');
+        return;
+      }
+      
+      showNotification('Downloading document...', 'info');
+      
+      // Use IPFS gateway to download
+      const ipfsUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
+      
+      // Create invisible link and trigger download
+      const link = document.createElement('a');
+      link.href = ipfsUrl;
+      link.download = fileName || 'document.pdf';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showNotification('Download started', 'success');
+    } catch (error) {
+      console.error('Download error:', error);
+      showNotification('Failed to download document', 'error');
+    }
   };
 
   const handleContinueDraft = (doc) => {
     // Pre-fill form with draft data
-    alert(`📝 Continuing Draft...\n\nDocument: ${doc.documentName}\nPurpose: ${doc.purpose}\n\nForm will be pre-filled with saved data.`);
+    showNotification(`Continuing draft: ${doc.documentName}`, 'info');
     setActiveTab('send');
     // Here you would actually populate the form fields
   };
 
-  const handleCancelApproval = (docId) => {
+  const handleCancelApproval = async (docId) => {
     if (confirm('❌ Cancel Approval Request?\n\nThis will:\n• Withdraw the request from all approvers\n• Update blockchain status\n• Notify all recipients\n\nAre you sure?')) {
-      alert('✅ Approval request cancelled successfully!');
-      setSentRequests(prev => prev.map(req => 
-        req.id === docId ? { ...req, status: 'cancelled' } : req
-      ));
+      try {
+        // TODO: Add backend API call here when backend endpoint is ready
+        // const response = await fetch(`${API_URL}/api/approvals/${docId}/cancel`, {
+        //   method: 'POST',
+        //   headers: getAuthHeaders()
+        // });
+        
+        // For now, update frontend state
+        const cancelledDate = new Date().toLocaleString();
+        setSentRequests(prev => prev.map(req => 
+          req.id === docId ? { 
+            ...req, 
+            status: 'cancelled',
+            cancelledDate: cancelledDate
+          } : req
+        ));
+        
+        // Close details modal if open
+        if (showDocumentDetails && selectedDocForDetails?.id === docId) {
+          setShowDocumentDetails(false);
+        }
+        
+        showNotification('✅ Approval request canceled successfully!', 'success');
+      } catch (error) {
+        console.error('Error canceling approval:', error);
+        showNotification('❌ Failed to cancel approval request', 'error');
+      }
     }
   };
 
   const filteredSentRequests = sentRequests.filter(req => {
     if (activeHistoryTab === 'all') return true;
+    if (activeHistoryTab === 'draft') return false; // Drafts are handled separately
     return req.status === activeHistoryTab;
   }).filter(req => {
     // Search filter
@@ -411,8 +1115,8 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     const query = historySearchQuery.toLowerCase();
     return (
       req.documentName.toLowerCase().includes(query) ||
-      req.purpose.toLowerCase().includes(query) ||
-      req.recipients.some(r => r.toLowerCase().includes(query))
+      (req.purpose || '').toLowerCase().includes(query) ||
+      (req.recipients || []).some(r => r.toLowerCase().includes(query))
     );
   }).sort((a, b) => {
     // Sort functionality
@@ -428,10 +1132,11 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   });
 
   const filteredIncomingRequests = incomingRequests.filter(req => {
-    // Status filter based on active tab
-    if (activeReceiveTab === 'pending' && req.status !== 'pending') return false;
-    if (activeReceiveTab === 'approved' && req.status !== 'approved') return false;
-    if (activeReceiveTab === 'rejected' && req.status !== 'rejected') return false;
+    // Status filter based on active tab - case insensitive
+    const reqStatus = req.status?.toLowerCase();
+    if (activeReceiveTab === 'pending' && reqStatus !== 'pending') return false;
+    if (activeReceiveTab === 'approved' && reqStatus !== 'approved') return false;
+    if (activeReceiveTab === 'rejected' && reqStatus !== 'rejected') return false;
 
     // Search filter
     if (receiveSearchQuery) {
@@ -469,6 +1174,17 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
 
   return (
     <div className="document-approval">
+      {/* Notification Toast */}
+      {notification && (
+        <div className={`notification-toast ${notification.type}`}>
+          <i className={`ri-${notification.type === 'success' ? 'checkbox-circle' : notification.type === 'warning' ? 'alert' : 'information'}-line`}></i>
+          <span>{notification.message}</span>
+          <button className="close-notification" onClick={() => setNotification(null)}>
+            <i className="ri-close-line"></i>
+          </button>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="approval-header">
         <div className="header-left">
@@ -532,20 +1248,20 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                     <i className="ri-file-pdf-line"></i>
                   </div>
                   <div className="doc-info">
-                    <h4>{selectedDocument.name}</h4>
+                    <h4>{selectedDocument.name || selectedDocument.fileName}</h4>
                     <div className="doc-meta">
-                      <span><i className="ri-database-2-line"></i> {selectedDocument.size}</span>
+                      <span><i className="ri-database-2-line"></i> {selectedDocument.fileSize ? `${(selectedDocument.fileSize / 1024).toFixed(2)} KB` : 'Unknown size'}</span>
                       <span><i className="ri-shield-check-line"></i> Verified on Blockchain</span>
-                      <span><i className="ri-calendar-line"></i> {selectedDocument.uploadDate}</span>
+                      <span><i className="ri-calendar-line"></i> {selectedDocument.createdAt ? new Date(selectedDocument.createdAt).toLocaleDateString() : 'No date'}</span>
                     </div>
                     <div className="doc-hashes">
                       <div className="hash-item">
                         <small>IPFS Hash:</small>
-                        <code>{selectedDocument.ipfsHash}</code>
+                        <code>{selectedDocument.ipfsHash || 'N/A'}</code>
                       </div>
                       <div className="hash-item">
-                        <small>Transaction ID:</small>
-                        <code>{selectedDocument.txId}</code>
+                        <small>Transaction Hash:</small>
+                        <code>{selectedDocument.transactionHash || 'N/A'}</code>
                       </div>
                     </div>
                   </div>
@@ -564,25 +1280,68 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               {showFileSelector && (
                 <div className="file-selector">
                   <div className="selector-header">
-                    <h4>Blockchain Documents</h4>
+                    <h4>📄 Select Blockchain Document ({blockchainDocuments.filter(doc => {
+                      const searchLower = documentSearchQuery.toLowerCase();
+                      return (doc.name || doc.fileName || doc.filename || '').toLowerCase().includes(searchLower) ||
+                             (doc.ipfsHash || '').toLowerCase().includes(searchLower);
+                    }).length} available)</h4>
                     <button className="btn-close" onClick={() => setShowFileSelector(false)}>
                       <i className="ri-close-line"></i>
                     </button>
                   </div>
-                  <div className="file-list">
-                    {blockchainDocuments.map(doc => (
-                      <div key={doc.id} className="file-item" onClick={() => handleDocumentSelect(doc)}>
-                        <i className="ri-file-pdf-line"></i>
-                        <div className="file-details">
-                          <strong>{doc.name}</strong>
-                          <small>{doc.size} • {doc.uploadDate}</small>
-                        </div>
-                        <span className="status-badge verified">
-                          <i className="ri-checkbox-circle-line"></i> Verified
-                        </span>
-                      </div>
-                    ))}
+                  <div className="search-bar" style={{padding: '0 20px 15px'}}>
+                    <i className="ri-search-line"></i>
+                    <input 
+                      type="text" 
+                      placeholder="Search documents by name or IPFS hash..."
+                      value={documentSearchQuery}
+                      onChange={(e) => setDocumentSearchQuery(e.target.value)}
+                    />
+                    {documentSearchQuery && (
+                      <button className="clear-search" onClick={() => setDocumentSearchQuery('')}>
+                        <i className="ri-close-line"></i>
+                      </button>
+                    )}
                   </div>
+                  
+                  {isLoading ? (
+                    <div className="loading-state">
+                      <i className="ri-loader-4-line spinning"></i>
+                      <p>Loading documents...</p>
+                    </div>
+                  ) : blockchainDocuments.length === 0 ? (
+                    <div className="empty-state">
+                      <i className="ri-file-list-line"></i>
+                      <p>No documents found. Please upload a document first in File Manager.</p>
+                    </div>
+                  ) : (
+                    <div className="file-list">
+                      {blockchainDocuments.filter(doc => {
+                        const searchLower = documentSearchQuery.toLowerCase();
+                        return (doc.name || doc.fileName || doc.filename || '').toLowerCase().includes(searchLower) ||
+                               (doc.ipfsHash || '').toLowerCase().includes(searchLower);
+                      }).map(doc => (
+                        <div key={doc.id} className="file-item" onClick={() => handleDocumentSelect(doc)}>
+                          <i className="ri-file-pdf-line file-icon"></i>
+                          <div className="file-details">
+                            <strong>{doc.name || doc.fileName || doc.filename || 'Untitled Document'}</strong>
+                            <small>
+                              {doc.fileSize ? `${(doc.fileSize / 1024).toFixed(2)} KB` : 'Unknown size'} • 
+                              {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'No date'}
+                            </small>
+                            {doc.ipfsHash ? (
+                              <small className="ipfs-hash">
+                                IPFS: {doc.ipfsHash.substring(0, 20)}...
+                              </small>
+                            ) : null}
+                          </div>
+                          <span className="status-badge verified">
+                            <i className="ri-checkbox-circle-line"></i> Verified
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -626,10 +1385,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                         )}
                       </div>
                       <div className="recipient-avatar">
-                        {recipient.name.split(' ').map(n => n[0]).join('')}
+                        {(recipient.fullName || recipient.name || 'U').split(' ').map(n => n[0]).join('')}
                       </div>
                       <div className="recipient-info">
-                        <strong>{recipient.name}</strong>
+                        <strong>{recipient.fullName || recipient.name || recipient.email}</strong>
                         <span className="role-badge">{recipient.customRole}</span>
                         <small>{recipient.department} • {recipient.email}</small>
                       </div>
@@ -763,13 +1522,13 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                 <i className="ri-save-line"></i>
                 Save Draft
               </button>
-              <button className="btn-outline">
+              <button className="btn-outline" onClick={handlePreview}>
                 <i className="ri-eye-line"></i>
                 Preview Request
               </button>
-              <button className="btn-success" onClick={handleGenerateRequest}>
+              <button className="btn-success" onClick={handleGenerateRequest} disabled={isGenerating}>
                 <i className="ri-send-plane-fill"></i>
-                Generate & Send Request
+                {isGenerating ? 'Generating...' : 'Generate & Send Request'}
               </button>
             </div>
 
@@ -843,13 +1602,19 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                   className={`history-tab ${activeHistoryTab === 'draft' ? 'active' : ''}`}
                   onClick={() => setActiveHistoryTab('draft')}
                 >
-                  <i className="ri-draft-line"></i> Drafts <span className="count">{sentRequests.filter(r => r.status === 'draft').length}</span>
+                  <i className="ri-draft-line"></i> Drafts <span className="count">{JSON.parse(localStorage.getItem('approvalDrafts') || '[]').length}</span>
                 </button>
                 <button 
                   className={`history-tab ${activeHistoryTab === 'rejected' ? 'active' : ''}`}
                   onClick={() => setActiveHistoryTab('rejected')}
                 >
                   <i className="ri-close-circle-line"></i> Rejected <span className="count">{sentRequests.filter(r => r.status === 'rejected').length}</span>
+                </button>
+                <button 
+                  className={`history-tab ${activeHistoryTab === 'cancelled' ? 'active' : ''}`}
+                  onClick={() => setActiveHistoryTab('cancelled')}
+                >
+                  <i className="ri-indeterminate-circle-line"></i> Canceled <span className="count">{sentRequests.filter(r => r.status === 'cancelled').length}</span>
                 </button>
               </div>
 
@@ -896,12 +1661,13 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                         </td>
                         <td>
                           <span className={`status-badge ${req.status}`}>
-                            {req.status === 'approved' && <i className="ri-checkbox-circle-fill"></i>}
+                            {req.status === 'approved' && <span className="status-dot green"></span>}
                             {req.status === 'partial' && <i className="ri-progress-3-line"></i>}
                             {req.status === 'pending' && <i className="ri-time-line"></i>}
                             {req.status === 'draft' && <i className="ri-draft-line"></i>}
                             {req.status === 'rejected' && <i className="ri-close-circle-fill"></i>}
-                            {req.status}
+                            {req.status === 'cancelled' && <i className="ri-indeterminate-circle-line"></i>}
+                            {(req.status || '').toUpperCase()}
                           </span>
                           {req.status === 'partial' && req.approvedBy && (
                             <div className="sub-status">
@@ -959,12 +1725,50 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                     ))}
                   </tbody>
                 </table>
-                {filteredSentRequests.length === 0 && (
+                
+                {/* Show drafts when draft tab is active */}
+                {activeHistoryTab === 'draft' ? (
+                  (() => {
+                    const savedDrafts = JSON.parse(localStorage.getItem('approvalDrafts') || '[]');
+                    return savedDrafts.length === 0 ? (
+                      <div className="empty-table-state">
+                        <i className="ri-draft-line"></i>
+                        <p>No saved drafts found</p>
+                        <small>Save a draft from the approval request form to continue later</small>
+                      </div>
+                    ) : (
+                      <div className="drafts-list" style={{ padding: '20px' }}>
+                        {savedDrafts.map(draft => (
+                          <div key={draft.id} className="draft-card">
+                            <div className="draft-header">
+                              <h4>{draft.document.name || draft.document.fileName}</h4>
+                              <small>Saved: {new Date(draft.savedAt).toLocaleString()}</small>
+                            </div>
+                            <div className="draft-details">
+                              <span><i className="ri-user-line"></i> {draft.recipients.length} approvers</span>
+                              <span><i className="ri-settings-line"></i> {draft.approvalType}</span>
+                              <span><i className="ri-flow-chart"></i> {draft.approvalProcess}</span>
+                              {draft.purpose && <span><i className="ri-chat-quote-line"></i> {draft.purpose.substring(0, 50)}...</span>}
+                            </div>
+                            <div className="draft-actions">
+                              <button className="btn-primary" onClick={() => { handleLoadDraft(draft); setActiveTab('send'); }}>
+                                <i className="ri-edit-line"></i> Continue Editing
+                              </button>
+                              <button className="btn-danger" onClick={() => handleDeleteDraft(draft.id)}>
+                                <i className="ri-delete-bin-line"></i> Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()
+                ) : filteredSentRequests.length === 0 ? (
                   <div className="empty-table-state">
                     <i className="ri-folder-open-line"></i>
                     <p>No documents in this category</p>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -984,7 +1788,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                     <i className="ri-time-line"></i>
                     <div className="tab-content">
                       <span className="tab-title">Pending Requests</span>
-                      <span className="tab-count">{incomingRequests.filter(r => r.status === 'pending').length}</span>
+                      <span className="tab-count">{incomingRequests.filter(r => r.status?.toLowerCase() === 'pending').length}</span>
                     </div>
                   </button>
                   <button 
@@ -994,7 +1798,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                     <i className="ri-checkbox-circle-line"></i>
                     <div className="tab-content">
                       <span className="tab-title">Approved</span>
-                      <span className="tab-count">{incomingRequests.filter(r => r.status === 'approved').length}</span>
+                      <span className="tab-count">{incomingRequests.filter(r => r.status?.toLowerCase() === 'approved').length}</span>
                     </div>
                   </button>
                   <button 
@@ -1004,7 +1808,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                     <i className="ri-close-circle-line"></i>
                     <div className="tab-content">
                       <span className="tab-title">Rejected</span>
-                      <span className="tab-count">{incomingRequests.filter(r => r.status === 'rejected').length}</span>
+                      <span className="tab-count">{incomingRequests.filter(r => r.status?.toLowerCase() === 'rejected').length}</span>
                     </div>
                   </button>
                 </div>
@@ -1085,9 +1889,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                 <div className="results-summary">
                   <span className="results-count">
                     Showing <strong>{filteredIncomingRequests.length}</strong> of <strong>{incomingRequests.filter(r => {
-                      if (activeReceiveTab === 'pending') return r.status === 'pending';
-                      if (activeReceiveTab === 'approved') return r.status === 'approved';
-                      if (activeReceiveTab === 'rejected') return r.status === 'rejected';
+                      const status = r.status?.toLowerCase();
+                      if (activeReceiveTab === 'pending') return status === 'pending';
+                      if (activeReceiveTab === 'approved') return status === 'approved';
+                      if (activeReceiveTab === 'rejected') return status === 'rejected';
                       return true;
                     }).length}</strong> requests
                   </span>
@@ -1095,139 +1900,145 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               </div>
             </div>
 
-            {/* Requests List */}
+            {/* Requests Table */}
             <div className="approval-card">
-              {filteredIncomingRequests.length > 0 ? (
-                <div className="requests-list">
-                  {filteredIncomingRequests.map(request => (
-                    <div key={request.id} className="request-list-item">
-                      <div className="request-list-header">
-                        <div className="request-icon">
-                          <i className="ri-file-text-line"></i>
-                        </div>
-                        <div className="request-main-info">
-                          <div className="request-title-row">
-                            <h4 className="request-doc-name">{request.documentName}</h4>
-                            <div className="request-badges">
-                              <span className={`type-badge ${request.approvalType}`}>
-                                {request.approvalType === 'digital' ? (
-                                  <><i className="ri-shield-keyhole-line"></i> Digital</>
-                                ) : (
-                                  <><i className="ri-checkbox-circle-line"></i> Standard</>
-                                )}
-                              </span>
-                              <span className="size-badge">{request.documentSize}</span>
+              <div className="card-header">
+                <h3>
+                  {activeReceiveTab === 'pending' && <><i className="ri-time-line"></i> Pending Requests</>}
+                  {activeReceiveTab === 'approved' && <><i className="ri-checkbox-circle-line"></i> Approved Requests</>}
+                  {activeReceiveTab === 'rejected' && <><i className="ri-close-circle-line"></i> Rejected Requests</>}
+                  {activeReceiveTab === 'all' && <><i className="ri-inbox-line"></i> All Requests</>}
+                </h3>
+                <span className="request-count">{filteredIncomingRequests.length} requests</span>
+              </div>
+
+              <div className="requests-table-wrapper">
+                {filteredIncomingRequests.length > 0 ? (
+                  <table className="requests-table">
+                    <thead>
+                      <tr>
+                        <th>Document</th>
+                        <th>From</th>
+                        <th>Purpose</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredIncomingRequests.map(request => (
+                        <tr key={request.id} className={`request-row ${request.status}`}>
+                          <td>
+                            <div className="document-cell">
+                              <div className="doc-icon">
+                                <i className="ri-file-text-line"></i>
+                              </div>
+                              <div className="doc-info">
+                                <div className="doc-name">{request.documentName}</div>
+                                <div className="doc-meta">
+                                  <span className="doc-size">{request.documentSize}</span>
+                                  {request.ipfsHash && (
+                                    <>
+                                      <span className="separator">•</span>
+                                      <span className="ipfs-badge" title={request.ipfsHash}>
+                                        <i className="ri-link"></i> IPFS
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                          <div className="request-meta-row">
-                            <span className="meta-item">
-                              <i className="ri-user-line"></i>
-                              <strong>From:</strong> {request.requestorName}
+                          </td>
+                          <td>
+                            <div className="requestor-cell">
+                              <div className="requestor-name">
+                                <i className="ri-user-line"></i>
+                                {request.requestorName}
+                              </div>
+                              <div className="requestor-dept">{request.requestorDepartment}</div>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="purpose-cell" title={request.purpose}>
+                              {request.purpose ? (
+                                request.purpose.length > 50 
+                                  ? `${request.purpose.substring(0, 50)}...` 
+                                  : request.purpose
+                              ) : 'No purpose specified'}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`type-badge ${request.approvalType}`}>
+                              {request.approvalType === 'DIGITAL_SIGNATURE' || request.approvalType === 'digital' ? (
+                                <><i className="ri-shield-keyhole-line"></i> Digital</>
+                              ) : (
+                                <><i className="ri-checkbox-circle-line"></i> Standard</>
+                              )}
                             </span>
-                            <span className="meta-separator">•</span>
-                            <span className="meta-item">
-                              <i className="ri-building-line"></i>
-                              {request.requestorDepartment}
+                          </td>
+                          <td>
+                            <span className={`status-badge ${request.status}`}>
+                              {request.status === 'approved' && <span className="status-dot green"></span>}
+                              {request.status === 'rejected' && <i className="ri-close-circle-fill"></i>}
+                              {request.status === 'pending' && <i className="ri-time-line"></i>}
+                              {(request.status || 'pending').toUpperCase()}
                             </span>
-                            <span className="meta-separator">•</span>
-                            <span className="meta-item">
-                              <i className="ri-calendar-line"></i>
+                          </td>
+                          <td>
+                            <div className="date-cell">
                               {request.submittedDate}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="request-list-body">
-                        <div className="request-purpose">
-                          <strong>Purpose:</strong>
-                          <p>{request.purpose}</p>
-                        </div>
-
-                        {request.status === 'approved' && (
-                          <div className="request-status-info approved">
-                            <i className="ri-checkbox-circle-fill"></i>
-                            <span>Approved on {request.approvedDate}</span>
-                          </div>
-                        )}
-
-                        {request.status === 'rejected' && (
-                          <div className="request-status-info rejected">
-                            <i className="ri-close-circle-fill"></i>
-                            <div>
-                              <span>Rejected on {request.rejectedDate}</span>
-                              <p className="rejection-reason">Reason: {request.rejectionReason}</p>
                             </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="request-list-footer">
-                        <div className="request-blockchain-info">
-                          <span className="blockchain-item">
-                            <i className="ri-link"></i>
-                            <code>{request.ipfsHash}</code>
-                          </span>
-                        </div>
-                        <div className="request-actions">
-                          <button 
-                            className="btn-action view"
-                            onClick={() => handleViewRequest(request)}
-                          >
-                            <i className="ri-eye-line"></i>
-                            View Details
-                          </button>
-                          {request.status === 'pending' && (
-                            <>
+                          </td>
+                          <td>
+                            <div className="action-buttons-group">
                               <button 
-                                className="btn-action approve"
-                                onClick={() => handleApproveRequest(request.id)}
+                                className="btn-icon" 
+                                onClick={() => handleViewRequest(request)}
+                                title="View Details"
                               >
-                                <i className="ri-checkbox-circle-line"></i>
-                                {request.approvalType === 'digital' ? 'Sign & Approve' : 'Approve'}
+                                <i className="ri-eye-line"></i>
                               </button>
-                              <button 
-                                className="btn-action reject"
-                                onClick={() => handleRejectRequest(request.id)}
-                              >
-                                <i className="ri-close-circle-line"></i>
-                                Reject
-                              </button>
-                            </>
-                          )}
-                          {(request.status === 'approved' || request.status === 'rejected') && (
-                            <button 
-                              className="btn-action download"
-                              onClick={() => alert('⬇️ Downloading from IPFS...')}
-                            >
-                              <i className="ri-download-line"></i>
-                              Download
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-state large">
-                  <i className={
-                    activeReceiveTab === 'pending' ? 'ri-time-line' :
-                    activeReceiveTab === 'approved' ? 'ri-checkbox-circle-line' :
-                    'ri-close-circle-line'
-                  }></i>
-                  <h3>No {activeReceiveTab} requests found</h3>
-                  {(receiveSearchQuery || receiveFilterType !== 'all' || receiveFilterDepartment !== 'all') ? (
-                    <p>Try adjusting your search or filter criteria</p>
-                  ) : (
-                    <p>
-                      {activeReceiveTab === 'pending' && 'All caught up! No pending approval requests at the moment.'}
-                      {activeReceiveTab === 'approved' && 'No approved requests yet.'}
-                      {activeReceiveTab === 'rejected' && 'No rejected requests yet.'}
-                    </p>
-                  )}
-                </div>
-              )}
+                              {(request.status || '').toLowerCase() === 'pending' && (
+                                <>
+                                  <button 
+                                    className="btn-icon success" 
+                                    onClick={() => handleApproveRequest(request.id)}
+                                    title={request.approvalType === 'DIGITAL_SIGNATURE' ? 'Sign & Approve' : 'Approve'}
+                                  >
+                                    <i className="ri-checkbox-circle-line"></i>
+                                  </button>
+                                  <button 
+                                    className="btn-icon danger" 
+                                    onClick={() => handleRejectRequest(request.id)}
+                                    title="Reject Request"
+                                  >
+                                    <i className="ri-close-circle-line"></i>
+                                  </button>
+                                </>
+                              )}
+                              {(request.status || '').toLowerCase() !== 'pending' && (
+                                <button 
+                                  className="btn-icon primary" 
+                                  onClick={() => handleDownloadDocument(request.ipfsHash, request.documentName)}
+                                  title="Download Document"
+                                >
+                                  <i className="ri-download-line"></i>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="empty-table-state">
+                    <i className="ri-inbox-line"></i>
+                    <p>No {activeReceiveTab} requests found</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1238,20 +2049,44 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         <div className="modal-overlay" onClick={(e) => e.target.className === 'modal-overlay' && setShowRecipientModal(false)}>
           <div className="modal-box">
             <div className="modal-header">
-              <h3>Add Recipient</h3>
+              <h3>Add Recipient (Faculty & Admin Only)</h3>
               <button className="btn-close" onClick={() => setShowRecipientModal(false)}>
                 <i className="ri-close-line"></i>
               </button>
             </div>
             <div className="modal-body">
+              <div className="search-bar" style={{marginBottom: '20px'}}>
+                <i className="ri-search-line"></i>
+                <input 
+                  type="text" 
+                  placeholder="Search by name, email or department..."
+                  value={recipientSearchQuery}
+                  onChange={(e) => setRecipientSearchQuery(e.target.value)}
+                />
+                {recipientSearchQuery && (
+                  <button className="clear-search" onClick={() => setRecipientSearchQuery('')}>
+                    <i className="ri-close-line"></i>
+                  </button>
+                )}
+              </div>
               <div className="users-list">
-                {availableUsers.map(user => (
+                {availableUsers.filter(user => {
+                  // Filter out students - only show faculty and admin
+                  const role = (user.role || '').toLowerCase();
+                  if (role === 'student') return false;
+                  
+                  // Apply search filter
+                  const searchLower = recipientSearchQuery.toLowerCase();
+                  return (user.fullName || user.name || '').toLowerCase().includes(searchLower) ||
+                         (user.email || '').toLowerCase().includes(searchLower) ||
+                         (user.department || '').toLowerCase().includes(searchLower);
+                }).map(user => (
                   <div key={user.id} className="user-item">
                     <div className="user-avatar">
-                      {user.name.split(' ').map(n => n[0]).join('')}
+                      {(user.fullName || user.name || 'U').split(' ').map(n => n[0]).join('')}
                     </div>
                     <div className="user-info">
-                      <strong>{user.name}</strong>
+                      <strong>{user.fullName || user.name || user.email}</strong>
                       <small>{user.department} • {user.email}</small>
                     </div>
                     <input 
@@ -1349,6 +2184,9 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                   <div className="detail-item">
                     <label>Status:</label>
                     <span className={`status-badge ${selectedRequest.status}`}>
+                      {selectedRequest.status === 'approved' && <span className="status-dot green"></span>}
+                      {selectedRequest.status === 'rejected' && <i className="ri-close-circle-fill"></i>}
+                      {selectedRequest.status === 'pending' && <i className="ri-time-line"></i>}
                       {selectedRequest.status.toUpperCase()}
                     </span>
                   </div>
@@ -1376,39 +2214,60 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               {/* Preview Section */}
               <div className="detail-section">
                 <h4><i className="ri-eye-line"></i> Document Preview</h4>
-                <div className="preview-placeholder">
-                  <i className="ri-file-pdf-line"></i>
-                  <p>PDF Preview will appear here</p>
-                  <button className="btn-primary">
-                    <i className="ri-eye-line"></i>
-                    Open Full Preview
-                  </button>
+                <div className="preview-container">
+                  {selectedRequest.ipfsHash ? (
+                    <>
+                      <div className="pdf-preview-frame">
+                        <iframe
+                          src={`https://ipfs.io/ipfs/${selectedRequest.ipfsHash}`}
+                          title="Document Preview"
+                          className="pdf-iframe"
+                        />
+                      </div>
+                      <button 
+                        className="btn-primary"
+                        onClick={() => window.open(`https://ipfs.io/ipfs/${selectedRequest.ipfsHash}`, '_blank')}
+                      >
+                        <i className="ri-external-link-line"></i>
+                        Open Full Preview
+                      </button>
+                    </>
+                  ) : (
+                    <div className="preview-placeholder">
+                      <i className="ri-file-pdf-line"></i>
+                      <p>No preview available</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
             
             <div className="modal-footer">
-              <button className="btn-outline" onClick={() => alert('⬇️ Downloading from IPFS...')}>
+              <button className="btn-outline" onClick={() => handleDownloadDocument(selectedRequest.ipfsHash, selectedRequest.documentName)}>
                 <i className="ri-download-line"></i>
                 Download
               </button>
-              <button className="btn-danger" onClick={() => handleRejectRequest(selectedRequest.id)}>
-                <i className="ri-close-circle-line"></i>
-                Reject
-              </button>
-              <button className="btn-success" onClick={() => handleApproveRequest(selectedRequest.id)}>
-                {selectedRequest.approvalType === 'digital' ? (
-                  <>
-                    <i className="ri-shield-keyhole-line"></i>
-                    Sign & Approve
-                  </>
-                ) : (
-                  <>
-                    <i className="ri-checkbox-circle-line"></i>
-                    Approve
-                  </>
-                )}
-              </button>
+              {(selectedRequest.status || '').toLowerCase() === 'pending' && (
+                <>
+                  <button className="btn-danger" onClick={() => handleRejectRequest(selectedRequest.id)}>
+                    <i className="ri-close-circle-line"></i>
+                    Reject
+                  </button>
+                  <button className="btn-success" onClick={() => handleApproveRequest(selectedRequest.id)}>
+                    {selectedRequest.approvalType === 'digital' ? (
+                      <>
+                        <i className="ri-shield-keyhole-line"></i>
+                        Sign & Approve
+                      </>
+                    ) : (
+                      <>
+                        <i className="ri-checkbox-circle-line"></i>
+                        Approve
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1448,6 +2307,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                       {selectedDocForDetails.status === 'pending' && <i className="ri-time-line"></i>}
                       {selectedDocForDetails.status === 'draft' && <i className="ri-draft-line"></i>}
                       {selectedDocForDetails.status === 'rejected' && <i className="ri-close-circle-fill"></i>}
+                      {selectedDocForDetails.status === 'cancelled' && <i className="ri-indeterminate-circle-line"></i>}
                       {selectedDocForDetails.status}
                     </span>
                   </div>
@@ -1468,37 +2328,124 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                 </div>
               </div>
 
-              {/* Recipients & Approval Status */}
-              {selectedDocForDetails.recipients && selectedDocForDetails.recipients.length > 0 && (
-                <div className="detail-section">
-                  <h4><i className="ri-team-line"></i> Approval Progress</h4>
-                  <div className="approval-progress-list">
-                    {selectedDocForDetails.recipients.map((recipient, idx) => {
-                      const isApproved = selectedDocForDetails.approvedBy?.includes(recipient);
-                      const isPending = selectedDocForDetails.pendingWith?.includes(recipient);
+              {/* Recipients & Approval Timeline */}
+              <div className="detail-section">
+                <h4><i className="ri-team-line"></i> Approval Timeline</h4>
+                {selectedDocForDetails.approvalSteps && selectedDocForDetails.approvalSteps.length > 0 ? (
+                  <div className="approval-timeline">
+                    {selectedDocForDetails.approvalSteps.map((step, idx) => {
+                      const isApproved = step.hasApproved;
+                      const isRejected = step.hasRejected;
+                      const isPending = !isApproved && !isRejected;
+                      const approver = step.approver || {};
+                      
+                      // Determine display name
+                      let displayName = 'Unknown Approver';
+                      if (approver.name) {
+                        displayName = approver.name;
+                      } else if (step.approverRole) {
+                        displayName = step.approverRole;
+                      }
+                      
+                      // Determine department
+                      let department = approver.department || 'Department not specified';
+                      
+                      // Determine role
+                      let role = approver.role || step.approverRole || 'Approver';
+                      
                       return (
-                        <div key={idx} className={`approval-progress-item ${isApproved ? 'approved' : isPending ? 'pending' : ''}`}>
-                          <div className="progress-icon">
-                            {isApproved ? (
-                              <i className="ri-checkbox-circle-fill"></i>
-                            ) : isPending ? (
-                              <i className="ri-time-line"></i>
-                            ) : (
-                              <i className="ri-radio-button-line"></i>
+                        <div key={idx} className={`timeline-item ${isApproved ? 'approved' : isRejected ? 'rejected' : 'pending'}`}>
+                          <div className="timeline-marker">
+                            <div className={`timeline-dot ${isApproved ? 'approved' : isRejected ? 'rejected' : 'pending'}`}>
+                              {isApproved ? (
+                                <i className="ri-checkbox-circle-fill"></i>
+                              ) : isRejected ? (
+                                <i className="ri-close-circle-fill"></i>
+                              ) : (
+                                <i className="ri-time-line"></i>
+                              )}
+                            </div>
+                            {idx < selectedDocForDetails.approvalSteps.length - 1 && (
+                              <div className={`timeline-line ${isApproved ? 'completed' : ''}`}></div>
                             )}
                           </div>
-                          <div className="progress-info">
-                            <strong>{recipient}</strong>
-                            <span className={`progress-status ${isApproved ? 'approved' : isPending ? 'pending' : 'waiting'}`}>
-                              {isApproved ? 'Approved' : isPending ? 'Pending Review' : 'Waiting'}
-                            </span>
+                          <div className="timeline-content">
+                            <div className="timeline-header">
+                              <div className="timeline-header-info">
+                                <strong>{displayName}</strong>
+                                {approver.email && (
+                                  <span className="timeline-email">{approver.email}</span>
+                                )}
+                                {!approver.name && step.approverWallet && (
+                                  <span className="timeline-wallet">
+                                    <code>{step.approverWallet.substring(0, 10)}...{step.approverWallet.substring(step.approverWallet.length - 8)}</code>
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`timeline-badge ${isApproved ? 'success' : isRejected ? 'danger' : 'warning'}`}>
+                                {isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending'}
+                              </span>
+                            </div>
+                            <div className="timeline-meta">
+                              <span className="timeline-dept">
+                                <i className="ri-building-line"></i>
+                                {department}
+                              </span>
+                              <span>•</span>
+                              <span className="timeline-role">
+                                <i className="ri-shield-user-line"></i>
+                                {role}
+                              </span>
+                              <span>•</span>
+                              <span>Step {step.stepOrder}</span>
+                            </div>
+                            {step.actionTimestamp && (
+                              <div className="timeline-timestamp">
+                                <i className="ri-time-line"></i>
+                                {isApproved ? 'Approved' : 'Rejected'} on {new Date(step.actionTimestamp * 1000).toLocaleString()}
+                              </div>
+                            )}
+                            {step.reason && (
+                              <div className="timeline-reason">
+                                <i className="ri-chat-quote-line"></i>
+                                <em>"{step.reason}"</em>
+                              </div>
+                            )}
+                            {step.blockchainTxHash && (
+                              <div className="timeline-tx">
+                                <i className="ri-links-line"></i>
+                                <code>{step.blockchainTxHash.substring(0, 20)}...</code>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="no-timeline-data">
+                    <div className="no-data-icon">
+                      <i className="ri-user-search-line"></i>
+                    </div>
+                    <p className="no-data-title">No Recipients Found</p>
+                    <p className="no-data-message">
+                      This approval request doesn't have any assigned recipients yet. 
+                      This might be an old request created before the approval system was fully configured.
+                    </p>
+                    {selectedDocForDetails.recipients && selectedDocForDetails.recipients.length > 0 && 
+                     selectedDocForDetails.recipients[0] !== 'No recipients' && (
+                      <div className="fallback-recipients">
+                        <p><strong>Expected Recipients:</strong></p>
+                        <ul>
+                          {selectedDocForDetails.recipients.map((r, i) => (
+                            <li key={i}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Rejection Info */}
               {selectedDocForDetails.status === 'rejected' && selectedDocForDetails.rejectionReason && (
@@ -1507,6 +2454,19 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                   <div className="rejection-info">
                     <p><strong>Reason:</strong> {selectedDocForDetails.rejectionReason}</p>
                     <p><strong>Date:</strong> {selectedDocForDetails.rejectedDate}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Cancellation Info */}
+              {selectedDocForDetails.status === 'cancelled' && (
+                <div className="detail-section cancellation-section">
+                  <h4><i className="ri-indeterminate-circle-line"></i> Request Canceled</h4>
+                  <div className="cancellation-info">
+                    <p>This approval request was canceled by the requestor.</p>
+                    {selectedDocForDetails.cancelledDate && (
+                      <p><strong>Canceled on:</strong> {selectedDocForDetails.cancelledDate}</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -1525,6 +2485,22 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                       <code className="hash-code">{selectedDocForDetails.txId}</code>
                     </div>
                   )}
+                </div>
+                <div className="blockchain-actions">
+                  <button 
+                    className="btn-outline" 
+                    onClick={() => handlePreviewDocument(selectedDocForDetails.ipfsHash)}
+                  >
+                    <i className="ri-eye-line"></i>
+                    Preview Document
+                  </button>
+                  <button 
+                    className="btn-outline" 
+                    onClick={() => handleDownloadVersion({ hash: selectedDocForDetails.ipfsHash, version: selectedDocForDetails.currentVersion })}
+                  >
+                    <i className="ri-download-line"></i>
+                    Download
+                  </button>
                 </div>
               </div>
 
@@ -1580,9 +2556,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                           <button 
                             className="version-btn restore-btn"
                             onClick={() => {
-                              if (confirm(`Restore version ${version.version}? This will create a new version with the old file content.`)) {
-                                alert('🔄 Restore functionality will create a new version based on this one.');
-                              }
+                              showNotification('Restore functionality will create a new version based on this one.', 'info');
                             }}
                           >
                             <i className="ri-restart-line"></i> Restore
@@ -1617,6 +2591,163 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               <button className="btn-outline" onClick={() => setShowDocumentDetails(false)}>
                 <i className="ri-close-line"></i>
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal */}
+      {showPreview && previewData && (
+        <div className="modal-overlay" onClick={() => setShowPreview(false)}>
+          <div className="modal-content large-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3><i className="ri-eye-line"></i> Preview Approval Request</h3>
+              <button className="btn-close" onClick={() => setShowPreview(false)}>
+                <i className="ri-close-line"></i>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="preview-section">
+                <h4>📄 Document Information</h4>
+                <div className="info-grid">
+                  <div className="info-item">
+                    <label>Document Name:</label>
+                    <span>{previewData.document.name || previewData.document.fileName}</span>
+                  </div>
+                  <div className="info-item">
+                    <label>File Size:</label>
+                    <span>{previewData.document.fileSize ? `${(previewData.document.fileSize / 1024).toFixed(2)} KB` : 'Unknown'}</span>
+                  </div>
+                  <div className="info-item">
+                    <label>IPFS Hash:</label>
+                    <code>{previewData.document.ipfsHash || 'N/A'}</code>
+                  </div>
+                  <div className="info-item">
+                    <label>Transaction Hash:</label>
+                    <code>{previewData.document.transactionHash || 'N/A'}</code>
+                  </div>
+                </div>
+              </div>
+
+              <div className="preview-section">
+                <h4>👥 Approvers ({previewData.recipients.length})</h4>
+                <div className="approvers-list">
+                  {previewData.recipients.map((recipient, index) => (
+                    <div key={recipient.id} className="approver-card">
+                      <div className="approver-number">#{index + 1}</div>
+                      <div className="approver-avatar">
+                        {(recipient.fullName || recipient.name || 'U').split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div className="approver-info">
+                        <strong>{recipient.fullName || recipient.name}</strong>
+                        <span className="role-badge">{recipient.customRole}</span>
+                        <small>{recipient.email}</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="preview-section">
+                <h4>⚙️ Approval Configuration</h4>
+                <div className="info-grid">
+                  <div className="info-item">
+                    <label>Approval Type:</label>
+                    <span className="badge">{previewData.approvalType === 'digital' ? '🔐 Digital Signature' : '✅ Standard Approval'}</span>
+                  </div>
+                  <div className="info-item">
+                    <label>Process Type:</label>
+                    <span className="badge">{previewData.approvalProcess === 'sequential' ? '📋 Sequential' : '🔄 Parallel'}</span>
+                  </div>
+                  <div className="info-item full-width">
+                    <label>Purpose:</label>
+                    <p>{previewData.purpose || 'No purpose specified'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-outline" onClick={() => setShowPreview(false)}>
+                <i className="ri-close-line"></i> Close
+              </button>
+              <button className="btn-success" onClick={() => { setShowPreview(false); handleGenerateRequest(); }}>
+                <i className="ri-send-plane-fill"></i> Confirm & Send Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve Confirmation Modal */}
+      {showApproveConfirm && (
+        <div className="modal-overlay" onClick={() => setShowApproveConfirm(false)}>
+          <div className="modal-box confirmation-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <i className="ri-checkbox-circle-line"></i>
+                Approve Document?
+              </h3>
+            </div>
+            <div className="modal-body">
+              <div className="confirmation-content">
+                <p className="confirmation-icon">✅</p>
+                <p className="confirmation-text">This will:</p>
+                <ul className="confirmation-list">
+                  <li>• Record your approval on blockchain</li>
+                  <li>• Generate new version with approval stamp</li>
+                  <li>• Move to next approver (if sequential)</li>
+                  <li>• Notify requestor of progress</li>
+                </ul>
+                <p className="confirmation-question">Proceed with approval?</p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-outline" onClick={() => setShowApproveConfirm(false)}>
+                <i className="ri-close-line"></i>
+                Cancel
+              </button>
+              <button className="btn-success" onClick={confirmApproveRequest}>
+                <i className="ri-checkbox-circle-line"></i>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Confirmation Modal */}
+      {showRejectConfirm && (
+        <div className="modal-overlay" onClick={() => setShowRejectConfirm(false)}>
+          <div className="modal-box confirmation-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <i className="ri-close-circle-line"></i>
+                Reject Approval Request
+              </h3>
+            </div>
+            <div className="modal-body">
+              <div className="confirmation-content">
+                <p className="confirmation-icon">❌</p>
+                <p className="confirmation-text">Please provide a reason for rejection:</p>
+                <p className="confirmation-subtext">(This will be sent to the requestor)</p>
+                <textarea
+                  className="rejection-textarea"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Enter rejection reason..."
+                  rows={4}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-outline" onClick={() => setShowRejectConfirm(false)}>
+                <i className="ri-close-line"></i>
+                Cancel
+              </button>
+              <button className="btn-danger" onClick={confirmRejectRequest}>
+                <i className="ri-close-circle-line"></i>
+                OK
               </button>
             </div>
           </div>

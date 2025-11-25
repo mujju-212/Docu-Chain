@@ -52,7 +52,7 @@ def create_app(config_name=None):
             return response
     
     # Import models to ensure they are registered with SQLAlchemy
-    from app.models import user, document, institution, folder, recent_activity
+    from app.models import user, document, institution, folder, recent_activity, approval
     
     # Register blueprints
     from app.routes import auth, documents, users, approvals, chat, circulars, institutions, folders, shares, recent

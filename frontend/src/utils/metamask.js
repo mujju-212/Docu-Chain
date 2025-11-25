@@ -3,14 +3,17 @@
 
 // Blockchain configuration
 const SEPOLIA_CHAIN_ID = '0xaa36a7'; // 11155111 in hex
-const CONTRACT_ADDRESS = '0x1203dc6f5d10556449e194c0c14f167bb3d72208';
+
+// Contract addresses
+const DOCUMENT_MANAGER_ADDRESS = '0x1203dc6f5d10556449e194c0c14f167bb3d72208'; // Original DocumentManager
+const APPROVAL_MANAGER_ADDRESS = '0x8E1626654e1B04ADF941EbbcEc7E92728327aA54'; // DocumentApprovalManager
 
 // MetaMask connection state
 let web3 = null;
 let userAccount = null;
 
-// Smart Contract ABI (matching deployed DocumentManager contract)
-const CONTRACT_ABI = [
+// Smart Contract ABI for DocumentManager (original contract)
+const DOCUMENT_MANAGER_ABI = [
     {
         "inputs": [
             {"name": "_ipfsHash", "type": "string"}, 
@@ -52,6 +55,159 @@ const CONTRACT_ABI = [
         "type": "function"
     }
 ];
+
+// Smart Contract ABI for DocumentApprovalManager
+const APPROVAL_MANAGER_ABI = [
+    {
+        "anonymous": false,
+        "inputs": [
+            {"indexed": true, "name": "requestId", "type": "bytes32"},
+            {"indexed": true, "name": "documentId", "type": "bytes32"},
+            {"indexed": true, "name": "requester", "type": "address"},
+            {"indexed": false, "name": "approvers", "type": "address[]"},
+            {"indexed": false, "name": "processType", "type": "uint8"},
+            {"indexed": false, "name": "priority", "type": "uint8"},
+            {"indexed": false, "name": "expiryTimestamp", "type": "uint256"}
+        ],
+        "name": "ApprovalRequested",
+        "type": "event"
+    },
+    {
+        "inputs": [
+            {"name": "_documentId", "type": "bytes32"},
+            {"name": "_documentIpfsHash", "type": "string"},
+            {"name": "_approvers", "type": "address[]"},
+            {"name": "_processType", "type": "uint8"}, // 0=SEQUENTIAL, 1=PARALLEL
+            {"name": "_approvalType", "type": "uint8"}, // 0=STANDARD, 1=DIGITAL_SIGNATURE
+            {"name": "_priority", "type": "uint8"}, // 0=LOW, 1=NORMAL, 2=HIGH, 3=URGENT
+            {"name": "_expiryTimestamp", "type": "uint256"},
+            {"name": "_version", "type": "string"}
+        ],
+        "name": "requestApproval",
+        "outputs": [{"name": "requestId", "type": "bytes32"}],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_requestId", "type": "bytes32"},
+            {"name": "_signatureHash", "type": "bytes32"},
+            {"name": "_reason", "type": "string"}
+        ],
+        "name": "approveDocument",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_requestId", "type": "bytes32"},
+            {"name": "_reason", "type": "string"}
+        ],
+        "name": "rejectDocument",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_requestId", "type": "bytes32"}
+        ],
+        "name": "cancelRequest",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_requestId", "type": "bytes32"}
+        ],
+        "name": "getApprovalRequest",
+        "outputs": [
+            {
+                "components": [
+                    {"name": "requestId", "type": "bytes32"},
+                    {"name": "documentId", "type": "bytes32"},
+                    {"name": "documentIpfsHash", "type": "string"},
+                    {"name": "requester", "type": "address"},
+                    {"name": "approvers", "type": "address[]"},
+                    {"name": "processType", "type": "uint8"},
+                    {"name": "approvalType", "type": "uint8"},
+                    {"name": "priority", "type": "uint8"},
+                    {"name": "expiryTimestamp", "type": "uint256"},
+                    {"name": "createdAt", "type": "uint256"},
+                    {"name": "submittedAt", "type": "uint256"},
+                    {"name": "completedAt", "type": "uint256"},
+                    {"name": "status", "type": "uint8"},
+                    {"name": "isActive", "type": "bool"},
+                    {"name": "version", "type": "string"}
+                ],
+                "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_requestId", "type": "bytes32"}
+        ],
+        "name": "getApprovalSteps",
+        "outputs": [
+            {
+                "components": [
+                    {"name": "approver", "type": "address"},
+                    {"name": "stepOrder", "type": "uint8"},
+                    {"name": "hasApproved", "type": "bool"},
+                    {"name": "hasRejected", "type": "bool"},
+                    {"name": "actionTimestamp", "type": "uint256"},
+                    {"name": "signatureHash", "type": "bytes32"},
+                    {"name": "reason", "type": "string"}
+                ],
+                "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_requestId", "type": "bytes32"}
+        ],
+        "name": "getApprovalStatus",
+        "outputs": [
+            {"name": "isComplete", "type": "bool"},
+            {"name": "isApproved", "type": "bool"},
+            {"name": "approvedCount", "type": "uint256"},
+            {"name": "totalApprovers", "type": "uint256"},
+            {"name": "isExpired", "type": "bool"},
+            {"name": "currentStatus", "type": "uint8"}
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_requester", "type": "address"}
+        ],
+        "name": "getRequesterRequests",
+        "outputs": [{"name": "", "type": "bytes32[]"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_approver", "type": "address"}
+        ],
+        "name": "getApproverRequests",
+        "outputs": [{"name": "", "type": "bytes32[]"}],
+        "stateMutability": "view",
+        "type": "function"
+    }
+];
+
+// Keep CONTRACT_ABI for backward compatibility
+const CONTRACT_ABI = DOCUMENT_MANAGER_ABI;
 
 // Initialize MetaMask
 export const initializeMetaMask = async () => {
@@ -369,18 +525,421 @@ export const getNetworkInfo = async () => {
     }
 };
 
+// ========== APPROVAL SYSTEM FUNCTIONS ==========
+
+/**
+ * Request document approval on blockchain
+ * @param {string} documentId - Document ID (bytes32)
+ * @param {string} ipfsHash - IPFS hash of document
+ * @param {string[]} approverAddresses - Array of approver wallet addresses
+ * @param {string} processType - 'SEQUENTIAL' or 'PARALLEL'
+ * @param {string} approvalType - 'STANDARD' or 'DIGITAL_SIGNATURE'
+ * @param {string} priority - 'LOW', 'NORMAL', 'HIGH', 'URGENT'
+ * @param {number} expiryTimestamp - Unix timestamp (0 for no expiry)
+ * @param {string} version - Version string (e.g., 'v1.0')
+ * @returns {Promise<{requestId: string, transactionHash: string}>}
+ */
+export const requestApprovalOnBlockchain = async (
+    documentId,
+    ipfsHash,
+    approverAddresses,
+    processType = 'PARALLEL',
+    approvalType = 'STANDARD',
+    priority = 'NORMAL',
+    expiryTimestamp = 0,
+    version = 'v1.0'
+) => {
+    if (!userAccount) {
+        throw new Error('Please connect your wallet first');
+    }
+    
+    if (!web3) {
+        throw new Error('Web3 not initialized');
+    }
+    
+    try {
+        const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
+        
+        // Convert enum values
+        const processTypeEnum = processType === 'SEQUENTIAL' ? 0 : 1;
+        const approvalTypeEnum = approvalType === 'DIGITAL_SIGNATURE' ? 1 : 0;
+        const priorityMap = { 'LOW': 0, 'NORMAL': 1, 'HIGH': 2, 'URGENT': 3 };
+        const priorityEnum = priorityMap[priority] || 1;
+        
+        console.log('🔄 Requesting approval on blockchain...', {
+            documentId,
+            approvers: approverAddresses,
+            processType: processTypeEnum,
+            approvalType: approvalTypeEnum,
+            priority: priorityEnum
+        });
+        
+        // Estimate gas
+        const gasEstimate = await contract.methods
+            .requestApproval(
+                documentId,
+                ipfsHash,
+                approverAddresses,
+                processTypeEnum,
+                approvalTypeEnum,
+                priorityEnum,
+                expiryTimestamp,
+                version
+            )
+            .estimateGas({ from: userAccount });
+        
+        // Convert BigInt to Number for gas calculation
+        const gasEstimateNumber = Number(gasEstimate);
+        const gasLimit = Math.round(gasEstimateNumber * 1.2); // Add 20% buffer
+        
+        console.log('⛽ Gas estimate:', gasEstimateNumber, '→ Gas limit:', gasLimit);
+        
+        // Send transaction
+        const result = await contract.methods
+            .requestApproval(
+                documentId,
+                ipfsHash,
+                approverAddresses,
+                processTypeEnum,
+                approvalTypeEnum,
+                priorityEnum,
+                expiryTimestamp,
+                version
+            )
+            .send({
+                from: userAccount,
+                gas: gasLimit
+            });
+        
+        console.log('📦 Full blockchain result:', result);
+        console.log('📦 Events:', result.events);
+        
+        // Get request ID from event - try different event names
+        let requestId = result.events.ApprovalRequested?.returnValues?.requestId ||
+                       result.events.ApprovalRequestCreated?.returnValues?.requestId;
+        
+        // If not in events, check if it's returned directly
+        if (!requestId && result.returnValues) {
+            requestId = result.returnValues.requestId || result.returnValues[0];
+        }
+        
+        console.log('✅ Approval request created on blockchain:', {
+            requestId,
+            txHash: result.transactionHash
+        });
+        
+        return {
+            success: true,
+            requestId,
+            transactionHash: result.transactionHash,
+            blockNumber: result.blockNumber
+        };
+    } catch (error) {
+        console.error('Blockchain approval request error:', error);
+        throw new Error('Failed to request approval on blockchain: ' + error.message);
+    }
+};
+
+/**
+ * Approve a document on blockchain
+ * @param {string} requestId - Request ID (bytes32)
+ * @param {string} reason - Approval comment (optional)
+ * @param {string} signatureHash - Digital signature hash (optional, use '0x0000...' for standard)
+ * @returns {Promise<{transactionHash: string}>}
+ */
+export const approveDocumentOnBlockchain = async (requestId, reason = '', signatureHash = '0x0000000000000000000000000000000000000000000000000000000000000000') => {
+    if (!userAccount) {
+        throw new Error('Please connect your wallet first');
+    }
+    
+    if (!web3) {
+        throw new Error('Web3 not initialized');
+    }
+    
+    try {
+        const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
+        
+        console.log('🔍 Approve function called with:');
+        console.log('  - requestId:', requestId);
+        console.log('  - requestId type:', typeof requestId);
+        console.log('  - requestId length:', requestId?.length);
+        console.log('  - userAccount:', userAccount);
+        
+        // First, try to fetch the request from blockchain to verify it exists
+        try {
+            const blockchainRequest = await contract.methods.getApprovalRequest(requestId).call();
+            console.log('📦 Blockchain request data:', blockchainRequest);
+            console.log('  - isActive:', blockchainRequest.isActive);
+            console.log('  - status:', blockchainRequest.status);
+            console.log('  - requester:', blockchainRequest.requester);
+            
+            // Check if request exists (requester is not zero address)
+            if (blockchainRequest.requester === '0x0000000000000000000000000000000000000000') {
+                throw new Error('Request does not exist on blockchain');
+            }
+            
+            if (!blockchainRequest.isActive) {
+                throw new Error('Request exists but is not active on blockchain');
+            }
+        } catch (fetchError) {
+            console.error('❌ Failed to fetch request from blockchain:', fetchError.message);
+            throw new Error(`Request verification failed: ${fetchError.message}`);
+        }
+        
+        console.log('✅ Approving document on blockchain...', { requestId, reason });
+        
+        // Estimate gas
+        const gasEstimate = await contract.methods
+            .approveDocument(requestId, signatureHash, reason)
+            .estimateGas({ from: userAccount });
+        
+        // Convert BigInt to Number for calculation
+        const gasEstimateNumber = Number(gasEstimate);
+        const gasLimit = Math.round(gasEstimateNumber * 1.2);
+        
+        console.log('⛽ Gas estimate:', gasEstimateNumber, '→ Gas limit:', gasLimit);
+        
+        // Send transaction
+        const result = await contract.methods
+            .approveDocument(requestId, signatureHash, reason)
+            .send({
+                from: userAccount,
+                gas: gasLimit
+            });
+        
+        console.log('✅ Document approved on blockchain:', result.transactionHash);
+        
+        return {
+            success: true,
+            transactionHash: result.transactionHash,
+            blockNumber: result.blockNumber ? Number(result.blockNumber) : null
+        };
+    } catch (error) {
+        console.error('Blockchain approval error:', error);
+        throw new Error('Failed to approve document on blockchain: ' + error.message);
+    }
+};
+
+/**
+ * Reject a document on blockchain
+ * @param {string} requestId - Request ID (bytes32)
+ * @param {string} reason - Rejection reason (required)
+ * @returns {Promise<{transactionHash: string}>}
+ */
+export const rejectDocumentOnBlockchain = async (requestId, reason) => {
+    if (!userAccount) {
+        throw new Error('Please connect your wallet first');
+    }
+    
+    if (!web3) {
+        throw new Error('Web3 not initialized');
+    }
+    
+    if (!reason || reason.trim() === '') {
+        throw new Error('Rejection reason is required');
+    }
+    
+    try {
+        const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
+        
+        console.log('❌ Rejecting document on blockchain...', { requestId, reason });
+        
+        // Estimate gas
+        const gasEstimate = await contract.methods
+            .rejectDocument(requestId, reason)
+            .estimateGas({ from: userAccount });
+        
+        // Convert BigInt to Number for calculation
+        const gasEstimateNumber = Number(gasEstimate);
+        const gasLimit = Math.round(gasEstimateNumber * 1.2);
+        
+        console.log('⛽ Gas estimate:', gasEstimateNumber, '→ Gas limit:', gasLimit);
+        
+        // Send transaction
+        const result = await contract.methods
+            .rejectDocument(requestId, reason)
+            .send({
+                from: userAccount,
+                gas: gasLimit
+            });
+        
+        console.log('✅ Document rejected on blockchain:', result.transactionHash);
+        
+        return {
+            success: true,
+            transactionHash: result.transactionHash,
+            blockNumber: result.blockNumber
+        };
+    } catch (error) {
+        console.error('Blockchain rejection error:', error);
+        throw new Error('Failed to reject document on blockchain: ' + error.message);
+    }
+};
+
+/**
+ * Get approval request details from blockchain
+ * @param {string} requestId - Request ID (bytes32)
+ * @returns {Promise<Object>} Approval request details
+ */
+export const getApprovalRequestFromBlockchain = async (requestId) => {
+    if (!web3) {
+        throw new Error('Web3 not initialized');
+    }
+    
+    try {
+        const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
+        const request = await contract.methods.getApprovalRequest(requestId).call();
+        
+        return {
+            requestId: request.requestId,
+            documentId: request.documentId,
+            documentIpfsHash: request.documentIpfsHash,
+            requester: request.requester,
+            approvers: request.approvers,
+            processType: request.processType === '0' ? 'SEQUENTIAL' : 'PARALLEL',
+            approvalType: request.approvalType === '0' ? 'STANDARD' : 'DIGITAL_SIGNATURE',
+            priority: ['LOW', 'NORMAL', 'HIGH', 'URGENT'][parseInt(request.priority)],
+            status: ['DRAFT', 'PENDING', 'PARTIAL', 'APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED'][parseInt(request.status)],
+            isActive: request.isActive,
+            version: request.version,
+            expiryTimestamp: parseInt(request.expiryTimestamp),
+            createdAt: parseInt(request.createdAt),
+            submittedAt: parseInt(request.submittedAt),
+            completedAt: parseInt(request.completedAt)
+        };
+    } catch (error) {
+        console.error('Error fetching approval request:', error);
+        throw new Error('Failed to fetch approval request: ' + error.message);
+    }
+};
+
+/**
+ * Get approval steps from blockchain
+ * @param {string} requestId - Request ID (bytes32)
+ * @returns {Promise<Array>} Array of approval steps
+ */
+export const getApprovalStepsFromBlockchain = async (requestId) => {
+    if (!web3) {
+        throw new Error('Web3 not initialized');
+    }
+    
+    try {
+        const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
+        const steps = await contract.methods.getApprovalSteps(requestId).call();
+        
+        return steps.map(step => ({
+            approver: step.approver,
+            stepOrder: parseInt(step.stepOrder),
+            hasApproved: step.hasApproved,
+            hasRejected: step.hasRejected,
+            actionTimestamp: parseInt(step.actionTimestamp),
+            signatureHash: step.signatureHash,
+            reason: step.reason
+        }));
+    } catch (error) {
+        console.error('Error fetching approval steps:', error);
+        throw new Error('Failed to fetch approval steps: ' + error.message);
+    }
+};
+
+/**
+ * Get approval status from blockchain
+ * @param {string} requestId - Request ID (bytes32)
+ * @returns {Promise<Object>} Approval status
+ */
+export const getApprovalStatusFromBlockchain = async (requestId) => {
+    if (!web3) {
+        throw new Error('Web3 not initialized');
+    }
+    
+    try {
+        const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
+        const status = await contract.methods.getApprovalStatus(requestId).call();
+        
+        return {
+            isComplete: status.isComplete,
+            isApproved: status.isApproved,
+            approvedCount: parseInt(status.approvedCount),
+            totalApprovers: parseInt(status.totalApprovers),
+            isExpired: status.isExpired,
+            currentStatus: ['DRAFT', 'PENDING', 'PARTIAL', 'APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED'][parseInt(status.currentStatus)]
+        };
+    } catch (error) {
+        console.error('Error fetching approval status:', error);
+        throw new Error('Failed to fetch approval status: ' + error.message);
+    }
+};
+
+/**
+ * Get all approval requests for current user (as requester)
+ * @returns {Promise<Array>} Array of request IDs
+ */
+export const getMyApprovalRequests = async () => {
+    if (!userAccount) {
+        throw new Error('Please connect your wallet first');
+    }
+    
+    if (!web3) {
+        throw new Error('Web3 not initialized');
+    }
+    
+    try {
+        const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
+        const requestIds = await contract.methods.getRequesterRequests(userAccount).call();
+        return requestIds;
+    } catch (error) {
+        console.error('Error fetching my requests:', error);
+        throw new Error('Failed to fetch requests: ' + error.message);
+    }
+};
+
+/**
+ * Get all approval requests where current user is an approver
+ * @returns {Promise<Array>} Array of request IDs
+ */
+export const getMyApprovalTasks = async () => {
+    if (!userAccount) {
+        throw new Error('Please connect your wallet first');
+    }
+    
+    if (!web3) {
+        throw new Error('Web3 not initialized');
+    }
+    
+    try {
+        const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
+        const requestIds = await contract.methods.getApproverRequests(userAccount).call();
+        return requestIds;
+    } catch (error) {
+        console.error('Error fetching my approval tasks:', error);
+        throw new Error('Failed to fetch approval tasks: ' + error.message);
+    }
+};
+
 export default {
     initializeMetaMask,
     connectWallet,
     disconnectWallet,
     uploadDocumentToBlockchain,
     shareDocumentOnBlockchain,
+    requestApprovalOnBlockchain,
+    approveDocumentOnBlockchain,
+    rejectDocumentOnBlockchain,
+    getApprovalRequestFromBlockchain,
+    getApprovalStepsFromBlockchain,
+    getApprovalStatusFromBlockchain,
+    getMyApprovalRequests,
+    getMyApprovalTasks,
     getCurrentWalletAddress,
     isWalletConnected,
     getWeb3Instance,
     formatWalletAddress,
     isMetaMaskInstalled,
     getNetworkInfo,
-    CONTRACT_ADDRESS,
-    CONTRACT_ABI
+    DOCUMENT_MANAGER_ADDRESS,
+    APPROVAL_MANAGER_ADDRESS,
+    DOCUMENT_MANAGER_ABI,
+    APPROVAL_MANAGER_ABI,
+    CONTRACT_ADDRESS: DOCUMENT_MANAGER_ADDRESS, // For backward compatibility
+    CONTRACT_ABI: DOCUMENT_MANAGER_ABI // For backward compatibility
 };

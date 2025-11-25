@@ -3,5 +3,17 @@ from .document import Document, DocumentShare
 from .institution import Institution
 from .folder import Folder
 from .recent_activity import RecentActivity
+from .approval import ApprovalRequest, ApprovalStep, ApprovedDocument, ApprovalHistory
 
-__all__ = ['User', 'Document', 'DocumentShare', 'Institution', 'Folder', 'RecentActivity']
+__all__ = [
+    'User', 
+    'Document', 
+    'DocumentShare', 
+    'Institution', 
+    'Folder', 
+    'RecentActivity',
+    'ApprovalRequest',
+    'ApprovalStep',
+    'ApprovedDocument',
+    'ApprovalHistory'
+]
