@@ -4,6 +4,7 @@ import {
   requestApprovalOnBlockchain,
   approveDocumentOnBlockchain,
   rejectDocumentOnBlockchain,
+  recordApprovedDocumentOnBlockchain,
   getApprovalRequestFromBlockchain,
   getApprovalStatusFromBlockchain,
   getMyApprovalRequests,
@@ -218,7 +219,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               myStep: myStep,
               approvedDate: myStep?.hasApproved ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
               rejectedDate: myStep?.hasRejected ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
-              rejectionReason: myStep?.reason || ''
+              rejectionReason: myStep?.reason || '',
+              verificationCode: req.verificationCode,
+              stampedIpfsHash: req.stampedDocumentIpfsHash,
+              stampedAt: req.stampedAt
             };
           });
           
@@ -278,7 +282,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                 myStepStatus: myStep?.hasApproved ? 'approved' : (myStep?.hasRejected ? 'rejected' : 'pending'),
                 approvedDate: myStep?.hasApproved ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
                 rejectedDate: myStep?.hasRejected ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
-                rejectionReason: myStep?.reason || ''
+                rejectionReason: myStep?.reason || '',
+                verificationCode: req.verificationCode,
+                stampedIpfsHash: req.stampedDocumentIpfsHash,
+                stampedAt: req.stampedAt
               };
             });
             
@@ -345,8 +352,17 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               approvedBy: steps.filter(s => s.hasApproved).map(s => s.approverRole || 'Unknown'),
               pendingWith: steps.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approverRole || 'Unknown'),
               recipients: recipientNames,
-              currentVersion: req.version || 'v1.0',
-              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash }]
+              currentVersion: req.stampedDocumentIpfsHash ? 'v2.0 (Certified)' : (req.version || 'v1.0'),
+              versions: [{ 
+                version: req.version || 'v1.0', 
+                date: req.createdAt, 
+                hash: req.documentIpfsHash,
+                status: req.status?.toLowerCase(),
+                approvedBy: steps.filter(s => s.hasApproved).map(s => s.approverRole || 'Unknown').join(', ')
+              }],
+              verificationCode: req.verificationCode,
+              stampedIpfsHash: req.stampedDocumentIpfsHash,
+              stampedAt: req.stampedAt
             };
           });
           setSentRequests(transformedRequests);
@@ -648,8 +664,8 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               approvedBy: steps.filter(s => s.hasApproved).map(s => s.approverRole || 'Unknown'),
               pendingWith: steps.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approverRole || 'Unknown'),
               recipients: recipientNames,
-              currentVersion: req.version || 'v1.0',
-              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash }]
+              currentVersion: req.stampedDocumentIpfsHash ? 'v2.0 (Certified)' : (req.version || 'v1.0'),
+              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash, status: req.status?.toLowerCase() }]
             };
           });
           setSentRequests(transformedRequests);
@@ -722,7 +738,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       const txHash = result.transactionHash;
       showNotification('✅ Blockchain approval confirmed! Updating database...', 'success');
       
-      // Step 3: ONLY update database AFTER blockchain success
+      // Step 3: ONLY update database AFTER blockchain success (this also generates stamped PDF)
       const response = await fetch(`${API_URL}/api/approvals/approve/${request.requestId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -735,7 +751,52 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       if (response.ok) {
         const data = await response.json();
         const isDigital = request.approvalType === 'digital';
-        showNotification(`${isDigital ? 'Document signed and approved!' : 'Document approved!'} TX: ${txHash.substring(0, 20)}...`, 'success');
+        
+        // Step 4: If stamped document was created, record it on blockchain
+        const stampedIpfsHash = data.data?.stampedDocumentIpfsHash;
+        if (stampedIpfsHash && data.data?.status === 'APPROVED') {
+          try {
+            showNotification('📝 Recording stamped document on blockchain...', 'info');
+            
+            // Generate document ID and hash for the stamped version
+            const approvedDocumentId = web3Instance.utils.keccak256(
+              web3Instance.eth.abi.encodeParameters(
+                ['string', 'uint256'],
+                [stampedIpfsHash, Date.now()]
+              )
+            );
+            
+            // Create document hash (SHA256 of IPFS hash for verification)
+            const documentHash = web3Instance.utils.keccak256(stampedIpfsHash);
+            
+            // QR code data that was embedded
+            const qrCodeData = JSON.stringify({
+              verificationCode: data.data?.verificationCode,
+              documentName: data.data?.documentName,
+              approvedAt: data.data?.completedAt,
+              stampedIpfsHash: stampedIpfsHash,
+              originalIpfsHash: data.data?.documentIpfsHash
+            });
+            
+            // Record on blockchain
+            const recordResult = await recordApprovedDocumentOnBlockchain(
+              request.requestId,
+              approvedDocumentId,
+              stampedIpfsHash,
+              documentHash,
+              qrCodeData
+            );
+            
+            console.log('✅ Stamped document recorded on blockchain:', recordResult.transactionHash);
+            showNotification(`✅ Document approved and stamped! QR code generated. TX: ${txHash.substring(0, 10)}...`, 'success');
+          } catch (recordError) {
+            // Log error but don't fail the approval - document is already approved
+            console.error('⚠️ Failed to record stamped document on blockchain:', recordError);
+            showNotification(`${isDigital ? 'Document signed and approved!' : 'Document approved!'} (Note: Blockchain record pending)`, 'warning');
+          }
+        } else {
+          showNotification(`${isDigital ? 'Document signed and approved!' : 'Document approved!'} TX: ${txHash.substring(0, 20)}...`, 'success');
+        }
       
         // Refresh both incoming and sent requests to update counts
         const timestamp = new Date().getTime();
@@ -813,8 +874,8 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               approvedBy: steps.filter(s => s.hasApproved).map(s => s.approverRole || 'Unknown'),
               pendingWith: steps.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approverRole || 'Unknown'),
               recipients: recipientNames,
-              currentVersion: req.version || 'v1.0',
-              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash }]
+              currentVersion: req.stampedDocumentIpfsHash ? 'v2.0 (Certified)' : (req.version || 'v1.0'),
+              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash, status: req.status?.toLowerCase() }]
             };
           });
           setSentRequests(transformedSentRequests);
@@ -972,8 +1033,8 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               approvedBy: steps.filter(s => s.hasApproved).map(s => s.approverRole || 'Unknown'),
               pendingWith: steps.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approverRole || 'Unknown'),
               recipients: recipientNames,
-              currentVersion: req.version || 'v1.0',
-              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash }]
+              currentVersion: req.stampedDocumentIpfsHash ? 'v2.0 (Certified)' : (req.version || 'v1.0'),
+              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash, status: req.status?.toLowerCase() }]
             };
           });
           setSentRequests(transformedSentRequests);
@@ -1695,10 +1756,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                             {req.status === 'approved' && (
                               <button 
                                 className="btn-icon success" 
-                                onClick={() => handleDownloadVersion(req.versions[req.versions.length - 1])}
-                                title="Download Approved Version"
+                                onClick={() => handleDownloadDocument(req.stampedIpfsHash || req.ipfsHash, req.stampedIpfsHash ? `Certified_${req.documentName}` : req.documentName)}
+                                title={req.stampedIpfsHash ? "Download Certified Version (with QR)" : "Download Approved Version"}
                               >
-                                <i className="ri-download-cloud-line"></i>
+                                <i className={req.stampedIpfsHash ? "ri-shield-check-line" : "ri-download-cloud-line"}></i>
                               </button>
                             )}
                             {req.status === 'draft' && (
@@ -2020,10 +2081,17 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                               {(request.status || '').toLowerCase() !== 'pending' && (
                                 <button 
                                   className="btn-icon primary" 
-                                  onClick={() => handleDownloadDocument(request.ipfsHash, request.documentName)}
-                                  title="Download Document"
+                                  onClick={() => handleDownloadDocument(
+                                    (request.status || '').toLowerCase() === 'approved' && request.stampedIpfsHash 
+                                      ? request.stampedIpfsHash 
+                                      : request.ipfsHash, 
+                                    (request.status || '').toLowerCase() === 'approved' && request.stampedIpfsHash 
+                                      ? `Certified_${request.documentName}` 
+                                      : request.documentName
+                                  )}
+                                  title={(request.status || '').toLowerCase() === 'approved' && request.stampedIpfsHash ? "Download Certified Version (with QR)" : "Download Document"}
                                 >
-                                  <i className="ri-download-line"></i>
+                                  <i className={(request.status || '').toLowerCase() === 'approved' && request.stampedIpfsHash ? "ri-shield-check-line" : "ri-download-line"}></i>
                                 </button>
                               )}
                             </div>
@@ -2202,6 +2270,21 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                     <label>Pending With:</label>
                     <span>{selectedRequest.pendingWith.join(', ')}</span>
                   </div>
+                  {selectedRequest.verificationCode && (
+                    <div className="detail-item">
+                      <label>Verification Code:</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <code className="hash-code">{selectedRequest.verificationCode}</code>
+                        <button 
+                          className="btn-icon primary" 
+                          onClick={() => window.open(`/verify/${selectedRequest.verificationCode}`, '_blank')}
+                          title="Open Verification Page"
+                        >
+                          <i className="ri-qr-code-line"></i>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2214,19 +2297,25 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               {/* Preview Section */}
               <div className="detail-section">
                 <h4><i className="ri-eye-line"></i> Document Preview</h4>
+                {/* Show stamped version if approved and available */}
+                {selectedRequest.stampedIpfsHash && (selectedRequest.status || '').toLowerCase() === 'approved' && (
+                  <div className="stamped-badge">
+                    <i className="ri-shield-check-fill"></i> Showing QR-Stamped Certified Version
+                  </div>
+                )}
                 <div className="preview-container">
-                  {selectedRequest.ipfsHash ? (
+                  {(selectedRequest.stampedIpfsHash || selectedRequest.ipfsHash) ? (
                     <>
                       <div className="pdf-preview-frame">
                         <iframe
-                          src={`https://ipfs.io/ipfs/${selectedRequest.ipfsHash}`}
+                          src={`https://gateway.pinata.cloud/ipfs/${selectedRequest.stampedIpfsHash || selectedRequest.ipfsHash}`}
                           title="Document Preview"
                           className="pdf-iframe"
                         />
                       </div>
                       <button 
                         className="btn-primary"
-                        onClick={() => window.open(`https://ipfs.io/ipfs/${selectedRequest.ipfsHash}`, '_blank')}
+                        onClick={() => window.open(`https://gateway.pinata.cloud/ipfs/${selectedRequest.stampedIpfsHash || selectedRequest.ipfsHash}`, '_blank')}
                       >
                         <i className="ri-external-link-line"></i>
                         Open Full Preview
@@ -2245,8 +2334,14 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
             <div className="modal-footer">
               <button className="btn-outline" onClick={() => handleDownloadDocument(selectedRequest.ipfsHash, selectedRequest.documentName)}>
                 <i className="ri-download-line"></i>
-                Download
+                Download Original
               </button>
+              {selectedRequest.stampedIpfsHash && (
+                <button className="btn-success" onClick={() => handleDownloadDocument(selectedRequest.stampedIpfsHash, `Certified_${selectedRequest.documentName}`)}>
+                  <i className="ri-shield-check-line"></i>
+                  Download Certified
+                </button>
+              )}
               {(selectedRequest.status || '').toLowerCase() === 'pending' && (
                 <>
                   <button className="btn-danger" onClick={() => handleRejectRequest(selectedRequest.id)}>
@@ -2474,11 +2569,29 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               {/* Blockchain Information */}
               <div className="detail-section">
                 <h4><i className="ri-links-line"></i> Blockchain Information</h4>
+                {/* Show certified badge if stamped version exists */}
+                {selectedDocForDetails.stampedIpfsHash && selectedDocForDetails.status === 'approved' && (
+                  <div className="stamped-badge">
+                    <i className="ri-shield-check-fill"></i> QR-Stamped Certified Version Available
+                  </div>
+                )}
                 <div className="detail-grid">
                   <div className="detail-item">
-                    <label>Current IPFS Hash:</label>
+                    <label>Original IPFS Hash:</label>
                     <code className="hash-code">{selectedDocForDetails.ipfsHash}</code>
                   </div>
+                  {selectedDocForDetails.stampedIpfsHash && (
+                    <div className="detail-item">
+                      <label>Certified IPFS Hash (with QR):</label>
+                      <code className="hash-code certified">{selectedDocForDetails.stampedIpfsHash}</code>
+                    </div>
+                  )}
+                  {selectedDocForDetails.verificationCode && (
+                    <div className="detail-item">
+                      <label>Verification Code:</label>
+                      <code className="hash-code verification-code">{selectedDocForDetails.verificationCode}</code>
+                    </div>
+                  )}
                   {selectedDocForDetails.txId && (
                     <div className="detail-item">
                       <label>Transaction ID:</label>
@@ -2487,26 +2600,100 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                   )}
                 </div>
                 <div className="blockchain-actions">
-                  <button 
-                    className="btn-outline" 
-                    onClick={() => handlePreviewDocument(selectedDocForDetails.ipfsHash)}
-                  >
-                    <i className="ri-eye-line"></i>
-                    Preview Document
-                  </button>
-                  <button 
-                    className="btn-outline" 
-                    onClick={() => handleDownloadVersion({ hash: selectedDocForDetails.ipfsHash, version: selectedDocForDetails.currentVersion })}
-                  >
-                    <i className="ri-download-line"></i>
-                    Download
-                  </button>
+                  {selectedDocForDetails.stampedIpfsHash && selectedDocForDetails.status === 'approved' ? (
+                    <>
+                      <button 
+                        className="btn-success" 
+                        onClick={() => handlePreviewDocument(selectedDocForDetails.stampedIpfsHash)}
+                      >
+                        <i className="ri-shield-check-line"></i>
+                        Preview Certified (with QR)
+                      </button>
+                      <button 
+                        className="btn-success" 
+                        onClick={() => handleDownloadDocument(selectedDocForDetails.stampedIpfsHash, `Certified_${selectedDocForDetails.documentName}`)}
+                      >
+                        <i className="ri-download-cloud-line"></i>
+                        Download Certified
+                      </button>
+                      <button 
+                        className="btn-outline" 
+                        onClick={() => handlePreviewDocument(selectedDocForDetails.ipfsHash)}
+                      >
+                        <i className="ri-eye-line"></i>
+                        Preview Original
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button 
+                        className="btn-outline" 
+                        onClick={() => handlePreviewDocument(selectedDocForDetails.ipfsHash)}
+                      >
+                        <i className="ri-eye-line"></i>
+                        Preview Document
+                      </button>
+                      <button 
+                        className="btn-outline" 
+                        onClick={() => handleDownloadDocument(selectedDocForDetails.ipfsHash, selectedDocForDetails.documentName)}
+                      >
+                        <i className="ri-download-line"></i>
+                        Download
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
               {/* Version History */}
               <div className="detail-section">
                 <h4><i className="ri-history-line"></i> Version History</h4>
+                
+                {/* Show Certified Version if available */}
+                {selectedDocForDetails.stampedIpfsHash && selectedDocForDetails.status === 'approved' && (
+                  <div className="version-history-item certified-version">
+                    <div className="version-header-row">
+                      <div className="version-title">
+                        <i className="ri-shield-check-fill" style={{color: 'var(--primary-color, #10b981)', marginRight: '6px'}}></i>
+                        <strong>Certified Version</strong>
+                        <span className="certified-badge">QR Stamped</span>
+                      </div>
+                    </div>
+                    
+                    <div className="version-action-text">
+                      <i className="ri-checkbox-circle-fill" style={{color: 'var(--primary-color, #10b981)', marginRight: '4px'}}></i>
+                      Official certified document with verification QR code
+                    </div>
+                    
+                    <div className="version-hash-info">
+                      <small>Certified IPFS:</small>
+                      <code className="certified">{selectedDocForDetails.stampedIpfsHash}</code>
+                    </div>
+                    
+                    {selectedDocForDetails.verificationCode && (
+                      <div className="version-hash-info">
+                        <small>Verification Code:</small>
+                        <code className="verification-code">{selectedDocForDetails.verificationCode}</code>
+                      </div>
+                    )}
+                    
+                    <div className="version-actions-row">
+                      <button 
+                        className="version-btn certified-btn"
+                        onClick={() => handlePreviewDocument(selectedDocForDetails.stampedIpfsHash)}
+                      >
+                        <i className="ri-eye-line"></i> Preview Certified
+                      </button>
+                      <button 
+                        className="version-btn certified-btn"
+                        onClick={() => handleDownloadDocument(selectedDocForDetails.stampedIpfsHash, `Certified_${selectedDocForDetails.documentName}`)}
+                      >
+                        <i className="ri-download-cloud-line"></i> Download Certified
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="version-history-container">
                   {selectedDocForDetails.versions?.map((version, idx) => (
                     <div 
@@ -2516,7 +2703,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                       <div className="version-header-row">
                         <div className="version-title">
                           <strong>Version {version.version}</strong>
-                          {idx === 0 && <span className="current-badge">(Current)</span>}
+                          {idx === 0 && <span className="current-badge">(Original)</span>}
                         </div>
                         <span className="version-size">{version.size || '---'}</span>
                       </div>
@@ -2577,10 +2764,25 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                 </button>
               )}
               {selectedDocForDetails.status === 'approved' && (
-                <button className="btn-success" onClick={() => handleDownloadVersion(selectedDocForDetails.versions[selectedDocForDetails.versions.length - 1])}>
-                  <i className="ri-download-cloud-line"></i>
-                  Download Approved Version
-                </button>
+                <>
+                  {selectedDocForDetails.stampedIpfsHash ? (
+                    <button 
+                      className="btn-primary" 
+                      onClick={() => handleDownloadDocument(selectedDocForDetails.stampedIpfsHash, `Certified_${selectedDocForDetails.documentName}`)}
+                    >
+                      <i className="ri-shield-check-line"></i>
+                      Download Certified (with QR)
+                    </button>
+                  ) : (
+                    <button 
+                      className="btn-primary" 
+                      onClick={() => handleDownloadDocument(selectedDocForDetails.ipfsHash, selectedDocForDetails.documentName)}
+                    >
+                      <i className="ri-download-cloud-line"></i>
+                      Download Approved Version
+                    </button>
+                  )}
+                </>
               )}
               {(selectedDocForDetails.status === 'pending' || selectedDocForDetails.status === 'partial') && (
                 <button className="btn-danger" onClick={() => handleCancelApproval(selectedDocForDetails.id)}>

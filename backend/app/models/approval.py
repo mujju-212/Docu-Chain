@@ -3,11 +3,24 @@ from datetime import datetime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
 import logging
+import secrets
+import string
+
+def generate_verification_code():
+    """Generate a unique verification code like DCH-2025-A7X9K3"""
+    year = datetime.utcnow().year
+    # Generate 6 character alphanumeric code (uppercase)
+    chars = string.ascii_uppercase + string.digits
+    random_part = ''.join(secrets.choice(chars) for _ in range(6))
+    return f"DCH-{year}-{random_part}"
 
 class ApprovalRequest(db.Model):
     __tablename__ = 'approval_requests'
     
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Verification code for QR (generated at request creation)
+    verification_code = db.Column(db.String(20), unique=True, nullable=True, index=True)
     
     # Blockchain data
     request_id = db.Column(db.String(66), unique=True, nullable=False)  # bytes32 from contract
@@ -19,6 +32,10 @@ class ApprovalRequest(db.Model):
     document_ipfs_hash = db.Column(db.String(255), nullable=False)
     document_file_size = db.Column(db.BigInteger)
     document_file_type = db.Column(db.String(50))
+    
+    # Stamped document (Version 2 - with QR and stamps)
+    stamped_document_ipfs_hash = db.Column(db.String(255), nullable=True)
+    stamped_at = db.Column(db.DateTime, nullable=True)
     
     # Request details
     requester_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
@@ -59,10 +76,13 @@ class ApprovalRequest(db.Model):
         return {
             'id': str(self.id),
             'requestId': self.request_id,
+            'verificationCode': self.verification_code,
             'documentId': self.document_id,
             'documentName': self.document_name,
             'documentSize': self.document_file_size,  # Add this field for frontend
             'documentIpfsHash': self.document_ipfs_hash,
+            'stampedDocumentIpfsHash': self.stamped_document_ipfs_hash,
+            'stampedAt': self.stamped_at.isoformat() if self.stamped_at else None,
             'documentFileSize': self.document_file_size,
             'documentFileType': self.document_file_type,
             'requesterId': str(self.requester_id),

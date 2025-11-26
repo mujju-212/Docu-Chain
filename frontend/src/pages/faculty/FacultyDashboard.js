@@ -6,6 +6,7 @@ import FileManager from '../shared/FileManagerNew';
 import ChatInterface from '../shared/ChatInterface';
 import DocumentGenerator from '../shared/DocumentGenerator';
 import DocumentApproval from '../shared/DocumentApproval';
+import VerificationTool from '../shared/VerificationTool';
 import Profile from '../../components/shared/Profile';
 import './FacultyDashboard.css';
 
@@ -367,6 +368,13 @@ const FacultyDashboard = () => {
                 <span className="badge alert">12</span>
               </a>
               <a
+                onClick={() => setCurrentPage('verification-tool')}
+                className={currentPage === 'verification-tool' ? 'active' : ''}
+                style={{cursor: 'pointer'}}
+              >
+                <i className="ri-qr-scan-2-line"></i> <span>Verify Document</span>
+              </a>
+              <a
                 onClick={() => setCurrentPage('document-generator')}
                 className={currentPage === 'document-generator' ? 'active' : ''}
                 style={{cursor: 'pointer'}}
@@ -451,6 +459,8 @@ const FacultyDashboard = () => {
               <DocumentGenerator />
             ) : currentPage === 'document-approval' ? (
               <DocumentApproval userRole="faculty" />
+            ) : currentPage === 'verification-tool' ? (
+              <VerificationTool />
             ) : (
               <div className="dashboard-content">
             {/* Welcome Header */}

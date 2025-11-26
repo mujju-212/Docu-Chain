@@ -26,7 +26,7 @@
 }
 
 .notification-toast.success i:first-child {
-  color: var(--success-color, #10b981);
+  color: var(--primary-color, #10b981);
   font-size: 28px;
   animation: scaleIn 0.3s ease-out;
 }
@@ -299,15 +299,15 @@
 }
 
 .btn-success {
-  background: var(--success-color, #10b981);
+  background: var(--primary-color, #10b981);
   color: white;
-  border-color: var(--success-color, #10b981);
+  border-color: var(--primary-color, #10b981);
 }
 
 .btn-success:hover {
   filter: brightness(1.1);
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 16px var(--primary-shadow, rgba(16, 185, 129, 0.3));
 }
 
 .btn-danger {
@@ -609,9 +609,9 @@
 }
 
 .status-badge.verified {
-  background: rgba(16, 185, 129, 0.1);
-  color: var(--success-color, #10b981);
-  border-color: var(--success-color, #10b981);
+  background: var(--primary-light, rgba(16, 185, 129, 0.1));
+  color: var(--primary-color, #10b981);
+  border-color: var(--primary-color, #10b981);
 }
 
 /* Loading state */
@@ -675,9 +675,9 @@
 }
 
 .status-badge.approved {
-  background: #ffffff;
-  color: #10b981;
-  border: 2px solid #10b981;
+  background: var(--primary-light, #ecfdf5);
+  color: var(--primary-color, #10b981);
+  border: 2px solid var(--primary-color, #10b981);
   border-radius: 20px;
   padding: 8px 16px;
   font-weight: 600;
@@ -695,7 +695,7 @@
 }
 
 .status-dot.green {
-  background-color: #10b981;
+  background-color: var(--primary-color, #10b981);
 }
 
 .status-badge.rejected {
@@ -1637,13 +1637,13 @@
 }
 
 .request-status-info.approved {
-  background: #f0fdf4;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
+  background: var(--primary-light, #f0fdf4);
+  color: var(--primary-dark, #15803d);
+  border: 1px solid var(--primary-color, #10b981);
 }
 
 .request-status-info.approved i {
-  color: #16a34a;
+  color: var(--primary-color, #16a34a);
 }
 
 .request-status-info.rejected {
@@ -1749,14 +1749,14 @@
 }
 
 .btn-action.approve {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, var(--primary-color, #10b981) 0%, var(--primary-dark, #059669) 100%);
   color: white;
   border: none;
 }
 
 .btn-action.approve:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 12px var(--primary-shadow, rgba(16, 185, 129, 0.3));
 }
 
 .btn-action.reject {
@@ -2072,6 +2072,66 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Stamped Badge */
+.stamped-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--primary-color, #10b981), var(--primary-dark, #059669));
+  color: white;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  animation: pulse-primary 2s ease-in-out infinite;
+}
+
+.stamped-badge i {
+  font-size: 16px;
+}
+
+/* Certified hash styling */
+.hash-code.certified {
+  background: var(--primary-light, #ECFDF5);
+  border: 1px solid var(--primary-color, #10B981);
+  color: var(--primary-dark, #065F46);
+}
+
+.hash-code.verification-code {
+  background: linear-gradient(135deg, #EEF2FF, #E0E7FF);
+  border: 1px solid #6366F1;
+  color: #4338CA;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+/* Success button for certified downloads */
+.blockchain-actions .btn-success {
+  background: linear-gradient(135deg, var(--primary-color, #10B981), var(--primary-dark, #059669));
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.blockchain-actions .btn-success:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--primary-shadow, rgba(16, 185, 129, 0.3));
+}
+
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
 }
 
 .pdf-preview-frame {
@@ -2501,9 +2561,9 @@
 }
 
 .btn-icon.success:hover {
-  background: var(--success-color, #10b981);
-  border-color: var(--success-color, #10b981);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  background: var(--primary-color, #10b981);
+  border-color: var(--primary-color, #10b981);
+  box-shadow: 0 4px 12px var(--primary-shadow, rgba(16, 185, 129, 0.3));
 }
 
 .btn-icon.primary:hover {
@@ -2562,8 +2622,8 @@
 }
 
 .approval-progress-item.approved {
-  background: rgba(16, 185, 129, 0.05);
-  border-color: var(--success-color, #10b981);
+  background: var(--primary-light, rgba(16, 185, 129, 0.05));
+  border-color: var(--primary-color, #10b981);
 }
 
 .approval-progress-item.pending {
@@ -2582,7 +2642,7 @@
 }
 
 .approval-progress-item.approved .progress-icon {
-  color: var(--success-color, #10b981);
+  color: var(--primary-color, #10b981);
 }
 
 .approval-progress-item.pending .progress-icon {
@@ -2607,7 +2667,7 @@
 }
 
 .progress-status.approved {
-  color: var(--success-color, #10b981);
+  color: var(--primary-color, #10b981);
 }
 
 .progress-status.pending {
@@ -2653,8 +2713,8 @@
 }
 
 .timeline-dot.approved {
-  background: var(--success-color, #10b981);
-  border-color: var(--success-color, #10b981);
+  background: var(--primary-color, #10b981);
+  border-color: var(--primary-color, #10b981);
   color: white;
 }
 
@@ -2679,7 +2739,7 @@
 }
 
 .timeline-line.completed {
-  background: var(--success-color, #10b981);
+  background: var(--primary-color, #10b981);
 }
 
 .timeline-content {
@@ -2740,9 +2800,9 @@
 }
 
 .timeline-badge.success {
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--success-color, #10b981);
-  border: 1px solid var(--success-color, #10b981);
+  background: var(--primary-light, rgba(16, 185, 129, 0.15));
+  color: var(--primary-color, #10b981);
+  border: 1px solid var(--primary-color, #10b981);
 }
 
 .timeline-badge.danger {
@@ -2838,7 +2898,7 @@
 }
 
 .timeline-tx i {
-  color: var(--success-color, #10b981);
+  color: var(--primary-color, #10b981);
   font-size: 14px;
 }
 
@@ -3039,8 +3099,8 @@
 }
 
 .version-status.approved {
-  background: rgba(16, 185, 129, 0.1);
-  color: var(--success-color, #10b981);
+  background: var(--primary-light, rgba(16, 185, 129, 0.1));
+  color: var(--primary-color, #10b981);
 }
 
 .version-status.pending,
@@ -3101,9 +3161,9 @@
 }
 
 .btn-sm.btn-download:hover {
-  background: var(--success-color, #10b981);
+  background: var(--primary-color, #10b981);
   color: white;
-  border-color: var(--success-color, #10b981);
+  border-color: var(--primary-color, #10b981);
 }
 
 .version-details {
@@ -3164,6 +3224,52 @@
 .version-history-item.current-version {
   background: #f0f9ff;
   border-color: var(--primary-color, #3b82f6);
+}
+
+/* Certified Version Styling */
+.version-history-item.certified-version {
+  background: var(--primary-light, #ecfdf5);
+  border: 2px solid var(--primary-color, #10b981);
+  margin-bottom: 16px;
+  position: relative;
+  overflow: visible;
+}
+
+.version-history-item.certified-version::before {
+  content: '✓ CERTIFIED';
+  position: absolute;
+  top: -10px;
+  right: 12px;
+  background: var(--primary-color, #10b981);
+  color: white;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.certified-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: var(--primary-color, #10b981);
+  color: white;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.version-btn.certified-btn {
+  background: var(--primary-color, #10b981);
+  color: white;
+  border-color: var(--primary-color, #10b981);
+}
+
+.version-btn.certified-btn:hover {
+  background: var(--primary-dark, #059669);
+  border-color: var(--primary-dark, #059669);
 }
 
 .version-header-row {
@@ -3242,6 +3348,24 @@
   flex: 1;
 }
 
+.version-hash-info code.certified {
+  background: var(--primary-light, #ecfdf5);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--primary-color, #10b981);
+  color: var(--primary-dark, #047857);
+}
+
+.version-hash-info code.verification-code {
+  background: #eef2ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #6366f1;
+  color: #4338ca;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
 .version-actions-row {
   display: flex;
   gap: 8px;
@@ -3275,9 +3399,9 @@
 }
 
 .version-btn.restore-btn:hover {
-  background: var(--success-color, #10b981);
+  background: var(--primary-color, #10b981);
   color: white;
-  border-color: var(--success-color, #10b981);
+  border-color: var(--primary-color, #10b981);
 }
 
 .version-btn i {
@@ -3815,17 +3939,17 @@
 
 /* Request Row Status Colors */
 .request-row.pending {
-  border-left: 3px solid var(--warning, #f59e0b);
+  border-left: 3px solid var(--warning-color, #f59e0b);
   background-color: rgba(245, 158, 11, 0.05);
 }
 
 .request-row.approved {
-  border-left: 3px solid var(--success, #22c55e);
-  background-color: rgba(34, 197, 94, 0.15);
+  border-left: 3px solid var(--primary-color, #10b981);
+  background-color: var(--primary-light, rgba(16, 185, 129, 0.1));
 }
 
 .request-row.rejected {
-  border-left: 3px solid var(--danger, #ef4444);
+  border-left: 3px solid var(--error-color, #ef4444);
   background-color: rgba(239, 68, 68, 0.15);
 }
 

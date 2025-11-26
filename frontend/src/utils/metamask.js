@@ -203,6 +203,42 @@ const APPROVAL_MANAGER_ABI = [
         "outputs": [{"name": "", "type": "bytes32[]"}],
         "stateMutability": "view",
         "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_requestId", "type": "bytes32"},
+            {"name": "_approvedDocumentId", "type": "bytes32"},
+            {"name": "_approvedIpfsHash", "type": "string"},
+            {"name": "_documentHash", "type": "bytes32"},
+            {"name": "_qrCodeData", "type": "string"}
+        ],
+        "name": "recordApprovedDocument",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"name": "_requestId", "type": "bytes32"}
+        ],
+        "name": "getApprovedDocument",
+        "outputs": [
+            {
+                "components": [
+                    {"name": "requestId", "type": "bytes32"},
+                    {"name": "originalDocumentId", "type": "bytes32"},
+                    {"name": "approvedDocumentId", "type": "bytes32"},
+                    {"name": "approvedIpfsHash", "type": "string"},
+                    {"name": "documentHash", "type": "bytes32"},
+                    {"name": "qrCodeData", "type": "string"},
+                    {"name": "approvalTimestamp", "type": "uint256"},
+                    {"name": "isValid", "type": "bool"}
+                ],
+                "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
     }
 ];
 
@@ -777,6 +813,97 @@ export const rejectDocumentOnBlockchain = async (requestId, reason) => {
 };
 
 /**
+ * Record approved document with stamped IPFS hash on blockchain
+ * @param {string} requestId - Request ID (bytes32)
+ * @param {string} approvedDocumentId - New document ID for stamped version (bytes32)
+ * @param {string} approvedIpfsHash - IPFS hash of the stamped PDF
+ * @param {string} documentHash - SHA256 hash of the document (bytes32)
+ * @param {string} qrCodeData - JSON data embedded in QR code
+ * @returns {Promise<{transactionHash: string}>}
+ */
+export const recordApprovedDocumentOnBlockchain = async (requestId, approvedDocumentId, approvedIpfsHash, documentHash, qrCodeData) => {
+    if (!userAccount) {
+        throw new Error('Please connect your wallet first');
+    }
+    
+    if (!web3) {
+        throw new Error('Web3 not initialized');
+    }
+    
+    try {
+        const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
+        
+        console.log('📝 Recording approved document on blockchain...', {
+            requestId,
+            approvedDocumentId,
+            approvedIpfsHash,
+            documentHash,
+            qrCodeData: qrCodeData.substring(0, 50) + '...'
+        });
+        
+        // Estimate gas
+        const gasEstimate = await contract.methods
+            .recordApprovedDocument(requestId, approvedDocumentId, approvedIpfsHash, documentHash, qrCodeData)
+            .estimateGas({ from: userAccount });
+        
+        // Convert BigInt to Number for calculation
+        const gasEstimateNumber = Number(gasEstimate);
+        const gasLimit = Math.round(gasEstimateNumber * 1.2);
+        
+        console.log('⛽ Gas estimate:', gasEstimateNumber, '→ Gas limit:', gasLimit);
+        
+        // Send transaction
+        const result = await contract.methods
+            .recordApprovedDocument(requestId, approvedDocumentId, approvedIpfsHash, documentHash, qrCodeData)
+            .send({
+                from: userAccount,
+                gas: gasLimit
+            });
+        
+        console.log('✅ Approved document recorded on blockchain:', result.transactionHash);
+        
+        return {
+            success: true,
+            transactionHash: result.transactionHash,
+            blockNumber: result.blockNumber ? Number(result.blockNumber) : null
+        };
+    } catch (error) {
+        console.error('Blockchain record error:', error);
+        throw new Error('Failed to record approved document on blockchain: ' + error.message);
+    }
+};
+
+/**
+ * Get approved document details from blockchain
+ * @param {string} requestId - Request ID (bytes32)
+ * @returns {Promise<Object>} Approved document details
+ */
+export const getApprovedDocumentFromBlockchain = async (requestId) => {
+    if (!web3) {
+        throw new Error('Web3 not initialized');
+    }
+    
+    try {
+        const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
+        const result = await contract.methods.getApprovedDocument(requestId).call();
+        
+        return {
+            requestId: result.requestId,
+            originalDocumentId: result.originalDocumentId,
+            approvedDocumentId: result.approvedDocumentId,
+            approvedIpfsHash: result.approvedIpfsHash,
+            documentHash: result.documentHash,
+            qrCodeData: result.qrCodeData,
+            approvalTimestamp: Number(result.approvalTimestamp),
+            isValid: result.isValid
+        };
+    } catch (error) {
+        console.error('Error fetching approved document:', error);
+        throw new Error('Failed to fetch approved document: ' + error.message);
+    }
+};
+
+/**
  * Get approval request details from blockchain
  * @param {string} requestId - Request ID (bytes32)
  * @returns {Promise<Object>} Approval request details
@@ -925,9 +1052,11 @@ export default {
     requestApprovalOnBlockchain,
     approveDocumentOnBlockchain,
     rejectDocumentOnBlockchain,
+    recordApprovedDocumentOnBlockchain,
     getApprovalRequestFromBlockchain,
     getApprovalStepsFromBlockchain,
     getApprovalStatusFromBlockchain,
+    getApprovedDocumentFromBlockchain,
     getMyApprovalRequests,
     getMyApprovalTasks,
     getCurrentWalletAddress,

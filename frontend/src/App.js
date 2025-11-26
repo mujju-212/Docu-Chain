@@ -9,6 +9,7 @@ import ForgotPassword from './components/ForgotPassword';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import FacultyDashboard from './pages/faculty/FacultyDashboard';
 import StudentDashboard from './pages/student/StudentDashboard';
+import VerifyDocument from './pages/public/VerifyDocument';
 import './pages/auth/auth.css';
 
 function AppRoutes() {
@@ -57,6 +58,10 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {/* Public verification routes - no auth required */}
+      <Route path="/verify" element={<VerifyDocument />} />
+      <Route path="/verify/:code" element={<VerifyDocument />} />
+      
       <Route
         path="/login"
         element={isAuthenticated ? 

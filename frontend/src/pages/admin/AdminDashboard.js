@@ -6,6 +6,7 @@ import FileManager from '../shared/FileManagerNew';
 import ChatInterface from '../shared/ChatInterface';
 import DocumentGenerator from '../shared/DocumentGenerator';
 import DocumentApproval from '../shared/DocumentApproval';
+import VerificationTool from '../shared/VerificationTool';
 import Profile from '../../components/shared/Profile';
 import './AdminDashboard.css';
 
@@ -397,6 +398,13 @@ const AdminDashboard = () => {
               >
                 <i className="ri-shield-check-line"></i> <span>Document Approval</span>
               </a>
+              <a
+                onClick={() => setCurrentPage('verification-tool')}
+                className={currentPage === 'verification-tool' ? 'active' : ''}
+                style={{cursor: 'pointer'}}
+              >
+                <i className="ri-qr-scan-2-line"></i> <span>Verify Document</span>
+              </a>
             </nav>
 
             <div className="section-title">Administration</div>
@@ -498,6 +506,8 @@ const AdminDashboard = () => {
               <DocumentGenerator />
             ) : currentPage === 'document-approval' ? (
               <DocumentApproval userRole="admin" />
+            ) : currentPage === 'verification-tool' ? (
+              <VerificationTool />
             ) : (
               <div className="dashboard-content">
             {/* Welcome Header */}
