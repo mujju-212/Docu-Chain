@@ -129,52 +129,85 @@ class PDFStampingService:
         can.drawString(text_x, y + self.STAMP_HEIGHT - 66, f"Ref: {verification_code}")
     
     def _draw_digital_signature_stamp(self, can, x, y, approver_name, approval_date, 
-                                      verification_code, signature_hash=None, tx_hash=None):
-        """Draw a digital signature stamp"""
-        stamp_height = self.SIGNATURE_HEIGHT
+                                      verification_code, signature_hash=None, tx_hash=None,
+                                      signer_address=None):
+        """Draw a digital signature stamp with cryptographic verification info"""
+        # Increase stamp height to fit more info
+        stamp_height = 120 if signer_address else self.SIGNATURE_HEIGHT
+        stamp_width = self.STAMP_WIDTH + 50  # Wider for address
+        
+        # Adjust x position for wider stamp
+        x = x - 25
         
         # Background rectangle with border
         can.setFillColor(HexColor('#eff6ff'))  # Light blue background
         can.setStrokeColor(HexColor('#3b82f6'))  # Blue border
         can.setLineWidth(2)
-        can.roundRect(x, y, self.STAMP_WIDTH, stamp_height, 10, fill=1, stroke=1)
+        can.roundRect(x, y, stamp_width, stamp_height, 10, fill=1, stroke=1)
         
         # Shield icon area
         shield_x = x + 25
-        shield_y = y + stamp_height / 2
+        shield_y = y + stamp_height / 2 + 10
         can.setFillColor(HexColor('#3b82f6'))
-        can.circle(shield_x, shield_y, 12, fill=1, stroke=0)
+        can.circle(shield_x, shield_y, 14, fill=1, stroke=0)
         
-        # Lock icon (simplified)
+        # Lock icon (simplified checkmark for verified)
         can.setStrokeColor(white)
         can.setFillColor(white)
-        can.setLineWidth(1.5)
-        can.rect(shield_x - 5, shield_y - 6, 10, 8, fill=1, stroke=0)
-        can.setStrokeColor(white)
         can.setLineWidth(2)
-        can.arc(shield_x - 4, shield_y, shield_x + 4, shield_y + 10, 0, 180)
+        can.line(shield_x - 5, shield_y, shield_x - 1, shield_y - 5)
+        can.line(shield_x - 1, shield_y - 5, shield_x + 6, shield_y + 5)
         
         # Text
         text_x = x + 50
         can.setFillColor(HexColor('#1e40af'))  # Dark blue
-        can.setFont("Helvetica-Bold", 12)
-        can.drawString(text_x, y + stamp_height - 18, "DIGITALLY SIGNED")
+        can.setFont("Helvetica-Bold", 13)
+        can.drawString(text_x, y + stamp_height - 18, "DIGITALLY SIGNED & VERIFIED")
         
         can.setFont("Helvetica", 8)
         can.setFillColor(HexColor('#374151'))  # Gray
-        can.drawString(text_x, y + stamp_height - 32, f"Signed by: {approver_name}")
-        can.drawString(text_x, y + stamp_height - 44, 
-                      f"Date: {approval_date.strftime('%d/%m/%Y %H:%M:%S')}")
         
+        line_height = 12
+        current_y = y + stamp_height - 34
+        
+        # Signed by
+        can.drawString(text_x, current_y, f"Signed by: {approver_name}")
+        current_y -= line_height
+        
+        # Date and time
+        can.drawString(text_x, current_y, 
+                      f"Date: {approval_date.strftime('%d/%m/%Y %H:%M:%S UTC')}")
+        current_y -= line_height
+        
+        # Signer wallet address (for verification)
+        if signer_address:
+            can.setFont("Helvetica", 7)
+            short_address = f"{signer_address[:10]}...{signer_address[-8:]}" if len(signer_address) > 20 else signer_address
+            can.drawString(text_x, current_y, f"Signer Address: {short_address}")
+            current_y -= line_height
+        
+        # Signature hash
         if signature_hash:
-            short_hash = signature_hash[:20] + "..." if len(signature_hash) > 20 else signature_hash
-            can.drawString(text_x, y + stamp_height - 56, f"Sig: {short_hash}")
+            can.setFont("Helvetica", 7)
+            short_sig = signature_hash[:30] + "..." if len(signature_hash) > 30 else signature_hash
+            can.drawString(text_x, current_y, f"Signature: {short_sig}")
+            current_y -= line_height
         
+        # Transaction hash
         if tx_hash:
-            short_tx = tx_hash[:20] + "..." if len(tx_hash) > 20 else tx_hash
-            can.drawString(text_x, y + stamp_height - 68, f"TX: {short_tx}")
-        else:
-            can.drawString(text_x, y + stamp_height - 56, f"Ref: {verification_code}")
+            can.setFont("Helvetica", 7)
+            short_tx = f"{tx_hash[:10]}...{tx_hash[-8:]}" if len(tx_hash) > 20 else tx_hash
+            can.drawString(text_x, current_y, f"Blockchain TX: {short_tx}")
+            current_y -= line_height
+        
+        # Verification code
+        can.setFont("Helvetica", 7)
+        can.drawString(text_x, current_y, f"Verification: {verification_code}")
+        
+        # Add verification note at bottom
+        can.setFont("Helvetica-Oblique", 6)
+        can.setFillColor(HexColor('#6b7280'))
+        can.drawString(x + 10, y + 6, "Verify signature by recovering address from signature using ecrecover")
     
     def create_qr_overlay(self, verification_code: str, page_width: float, page_height: float) -> io.BytesIO:
         """
@@ -228,7 +261,8 @@ class PDFStampingService:
     def stamp_pdf(self, pdf_content: bytes, verification_code: str, 
                   approver_name: str, approval_date: datetime,
                   approval_type: str = "STANDARD",
-                  signature_hash: str = None, tx_hash: str = None) -> bytes:
+                  signature_hash: str = None, tx_hash: str = None,
+                  signer_address: str = None) -> bytes:
         """
         Add QR code and approval stamp to a PDF document
         
@@ -240,6 +274,7 @@ class PDFStampingService:
             approval_type: "STANDARD" or "DIGITAL_SIGNATURE"
             signature_hash: Digital signature hash (for digital signatures)
             tx_hash: Blockchain transaction hash
+            signer_address: Wallet address of the signer (for digital signatures)
             
         Returns:
             Stamped PDF content as bytes
@@ -271,7 +306,7 @@ class PDFStampingService:
                 if approval_type == "DIGITAL_SIGNATURE":
                     stamp_overlay = self._create_digital_stamp_overlay(
                         page_width, page_height, approver_name, approval_date,
-                        verification_code, signature_hash, tx_hash
+                        verification_code, signature_hash, tx_hash, signer_address
                     )
                 
                 stamp_pdf = PdfReader(stamp_overlay)
@@ -288,7 +323,8 @@ class PDFStampingService:
     
     def _create_digital_stamp_overlay(self, page_width, page_height, approver_name, 
                                        approval_date, verification_code, 
-                                       signature_hash=None, tx_hash=None) -> io.BytesIO:
+                                       signature_hash=None, tx_hash=None,
+                                       signer_address=None) -> io.BytesIO:
         """Create digital signature stamp overlay"""
         packet = io.BytesIO()
         can = canvas.Canvas(packet, pagesize=(page_width, page_height))
@@ -298,7 +334,7 @@ class PDFStampingService:
         
         self._draw_digital_signature_stamp(can, stamp_x, stamp_y, approver_name, 
                                            approval_date, verification_code,
-                                           signature_hash, tx_hash)
+                                           signature_hash, tx_hash, signer_address)
         
         can.save()
         packet.seek(0)
@@ -317,7 +353,8 @@ class PDFStampingService:
                 - approved_at: Approval timestamp
                 - approvers: List of approver info dicts
                 - blockchain_tx: Blockchain transaction hash
-            approval_type: Type of approval (STANDARD or DIGITAL)
+                - digital_signature: (optional) Digital signature data
+            approval_type: Type of approval (STANDARD or DIGITAL_SIGNATURE)
             
         Returns:
             Stamped PDF content as bytes, or None if failed
@@ -335,9 +372,21 @@ class PDFStampingService:
             approvers = approval_details.get('approvers', [])
             approved_at = approval_details.get('approved_at', datetime.utcnow().isoformat())
             tx_hash = approval_details.get('blockchain_tx')
+            is_digital_signature = approval_details.get('is_digital_signature', False)
+            digital_signature = approval_details.get('digital_signature')
             
             # Get first approver name or use generic
             approver_name = approvers[0]['name'] if approvers else 'Authorized Signatory'
+            
+            # For digital signature, get signer wallet address
+            signature_hash = None
+            signer_address = None
+            if is_digital_signature and digital_signature:
+                signature_hash = digital_signature.get('signature', '')[:42] + '...'  # Truncate for display
+                signer_address = digital_signature.get('signer_address')
+            elif approvers and approvers[0].get('signature_hash'):
+                signature_hash = approvers[0]['signature_hash'][:42] + '...'
+                signer_address = approvers[0].get('wallet_address')
             
             # Parse approval date
             if isinstance(approved_at, str):
@@ -345,9 +394,12 @@ class PDFStampingService:
             else:
                 approval_date = approved_at
             
+            # Use DIGITAL_SIGNATURE type if digital signature data is present
+            effective_approval_type = "DIGITAL_SIGNATURE" if is_digital_signature else approval_type
+            
             return self.stamp_pdf(
                 response.content, verification_code, approver_name, approval_date,
-                approval_type, None, tx_hash
+                effective_approval_type, signature_hash, tx_hash, signer_address
             )
         except Exception as e:
             print(f"Error stamping PDF from URL: {e}")

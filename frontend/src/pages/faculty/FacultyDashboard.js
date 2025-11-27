@@ -326,7 +326,7 @@ const FacultyDashboard = () => {
         {/* Sidebar */}
         <aside className="sidebar">
           <div className="brand">
-            <div className="logo">F</div>
+            <div className="logo">D</div>
             <div className="info">
               <div className="name">DocuChain</div>
               <div className="role">FACULTY</div>

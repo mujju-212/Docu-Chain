@@ -717,6 +717,31 @@ export const approveDocumentOnBlockchain = async (requestId, reason = '', signat
             if (!blockchainRequest.isActive) {
                 throw new Error('Request exists but is not active on blockchain');
             }
+            
+            // Get approval steps to see who the approvers are
+            try {
+                const approvalSteps = await contract.methods.getApprovalSteps(requestId).call();
+                console.log('📋 Approval steps from blockchain:', approvalSteps);
+                console.log('👤 Current wallet trying to approve:', userAccount.toLowerCase());
+                
+                const approverAddresses = approvalSteps.map(step => step.approver?.toLowerCase());
+                console.log('📋 Registered approver addresses:', approverAddresses);
+                
+                const isRegisteredApprover = approverAddresses.includes(userAccount.toLowerCase());
+                console.log('✅ Is current wallet a registered approver?', isRegisteredApprover);
+                
+                if (!isRegisteredApprover) {
+                    console.error('❌ MISMATCH: Your wallet is NOT in the list of approvers for this request!');
+                    console.error('Your wallet:', userAccount);
+                    console.error('Registered approvers:', approverAddresses);
+                    throw new Error(`Your wallet (${userAccount.substring(0, 10)}...) is not registered as an approver for this request. Registered approvers: ${approverAddresses.join(', ')}`);
+                }
+            } catch (stepsError) {
+                if (stepsError.message.includes('not registered')) {
+                    throw stepsError;
+                }
+                console.warn('⚠️ Could not fetch approval steps:', stepsError.message);
+            }
         } catch (fetchError) {
             console.error('❌ Failed to fetch request from blockchain:', fetchError.message);
             throw new Error(`Request verification failed: ${fetchError.message}`);

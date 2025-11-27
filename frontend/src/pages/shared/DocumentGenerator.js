@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './DocumentGenerator.css';
 
+const API_URL = 'http://localhost:5000';
+
 export default function DocumentGenerator() {
+  // State
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -10,340 +13,40 @@ export default function DocumentGenerator() {
   const [showMyDocuments, setShowMyDocuments] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [showTimeline, setShowTimeline] = useState(false);
-  const [myDocuments, setMyDocuments] = useState([
-    {
-      id: 'REQ-2024-08-19-001',
-      type: 'Leave Application',
-      subType: 'Letter',
-      approver: 'Class Teacher',
-      approverName: 'Ms. Priya K.',
-      approvalType: 'Standard Approval',
-      submitted: '19/08/2024, 16:00:00',
-      status: 'approved',
-      blockchainHash: '0x8a3c2d1f...',
-      timeline: [
-        { stage: 'Draft Created', date: '19/08/2024, 15:30:00', status: 'completed', icon: 'ri-file-line' },
-        { stage: 'Submitted for Approval', date: '19/08/2024, 16:00:00', status: 'completed', icon: 'ri-send-plane-line' },
-        { stage: 'Pending Approval', date: 'Pending', status: 'pending', icon: 'ri-time-line' },
-        { stage: 'Document Generation', date: 'Pending', status: 'pending', icon: 'ri-file-text-line' },
-        { stage: 'Approved', date: '08/11/2025, 19:16:35', status: 'completed', icon: 'ri-checkbox-circle-line' }
-      ]
-    },
-    {
-      id: 'REQ-2024-08-18-002',
-      type: 'Bonafide Certificate',
-      subType: 'Certificate',
-      approver: 'Head of Department',
-      approverName: 'Prof. R. Nair',
-      approvalType: 'Digital Signature',
-      submitted: '18/08/2024, 20:15:00',
-      status: 'approved',
-      blockchainHash: '0x5b7a9c4d...',
-      timeline: [
-        { stage: 'Draft Created', date: '18/08/2024, 20:00:00', status: 'completed', icon: 'ri-file-line' },
-        { stage: 'Submitted for Approval', date: '18/08/2024, 20:15:00', status: 'completed', icon: 'ri-send-plane-line' },
-        { stage: 'Approved', date: '19/08/2024, 10:30:00', status: 'completed', icon: 'ri-checkbox-circle-line' }
-      ]
-    }
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewContent, setPreviewContent] = useState('');
+  
+  // Data from API
+  const [templates, setTemplates] = useState([]);
+  const [myDocuments, setMyDocuments] = useState([]);
+  const [analytics, setAnalytics] = useState({ total: 0, approved: 0, pending: 0, rejected: 0, drafts: 0 });
+  const [userInfo, setUserInfo] = useState(null);
+  const [institutionInfo, setInstitutionInfo] = useState(null);
+  // Initialize with fallback approvers so list is never empty
+  const [approvers, setApprovers] = useState([
+    { id: 'default-1', name: 'Class Teacher', role: 'staff', department: 'Academic' },
+    { id: 'default-2', name: 'Head of Department', role: 'staff', department: 'Academic' },
+    { id: 'default-3', name: 'Principal', role: 'admin', department: 'Administration' }
   ]);
-
-  // Templates data
-  const templates = [
-    {
-      id: 'leave',
-      name: 'Leave Application',
-      description: 'Apply for sick leave, casual leave, or vacation',
-      category: 'student',
-      icon: '📋',
-      time: '5 min',
-      color: '#3b82f6',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'class', label: 'Class/Department', type: 'text', required: true },
-        { name: 'leaveType', label: 'Leave Type', type: 'select', options: ['Sick Leave', 'Casual Leave', 'Vacation', 'Emergency'], required: true },
-        { name: 'startDate', label: 'Start Date', type: 'date', required: true },
-        { name: 'endDate', label: 'End Date', type: 'date', required: true },
-        { name: 'reason', label: 'Reason', type: 'textarea', required: true },
-        { name: 'contactNumber', label: 'Contact Number', type: 'tel', required: true }
-      ],
-      approvalChain: ['Class Teacher', 'HOD', 'Principal']
-    },
-    {
-      id: 'bonafide',
-      name: 'Bonafide Certificate',
-      description: 'Request official bonafide certificate',
-      category: 'student',
-      icon: '📜',
-      time: '3 min',
-      color: '#10b981',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'class', label: 'Class/Department', type: 'text', required: true },
-        { name: 'purpose', label: 'Purpose', type: 'text', required: true },
-        { name: 'academicYear', label: 'Academic Year', type: 'text', required: true },
-        { name: 'requiredCopies', label: 'Number of Copies', type: 'number', required: true }
-      ],
-      approvalChain: ['HOD', 'Registrar']
-    },
-    {
-      id: 'transcript',
-      name: 'Transcript Request',
-      description: 'Request official academic transcripts',
-      category: 'student',
-      icon: '📑',
-      time: '4 min',
-      color: '#f59e0b',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'program', label: 'Program', type: 'text', required: true },
-        { name: 'graduationYear', label: 'Graduation Year', type: 'text', required: true },
-        { name: 'deliveryMethod', label: 'Delivery Method', type: 'select', options: ['Pickup', 'Mail', 'Email'], required: true },
-        { name: 'copies', label: 'Number of Copies', type: 'number', required: true },
-        { name: 'purpose', label: 'Purpose', type: 'text', required: true }
-      ],
-      approvalChain: ['Registrar', 'Dean']
-    },
-    {
-      id: 'transfer',
-      name: 'Transfer Certificate',
-      description: 'Request transfer certificate for institution change',
-      category: 'student',
-      icon: '🎓',
-      time: '6 min',
-      color: '#ef4444',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'class', label: 'Current Class', type: 'text', required: true },
-        { name: 'lastAttendance', label: 'Last Attendance Date', type: 'date', required: true },
-        { name: 'reason', label: 'Reason for Transfer', type: 'textarea', required: true },
-        { name: 'newInstitution', label: 'New Institution Name', type: 'text', required: true }
-      ],
-      approvalChain: ['Class Teacher', 'HOD', 'Principal']
-    },
-    {
-      id: 'research',
-      name: 'Research Proposal',
-      description: 'Submit research proposal for approval',
-      category: 'faculty',
-      icon: '🔬',
-      time: '15 min',
-      color: '#8b5cf6',
-      fields: [
-        { name: 'facultyName', label: 'Faculty Name', type: 'text', required: true },
-        { name: 'department', label: 'Department', type: 'text', required: true },
-        { name: 'researchTitle', label: 'Research Title', type: 'text', required: true },
-        { name: 'duration', label: 'Duration (months)', type: 'number', required: true },
-        { name: 'budget', label: 'Estimated Budget', type: 'number', required: true },
-        { name: 'abstract', label: 'Abstract', type: 'textarea', required: true },
-        { name: 'methodology', label: 'Methodology', type: 'textarea', required: true }
-      ],
-      approvalChain: ['HOD', 'Dean', 'Research Committee']
-    },
-    {
-      id: 'fee',
-      name: 'Fee Receipt',
-      description: 'Request duplicate fee receipt',
-      category: 'student',
-      icon: '💰',
-      time: '2 min',
-      color: '#06b6d4',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'semester', label: 'Semester', type: 'text', required: true },
-        { name: 'receiptNumber', label: 'Original Receipt Number', type: 'text', required: true },
-        { name: 'paymentDate', label: 'Payment Date', type: 'date', required: true },
-        { name: 'reason', label: 'Reason for Duplicate', type: 'textarea', required: true }
-      ],
-      approvalChain: ['Accounts Officer']
-    },
-    {
-      id: 'noc',
-      name: 'No Objection Certificate',
-      description: 'Request NOC for various purposes',
-      category: 'student',
-      icon: '✅',
-      time: '4 min',
-      color: '#14b8a6',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'class', label: 'Class/Department', type: 'text', required: true },
-        { name: 'purpose', label: 'Purpose of NOC', type: 'text', required: true },
-        { name: 'details', label: 'Additional Details', type: 'textarea', required: true },
-        { name: 'validityPeriod', label: 'Validity Period', type: 'text', required: true }
-      ],
-      approvalChain: ['HOD', 'Principal']
-    },
-    {
-      id: 'exam',
-      name: 'Examination Form',
-      description: 'Register for semester examinations',
-      category: 'student',
-      icon: '📝',
-      time: '8 min',
-      color: '#f97316',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'semester', label: 'Semester', type: 'text', required: true },
-        { name: 'examType', label: 'Exam Type', type: 'select', options: ['Regular', 'Supplementary', 'Improvement'], required: true },
-        { name: 'subjects', label: 'Subjects (comma separated)', type: 'text', required: true },
-        { name: 'feePaid', label: 'Fee Payment Reference', type: 'text', required: true }
-      ],
-      approvalChain: ['Exam Controller']
-    },
-    {
-      id: 'library',
-      name: 'Library Card',
-      description: 'Apply for new or renewal of library card',
-      category: 'student',
-      icon: '📚',
-      time: '3 min',
-      color: '#a855f7',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'class', label: 'Class/Department', type: 'text', required: true },
-        { name: 'cardType', label: 'Card Type', type: 'select', options: ['New', 'Renewal', 'Duplicate'], required: true },
-        { name: 'email', label: 'Email', type: 'email', required: true },
-        { name: 'phone', label: 'Phone Number', type: 'tel', required: true }
-      ],
-      approvalChain: ['Librarian']
-    },
-    {
-      id: 'hostel',
-      name: 'Hostel Application',
-      description: 'Apply for hostel accommodation',
-      category: 'student',
-      icon: '🏠',
-      time: '10 min',
-      color: '#ec4899',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'class', label: 'Class/Department', type: 'text', required: true },
-        { name: 'roomType', label: 'Room Type Preference', type: 'select', options: ['Single', 'Double', 'Triple'], required: true },
-        { name: 'duration', label: 'Duration', type: 'text', required: true },
-        { name: 'guardianName', label: 'Guardian Name', type: 'text', required: true },
-        { name: 'guardianContact', label: 'Guardian Contact', type: 'tel', required: true },
-        { name: 'address', label: 'Permanent Address', type: 'textarea', required: true }
-      ],
-      approvalChain: ['Hostel Warden', 'Dean']
-    },
-    {
-      id: 'grievance',
-      name: 'Grievance Form',
-      description: 'Submit grievance or complaint',
-      category: 'student',
-      icon: '📢',
-      time: '5 min',
-      color: '#ef4444',
-      fields: [
-        { name: 'name', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student/Staff ID', type: 'text', required: true },
-        { name: 'category', label: 'Grievance Category', type: 'select', options: ['Academic', 'Administrative', 'Facility', 'Harassment', 'Other'], required: true },
-        { name: 'subject', label: 'Subject', type: 'text', required: true },
-        { name: 'details', label: 'Detailed Description', type: 'textarea', required: true },
-        { name: 'anonymous', label: 'Submit Anonymously', type: 'checkbox', required: false }
-      ],
-      approvalChain: ['Grievance Cell']
-    },
-    {
-      id: 'character',
-      name: 'Character Certificate',
-      description: 'Request character certificate',
-      category: 'student',
-      icon: '⭐',
-      time: '3 min',
-      color: '#10b981',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'class', label: 'Class/Department', type: 'text', required: true },
-        { name: 'academicYear', label: 'Academic Year', type: 'text', required: true },
-        { name: 'purpose', label: 'Purpose', type: 'text', required: true }
-      ],
-      approvalChain: ['Class Teacher', 'Principal']
-    },
-    {
-      id: 'sports',
-      name: 'Sports Certificate',
-      description: 'Request sports participation certificate',
-      category: 'student',
-      icon: '⚽',
-      time: '4 min',
-      color: '#3b82f6',
-      fields: [
-        { name: 'studentName', label: 'Full Name', type: 'text', required: true },
-        { name: 'studentId', label: 'Student ID', type: 'text', required: true },
-        { name: 'class', label: 'Class/Department', type: 'text', required: true },
-        { name: 'sport', label: 'Sport/Game', type: 'text', required: true },
-        { name: 'event', label: 'Event Name', type: 'text', required: true },
-        { name: 'date', label: 'Event Date', type: 'date', required: true },
-        { name: 'achievement', label: 'Achievement/Position', type: 'text', required: true }
-      ],
-      approvalChain: ['Sports Coordinator', 'Principal']
-    }
-  ];
-
-  // Calculate analytics from myDocuments
-  const analytics = {
-    total: myDocuments.length,
-    approved: myDocuments.filter(d => d.status === 'approved').length,
-    pending: myDocuments.filter(d => d.status === 'pending').length,
-    rejected: myDocuments.filter(d => d.status === 'rejected').length
-  };
-
-  // Filter templates
-  const filteredTemplates = templates.filter(template => {
-    const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         template.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || template.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+  
+  // Recipient selection
+  const [selectedRecipients, setSelectedRecipients] = useState([]);
+  const [approvalType, setApprovalType] = useState('standard');
+  const [recipientSearch, setRecipientSearch] = useState('');
+  
+  // Get user role from localStorage
+  const userRole = localStorage.getItem('userRole') || 'student';
+  
+  // Auth headers helper
+  const getAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('token')}`
   });
 
-  // Handle template selection
-  const handleTemplateSelect = (template) => {
-    setSelectedTemplate(template);
-    setFormData({});
-  };
-
-  // Handle form input change
-  const handleInputChange = (fieldName, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [fieldName]: value
-    }));
-  };
-
-  // Handle submit with validation
-  const handleSubmit = () => {
-    // Validate required fields
-    const requiredFields = selectedTemplate.fields.filter(f => f.required);
-    const missingFields = requiredFields.filter(f => !formData[f.name]);
-    
-    if (missingFields.length > 0) {
-      showNotification('error', 'Missing Fields', 'Please fill all required fields');
-      return;
-    }
-
-    // Show success notification
-    showNotification('success', 'Document Submitted', `Your ${selectedTemplate.name} has been submitted successfully!`);
-    
-    // Close modal
-    setTimeout(() => {
-      setSelectedTemplate(null);
-      setFormData({});
-    }, 1500);
-  };
-
-  // Show notification
-  const showNotification = (type, title, message) => {
+  // Show notification helper
+  const showNotification = useCallback((type, title, message) => {
     const notification = {
       id: Date.now(),
       type,
@@ -354,20 +57,416 @@ export default function DocumentGenerator() {
     
     setNotifications(prev => [...prev, notification]);
     
-    // Auto remove after 5 seconds
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== notification.id));
     }, 5000);
+  }, []);
+
+  // Fetch user and institution info
+  const fetchUserInfo = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUserInfo(data.user);
+        if (data.user?.institution) {
+          setInstitutionInfo(data.user.institution);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+    }
+  }, []);
+
+  // Fetch approvers list
+  const fetchApprovers = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/document-generation/institution/approvers`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const approversList = data.data || [];
+        // If no approvers from API, use fallback
+        if (approversList.length === 0) {
+          setApprovers([
+            { id: '1', name: 'Class Teacher', role: 'staff', department: 'Academic' },
+            { id: '2', name: 'Head of Department', role: 'staff', department: 'Academic' },
+            { id: '3', name: 'Principal', role: 'admin', department: 'Administration' }
+          ]);
+        } else {
+          setApprovers(approversList);
+        }
+      } else {
+        // Fallback approvers if API fails
+        setApprovers([
+          { id: '1', name: 'Class Teacher', role: 'staff', department: 'Academic' },
+          { id: '2', name: 'Head of Department', role: 'staff', department: 'Academic' },
+          { id: '3', name: 'Principal', role: 'admin', department: 'Administration' }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching approvers:', error);
+      // Fallback approvers for demo
+      setApprovers([
+        { id: '1', name: 'Class Teacher', role: 'staff', department: 'Academic' },
+        { id: '2', name: 'Head of Department', role: 'staff', department: 'Academic' },
+        { id: '3', name: 'Principal', role: 'admin', department: 'Administration' }
+      ]);
+    }
+  }, []);
+
+  // Fetch templates from backend
+  const fetchTemplates = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/document-generation/templates`, {
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTemplates(data.data || []);
+      } else {
+        console.error('Failed to fetch templates');
+        showNotification('error', 'Error', 'Failed to load templates');
+      }
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+      showNotification('error', 'Error', 'Failed to load templates');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showNotification]);
+
+  // Fetch user's documents
+  const fetchMyDocuments = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/document-generation/my-documents`, {
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setMyDocuments(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    }
+  }, []);
+
+  // Fetch analytics
+  const fetchAnalytics = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/document-generation/analytics`, {
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAnalytics(data.data || { total: 0, approved: 0, pending: 0, rejected: 0, drafts: 0 });
+      }
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+    }
+  }, []);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchUserInfo();
+    fetchTemplates();
+    fetchMyDocuments();
+    fetchAnalytics();
+    fetchApprovers();
+  }, [fetchUserInfo, fetchTemplates, fetchMyDocuments, fetchAnalytics, fetchApprovers]);
+
+  // Filter templates based on search and category
+  const filteredTemplates = templates.filter(template => {
+    const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (template.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = categoryFilter === 'all' || template.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Filter approvers based on search
+  const filteredApprovers = approvers.filter(approver => {
+    const fullName = (approver.name || `${approver.firstName || ''} ${approver.lastName || ''}`).toLowerCase();
+    return fullName.includes(recipientSearch.toLowerCase()) ||
+           (approver.role || '').toLowerCase().includes(recipientSearch.toLowerCase()) ||
+           (approver.department || '').toLowerCase().includes(recipientSearch.toLowerCase());
+  });
+
+  // Handle template selection
+  const handleTemplateSelect = (template) => {
+    setSelectedTemplate(template);
+    setShowPreview(false);
+    setPreviewContent('');
+    
+    // Pre-fill form with user data
+    const initialData = {};
+    if (userInfo && template.fields) {
+      template.fields.forEach(field => {
+        const fieldName = field.name.toLowerCase();
+        if (fieldName.includes('name') && !fieldName.includes('guardian') && !fieldName.includes('institution')) {
+          initialData[field.name] = `${userInfo.firstName || ''} ${userInfo.lastName || ''}`.trim();
+        } else if (fieldName.includes('email')) {
+          initialData[field.name] = userInfo.email || '';
+        } else if (fieldName.includes('department') || fieldName.includes('class')) {
+          initialData[field.name] = userInfo.department || '';
+        } else if (fieldName.includes('studentid') || fieldName.includes('staffid') || fieldName.includes('id')) {
+          initialData[field.name] = userInfo.uniqueId || '';
+        } else if (fieldName.includes('phone') || fieldName.includes('contact')) {
+          initialData[field.name] = userInfo.phone || '';
+        }
+      });
+    }
+    setFormData(initialData);
+    
+    // Auto-select first approver based on approval chain
+    if (template.approvalChain && template.approvalChain.length > 0) {
+      const firstApproverRole = template.approvalChain[0];
+      const matchingApprover = approvers.find(a => 
+        (a.role || '').toLowerCase().includes(firstApproverRole.toLowerCase())
+      );
+      if (matchingApprover) {
+        setSelectedRecipients([matchingApprover.id]);
+      }
+    }
+  };
+
+  // Handle form input change
+  const handleInputChange = (fieldName, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
+  };
+
+  // Toggle recipient selection
+  const toggleRecipient = (recipientId) => {
+    setSelectedRecipients(prev => {
+      if (prev.includes(recipientId)) {
+        return prev.filter(id => id !== recipientId);
+      } else {
+        return [...prev, recipientId];
+      }
+    });
+  };
+
+  // Generate preview content
+  const generatePreviewContent = () => {
+    if (!selectedTemplate || !institutionInfo) return '';
+    
+    const today = new Date().toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+    
+    let content = `
+      <div class="preview-document">
+        <div class="preview-header">
+          <h2>${institutionInfo.name || 'Institution Name'}</h2>
+          <p>${institutionInfo.address || 'Institution Address'}</p>
+          ${institutionInfo.phone ? `<p>Phone: ${institutionInfo.phone}</p>` : ''}
+          ${institutionInfo.email ? `<p>Email: ${institutionInfo.email}</p>` : ''}
+        </div>
+        <hr class="preview-divider" />
+        <div class="preview-title">
+          <h3>${selectedTemplate.name}</h3>
+          <p class="preview-date">Date: ${today}</p>
+        </div>
+        <div class="preview-body">
+    `;
+    
+    // Add form data to preview
+    if (selectedTemplate.fields) {
+      selectedTemplate.fields.forEach(field => {
+        const value = formData[field.name] || '<em>Not provided</em>';
+        content += `<p><strong>${field.label}:</strong> ${value}</p>`;
+      });
+    }
+    
+    content += `
+        </div>
+        <div class="preview-footer">
+          <p>This is a system-generated document.</p>
+          <p>Generated on: ${new Date().toLocaleString('en-IN')}</p>
+        </div>
+      </div>
+    `;
+    
+    return content;
+  };
+
+  // Handle preview
+  const handlePreview = () => {
+    const content = generatePreviewContent();
+    setPreviewContent(content);
+    setShowPreview(true);
+  };
+
+  // Save as draft
+  const handleSaveDraft = async () => {
+    if (!selectedTemplate) return;
+    
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${API_URL}/api/document-generation/generate`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          templateId: selectedTemplate.id,
+          formData: formData,
+          status: 'draft'
+        })
+      });
+
+      if (response.ok) {
+        showNotification('success', 'Draft Saved', 'Your document has been saved as draft!');
+        fetchMyDocuments();
+        fetchAnalytics();
+      } else {
+        const error = await response.json();
+        showNotification('error', 'Error', error.error || 'Failed to save draft');
+      }
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      showNotification('error', 'Error', 'Failed to save draft');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Generate and send for approval
+  const handleGenerateAndSubmit = async () => {
+    if (!selectedTemplate) return;
+    
+    // Validate required fields
+    const requiredFields = selectedTemplate.fields?.filter(f => f.required) || [];
+    const missingFields = requiredFields.filter(f => !formData[f.name]);
+    
+    if (missingFields.length > 0) {
+      showNotification('error', 'Missing Fields', `Please fill: ${missingFields.map(f => f.label).join(', ')}`);
+      return;
+    }
+
+    if (selectedRecipients.length === 0) {
+      showNotification('error', 'No Recipients', 'Please select at least one recipient for approval');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // First generate the document
+      const generateResponse = await fetch(`${API_URL}/api/document-generation/generate`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          templateId: selectedTemplate.id,
+          formData: formData
+        })
+      });
+
+      if (!generateResponse.ok) {
+        const error = await generateResponse.json();
+        showNotification('error', 'Error', error.error || 'Failed to generate document');
+        return;
+      }
+
+      const generateData = await generateResponse.json();
+      const docId = generateData.data?.id;
+
+      // Then submit for approval
+      const submitResponse = await fetch(`${API_URL}/api/document-generation/submit/${docId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          recipientIds: selectedRecipients,
+          approvalType: approvalType
+        })
+      });
+
+      if (submitResponse.ok) {
+        showNotification('success', 'Document Submitted', `Your ${selectedTemplate.name} has been sent for approval!`);
+        
+        // Refresh data
+        fetchMyDocuments();
+        fetchAnalytics();
+        
+        // Close modal after delay
+        setTimeout(() => {
+          closeModal();
+        }, 1500);
+      } else {
+        const error = await submitResponse.json();
+        showNotification('error', 'Error', error.error || 'Failed to submit document');
+      }
+    } catch (error) {
+      console.error('Error generating document:', error);
+      showNotification('error', 'Error', 'Failed to generate document');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Close modal
   const closeModal = () => {
     setSelectedTemplate(null);
     setFormData({});
+    setSelectedRecipients([]);
+    setApprovalType('standard');
+    setShowPreview(false);
+    setPreviewContent('');
+  };
+
+  // Get status badge style
+  const getStatusBadge = (status) => {
+    const styles = {
+      draft: { bg: '#e0e7ff', color: '#3730a3', icon: 'ri-draft-line' },
+      pending: { bg: '#fef3c7', color: '#92400e', icon: 'ri-time-line' },
+      approved: { bg: '#d1fae5', color: '#065f46', icon: 'ri-checkbox-circle-line' },
+      rejected: { bg: '#fee2e2', color: '#991b1b', icon: 'ri-close-circle-line' },
+      cancelled: { bg: '#f3f4f6', color: '#374151', icon: 'ri-forbid-line' }
+    };
+    return styles[status?.toLowerCase()] || styles.draft;
+  };
+
+  // Format date
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   return (
     <div className="document-generation">
+      {/* Notifications */}
+      <div className="notifications-container">
+        {notifications.map(notification => (
+          <div key={notification.id} className={`notification ${notification.type}`}>
+            <div className="notification-icon">
+              <i className={notification.type === 'success' ? 'ri-checkbox-circle-fill' : 
+                           notification.type === 'error' ? 'ri-error-warning-fill' : 'ri-information-fill'}></i>
+            </div>
+            <div className="notification-content">
+              <strong>{notification.title}</strong>
+              <p>{notification.message}</p>
+            </div>
+            <button onClick={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}>
+              <i className="ri-close-line"></i>
+            </button>
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
       <div className="page-header">
         <h1>Document Generation</h1>
@@ -405,11 +504,11 @@ export default function DocumentGenerator() {
         </div>
         <div className="stat-card">
           <div className="stat-icon purple">
-            <i className="ri-close-circle-line"></i>
+            <i className="ri-draft-line"></i>
           </div>
           <div className="stat-info">
-            <h4>{analytics.rejected}</h4>
-            <p>Rejected</p>
+            <h4>{analytics.drafts}</h4>
+            <p>Drafts</p>
           </div>
         </div>
       </div>
@@ -448,202 +547,393 @@ export default function DocumentGenerator() {
             </div>
           </div>
         </div>
-        <div className="templates-list">
-          {filteredTemplates.map(template => {
-            const approver = template.approvalChain && template.approvalChain[0] ? template.approvalChain[0] : 'N/A';
-            return (
-              <div key={template.id} className="template-list-item" onClick={() => handleTemplateSelect(template)}>
-                <div className="template-icon" style={{background: `${template.color}20`, color: template.color}}>
-                  <span>{template.icon}</span>
-                </div>
-                <div className="template-content">
-                  <div className="template-header-row">
-                    <h3>{template.name}</h3>
-                    {template.category === 'urgent' && (
-                      <span className="badge-urgent">
-                        <i className="ri-error-warning-line"></i> Urgent
+        
+        {isLoading ? (
+          <div className="loading-state">
+            <i className="ri-loader-4-line spinning"></i>
+            <p>Loading templates...</p>
+          </div>
+        ) : filteredTemplates.length === 0 ? (
+          <div className="empty-state-inline">
+            <i className="ri-file-search-line"></i>
+            <p>No templates found</p>
+          </div>
+        ) : (
+          <div className="templates-list">
+            {filteredTemplates.map(template => {
+              const approver = template.approvalChain && template.approvalChain[0] ? template.approvalChain[0] : 'N/A';
+              return (
+                <div key={template.id} className="template-list-item" onClick={() => handleTemplateSelect(template)}>
+                  <div className="template-icon" style={{background: `${template.color}20`, color: template.color}}>
+                    <span>{template.icon}</span>
+                  </div>
+                  <div className="template-content">
+                    <div className="template-header-row">
+                      <h3>{template.name}</h3>
+                    </div>
+                    <p className="template-description">{template.description}</p>
+                    <div className="template-meta">
+                      <span className="meta-item">
+                        <i className="ri-file-text-line"></i>
+                        {template.category}
                       </span>
-                    )}
+                      <span className="meta-item">
+                        <i className="ri-user-line"></i>
+                        Approver: {approver}
+                      </span>
+                      <span className="meta-item">
+                        <i className="ri-list-check"></i>
+                        {template.fields ? template.fields.length : 0} fields
+                      </span>
+                      <span className="meta-item">
+                        <i className="ri-time-line"></i>
+                        {template.estimatedTime || '5 min'}
+                      </span>
+                    </div>
                   </div>
-                  <p className="template-description">{template.description}</p>
-                  <div className="template-meta">
-                    <span className="meta-item">
-                      <i className="ri-file-text-line"></i>
-                      {template.category}
-                    </span>
-                    <span className="meta-item">
-                      <i className="ri-user-line"></i>
-                      Approver: {approver}
-                    </span>
-                    <span className="meta-item">
-                      <i className="ri-list-check"></i>
-                      {template.fields ? template.fields.length : 0} fields
-                    </span>
-                  </div>
+                  <button className="template-action-btn">
+                    <i className="ri-arrow-right-line"></i>
+                  </button>
                 </div>
-                <button className="template-action-btn">
-                  <i className="ri-arrow-right-line"></i>
-                </button>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Modal for Form */}
+      {/* Full Screen Template Form Modal - Redesigned */}
       {selectedTemplate && (
         <div className="modal-overlay" onClick={(e) => e.target.className === 'modal-overlay' && closeModal()}>
-          <div className="modal-fullscreen">
+          <div className="template-modal">
             {/* Modal Header */}
-            <div className="modal-header-bar">
-              <h2>{selectedTemplate.name}</h2>
-              <button className="btn-close-modal" onClick={closeModal}>
-                <i className="ri-close-line"></i>
-              </button>
-            </div>
-
-            {/* Toolbar */}
-            <div className="modal-toolbar">
-              <div className="toolbar-left">
-                <button className="toolbar-btn active">
-                  <i className="ri-file-text-line"></i> Document Preview
-                </button>
-              </div>
-              <div className="toolbar-right">
-                <button className="toolbar-btn">
-                  <i className="ri-layout-line"></i> Template
-                </button>
-                <button className="toolbar-btn">
-                  <i className="ri-fullscreen-line"></i> Expand
-                </button>
-                <button className="toolbar-btn">
-                  <i className="ri-code-line"></i> Copy HTML
-                </button>
-                <button className="toolbar-btn">
-                  <i className="ri-printer-line"></i> Print
-                </button>
-                <button className="toolbar-btn toolbar-btn-primary">
-                  <i className="ri-download-line"></i> PDF
-                </button>
-              </div>
-            </div>
-
-            {/* Content Area */}
-            <div className="modal-content-area">
-              {/* Left Panel - Form */}
-              <div className="modal-form-panel">
-                <div className="form-scroll-container">
-                  {selectedTemplate.fields.map(field => (
-                    <div key={field.name} className="form-field">
-                      <label>
-                        {field.label}
-                        {field.required && <span className="required-star">*</span>}
-                      </label>
-                      {field.type === 'textarea' ? (
-                        <textarea
-                          value={formData[field.name] || ''}
-                          onChange={(e) => handleInputChange(field.name, e.target.value)}
-                          rows="4"
-                          placeholder={`Enter ${field.label.toLowerCase()}`}
-                        />
-                      ) : field.type === 'select' ? (
-                        <select
-                          value={formData[field.name] || ''}
-                          onChange={(e) => handleInputChange(field.name, e.target.value)}
-                        >
-                          <option value="">Select {field.label}</option>
-                          {field.options.map(option => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type={field.type}
-                          value={formData[field.name] || ''}
-                          onChange={(e) => handleInputChange(field.name, e.target.value)}
-                          placeholder={field.type === 'date' ? 'dd-mm-yyyy' : `Enter ${field.label.toLowerCase()}`}
-                        />
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Select Recipients Section */}
-                  <div className="section-divider"></div>
-                  <div className="recipients-section">
-                    <div className="section-header-with-badge">
-                      <h4>Select Recipients</h4>
-                      <span className="badge-selected">1 selected</span>
-                    </div>
-                    <div className="search-box">
-                      <i className="ri-search-line"></i>
-                      <input type="text" placeholder="Search recipients..." />
-                    </div>
-                    <div className="recipients-list">
-                      {['Ms. Priya K.|Class Teacher|Computer Science', 'Prof. R. Nair|Head of Department|Computer Science'].map((recipient, idx) => {
-                        const [name, role, dept] = recipient.split('|');
-                        const initials = name.split(' ').map(n => n[0]).join('');
-                        return (
-                          <div key={idx} className={`recipient-item ${idx === 0 ? 'selected' : ''}`}>
-                            <input type="checkbox" checked={idx === 0} onChange={() => {}} />
-                            <div className="recipient-avatar">{initials}</div>
-                            <div className="recipient-info">
-                              <strong>{name}</strong>
-                              <small>{role} • {dept}</small>
-                            </div>
-                            {idx === 0 && <span className="default-badge">Default</span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Approval Type Section */}
-                  <div className="section-divider"></div>
-                  <div className="approval-type-section">
-                    <h4>Approval Type</h4>
-                    <p className="section-description">Choose the type of approval required for this document.</p>
-                    <div className="approval-options">
-                      <label className="approval-option selected">
-                        <input type="radio" name="approvalType" defaultChecked />
-                        <div className="option-content">
-                          <strong>Standard Approval</strong>
-                          <small>Regular approval process</small>
-                        </div>
-                      </label>
-                      <label className="approval-option">
-                        <input type="radio" name="approvalType" />
-                        <div className="option-content">
-                          <strong>Digital Signature</strong>
-                          <small>Requires digital signature</small>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
+            <div className="template-modal-header">
+              <div className="template-modal-title">
+                <span className="template-modal-icon" style={{background: `${selectedTemplate.color}15`, color: selectedTemplate.color}}>
+                  {selectedTemplate.icon}
+                </span>
+                <div className="template-modal-info">
+                  <h2>{selectedTemplate.name}</h2>
+                  <p>{selectedTemplate.description}</p>
                 </div>
-
-                {/* Footer Actions */}
-                <div className="modal-footer-actions">
-                  <button className="btn-footer-outline">
-                    <i className="ri-save-line"></i> Save Draft
+              </div>
+              <div className="template-modal-actions">
+                <div className="view-toggle">
+                  <button 
+                    className={`toggle-btn ${!showPreview ? 'active' : ''}`} 
+                    onClick={() => setShowPreview(false)}
+                  >
+                    <i className="ri-edit-line"></i> Form
                   </button>
-                  <button className="btn-footer-outline">
+                  <button 
+                    className={`toggle-btn ${showPreview ? 'active' : ''}`} 
+                    onClick={handlePreview}
+                  >
                     <i className="ri-eye-line"></i> Preview
                   </button>
-                  <button className="btn-footer-primary" onClick={handleSubmit}>
-                    <i className="ri-send-plane-line"></i> Generate & Request
-                  </button>
+                </div>
+                <button className="close-modal-btn" onClick={closeModal}>
+                  <i className="ri-close-line"></i>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="template-modal-body">
+              {/* Left Side - Form */}
+              <div className={`template-form-section ${showPreview ? 'collapsed' : ''}`}>
+                <div className="form-container">
+                  {/* Step Indicator */}
+                  <div className="form-steps">
+                    <div className="step active">
+                      <span className="step-number">1</span>
+                      <span className="step-label">Fill Details</span>
+                    </div>
+                    <span className="step-connector"></span>
+                    <div className={`step ${selectedRecipients.length > 0 ? 'active' : ''}`}>
+                      <span className="step-number">2</span>
+                      <span className="step-label">Select Approvers</span>
+                    </div>
+                    <span className="step-connector"></span>
+                    <div className={`step ${approvalType ? 'active' : ''}`}>
+                      <span className="step-number">3</span>
+                      <span className="step-label">Choose Action</span>
+                    </div>
+                  </div>
+
+                  {/* Form Fields Section */}
+                  <div className="form-card">
+                    <div className="form-card-header">
+                      <i className="ri-file-list-3-line"></i>
+                      <h3>Document Details</h3>
+                    </div>
+                    <div className="form-card-body">
+                      {(!selectedTemplate.fields || selectedTemplate.fields.length === 0) ? (
+                        <div className="empty-form-state">
+                          <i className="ri-information-line"></i>
+                          <p>No form fields configured for this template</p>
+                        </div>
+                      ) : (
+                        <div className="form-grid">
+                          {selectedTemplate.fields.map(field => (
+                            <div key={field.name} className={`form-group ${field.type === 'textarea' ? 'full-width' : ''}`}>
+                              <label className="form-label">
+                                {field.label}
+                                {field.required && <span className="required">*</span>}
+                              </label>
+                              {field.type === 'textarea' ? (
+                                <textarea
+                                  className="form-textarea"
+                                  value={formData[field.name] || ''}
+                                  onChange={(e) => handleInputChange(field.name, e.target.value)}
+                                  rows="3"
+                                  placeholder={`Enter ${field.label.toLowerCase()}`}
+                                />
+                              ) : field.type === 'select' ? (
+                                <select
+                                  className="form-select"
+                                  value={formData[field.name] || ''}
+                                  onChange={(e) => handleInputChange(field.name, e.target.value)}
+                                >
+                                  <option value="">Select {field.label}</option>
+                                  {field.options?.map(option => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              ) : field.type === 'checkbox' ? (
+                                <label className="form-checkbox">
+                                  <input
+                                    type="checkbox"
+                                    checked={formData[field.name] || false}
+                                    onChange={(e) => handleInputChange(field.name, e.target.checked)}
+                                  />
+                                  <span className="checkmark"></span>
+                                  <span className="checkbox-label">{field.label}</span>
+                                </label>
+                              ) : (
+                                <input
+                                  className="form-input"
+                                  type={field.type || 'text'}
+                                  value={formData[field.name] || ''}
+                                  onChange={(e) => handleInputChange(field.name, e.target.value)}
+                                  placeholder={field.type === 'date' ? '' : `Enter ${field.label.toLowerCase()}`}
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Recipients/Approvers Section */}
+                  <div className="form-card">
+                    <div className="form-card-header">
+                      <i className="ri-user-star-line"></i>
+                      <h3>Select Approvers</h3>
+                      <span className="header-badge">{selectedRecipients.length} selected</span>
+                    </div>
+                    <div className="form-card-body">
+                      {/* Approval Chain Info */}
+                      {selectedTemplate.approvalChain && selectedTemplate.approvalChain.length > 0 && (
+                        <div className="chain-info">
+                          <i className="ri-flow-chart"></i>
+                          <span>Approval Chain: {selectedTemplate.approvalChain.join(' → ')}</span>
+                        </div>
+                      )}
+                      
+                      {/* Search */}
+                      <div className="approver-search">
+                        <i className="ri-search-line"></i>
+                        <input 
+                          type="text" 
+                          placeholder="Search approvers..." 
+                          value={recipientSearch}
+                          onChange={(e) => setRecipientSearch(e.target.value)}
+                        />
+                      </div>
+                      
+                      {/* Approvers List */}
+                      <div className="approvers-grid">
+                        {filteredApprovers.length === 0 ? (
+                          <div className="no-approvers">
+                            <i className="ri-user-search-line"></i>
+                            <p>No approvers found</p>
+                          </div>
+                        ) : filteredApprovers.map((recipient) => {
+                          const displayName = recipient.name || `${recipient.firstName || ''} ${recipient.lastName || ''}`;
+                          const nameParts = displayName.split(' ');
+                          const initials = nameParts.length > 1 
+                            ? `${nameParts[0]?.[0] || ''}${nameParts[nameParts.length-1]?.[0] || ''}`.toUpperCase()
+                            : (nameParts[0]?.[0] || 'U').toUpperCase();
+                          const isSelected = selectedRecipients.includes(recipient.id);
+                          const isSuggested = selectedTemplate.approvalChain?.[0]?.toLowerCase().includes((recipient.role || '').toLowerCase());
+                          return (
+                            <div 
+                              key={recipient.id} 
+                              className={`approver-card ${isSelected ? 'selected' : ''}`}
+                              onClick={() => toggleRecipient(recipient.id)}
+                            >
+                              <div className="approver-checkbox">
+                                <input type="checkbox" checked={isSelected} onChange={() => {}} />
+                                <span className="custom-checkbox"></span>
+                              </div>
+                              <div className="approver-avatar" style={{background: isSelected ? '#10b981' : '#e2e8f0'}}>
+                                {initials}
+                              </div>
+                              <div className="approver-details">
+                                <strong>{displayName}</strong>
+                                <small>{recipient.role} • {recipient.department || 'Department'}</small>
+                              </div>
+                              {isSuggested && <span className="suggested-tag">Suggested</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Type Section */}
+                  <div className="form-card">
+                    <div className="form-card-header">
+                      <i className="ri-shield-check-line"></i>
+                      <h3>Choose Action</h3>
+                    </div>
+                    <div className="form-card-body">
+                      <div className="action-options">
+                        <label className={`action-option ${approvalType === 'standard' ? 'selected' : ''}`}>
+                          <input 
+                            type="radio" 
+                            name="approvalType" 
+                            checked={approvalType === 'standard'}
+                            onChange={() => setApprovalType('standard')}
+                          />
+                          <div className="action-icon standard">
+                            <i className="ri-checkbox-circle-line"></i>
+                          </div>
+                          <div className="action-info">
+                            <strong>Standard Approval</strong>
+                            <small>Send for regular approval process</small>
+                          </div>
+                        </label>
+                        
+                        <label className={`action-option ${approvalType === 'digital' ? 'selected' : ''}`}>
+                          <input 
+                            type="radio" 
+                            name="approvalType"
+                            checked={approvalType === 'digital'}
+                            onChange={() => setApprovalType('digital')}
+                          />
+                          <div className="action-icon digital">
+                            <i className="ri-quill-pen-line"></i>
+                          </div>
+                          <div className="action-info">
+                            <strong>Digital Signature</strong>
+                            <small>Requires digital signature verification</small>
+                          </div>
+                        </label>
+                        
+                        <label className={`action-option ${approvalType === 'blockchain' ? 'selected' : ''}`}>
+                          <input 
+                            type="radio" 
+                            name="approvalType"
+                            checked={approvalType === 'blockchain'}
+                            onChange={() => setApprovalType('blockchain')}
+                          />
+                          <div className="action-icon blockchain">
+                            <i className="ri-links-line"></i>
+                          </div>
+                          <div className="action-info">
+                            <strong>Blockchain Verified</strong>
+                            <small>Permanently stored on blockchain</small>
+                          </div>
+                        </label>
+                        
+                        <label className={`action-option ${approvalType === 'save' ? 'selected' : ''}`}>
+                          <input 
+                            type="radio" 
+                            name="approvalType"
+                            checked={approvalType === 'save'}
+                            onChange={() => setApprovalType('save')}
+                          />
+                          <div className="action-icon save">
+                            <i className="ri-folder-add-line"></i>
+                          </div>
+                          <div className="action-info">
+                            <strong>Save to Files</strong>
+                            <small>Save directly to File Manager</small>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Right Panel - Preview */}
-              <div className="modal-preview-panel">
-                <div className="preview-empty-state">
-                  <div className="preview-icon">
-                    <i className="ri-file-text-line"></i>
+              {/* Right Side - Preview */}
+              <div className={`template-preview-section ${showPreview ? 'expanded' : ''}`}>
+                {showPreview && previewContent ? (
+                  <div className="preview-wrapper">
+                    <div className="preview-header">
+                      <span><i className="ri-file-text-line"></i> Document Preview</span>
+                      <div className="preview-actions">
+                        <button className="preview-btn" title="Print">
+                          <i className="ri-printer-line"></i>
+                        </button>
+                        <button className="preview-btn" title="Download PDF">
+                          <i className="ri-download-line"></i>
+                        </button>
+                      </div>
+                    </div>
+                    <div 
+                      className="preview-content"
+                      dangerouslySetInnerHTML={{ __html: previewContent }}
+                    />
                   </div>
-                  <h3>Document Preview</h3>
-                  <p>Fill the form and click "Preview" to see your document</p>
-                </div>
+                ) : (
+                  <div className="preview-placeholder">
+                    <div className="placeholder-icon">
+                      <i className="ri-file-text-line"></i>
+                    </div>
+                    <h3>Document Preview</h3>
+                    <p>Fill the form and click "Preview" to see your document</p>
+                    <button className="preview-generate-btn" onClick={handlePreview}>
+                      <i className="ri-eye-line"></i> Generate Preview
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="template-modal-footer">
+              <div className="footer-left">
+                <button className="footer-btn outline" onClick={handleSaveDraft} disabled={isSubmitting}>
+                  <i className="ri-save-line"></i> Save as Draft
+                </button>
+              </div>
+              <div className="footer-right">
+                <button className="footer-btn outline" onClick={handlePreview}>
+                  <i className="ri-eye-line"></i> Preview
+                </button>
+                <button 
+                  className="footer-btn primary" 
+                  onClick={handleGenerateAndSubmit} 
+                  disabled={isSubmitting || selectedRecipients.length === 0}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <i className="ri-loader-4-line spinning"></i> Processing...
+                    </>
+                  ) : approvalType === 'save' ? (
+                    <>
+                      <i className="ri-folder-add-line"></i> Save to Files
+                    </>
+                  ) : (
+                    <>
+                      <i className="ri-send-plane-line"></i> Generate & Submit
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -664,15 +954,10 @@ export default function DocumentGenerator() {
             <div className="my-documents-filters">
               <select className="filter-select-inline">
                 <option>All Status</option>
+                <option>Draft</option>
                 <option>Pending</option>
                 <option>Approved</option>
                 <option>Rejected</option>
-              </select>
-              <select className="filter-select-inline">
-                <option>All Types</option>
-                <option>Leave Application</option>
-                <option>Bonafide Certificate</option>
-                <option>Transcript Request</option>
               </select>
               <div className="search-container-inline" style={{flex: 1}}>
                 <i className="ri-search-line search-icon"></i>
@@ -684,135 +969,79 @@ export default function DocumentGenerator() {
               </div>
             </div>
 
-            <div className="documents-table-container">
-              <table className="documents-table">
-                <thead>
-                  <tr>
-                    <th>REQUEST ID</th>
-                    <th>DOCUMENT TYPE</th>
-                    <th>APPROVER</th>
-                    <th>APPROVAL TYPE</th>
-                    <th>SUBMITTED</th>
-                    <th>STATUS</th>
-                    <th>ACTIONS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {myDocuments.map(doc => (
-                    <tr key={doc.id}>
-                      <td>
-                        <div className="request-id">
-                          <strong>{doc.id}</strong>
-                          <small>Blockchain: {doc.blockchainHash}</small>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="doc-type">
-                          <strong>{doc.type}</strong>
-                          <small>{doc.subType}</small>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="approver-info">
-                          <strong>{doc.approver}</strong>
-                          <small>{doc.approverName}</small>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="approval-type">
-                          <i className={`ri-${doc.approvalType.includes('Digital') ? 'fingerprint' : 'check'}-line`}></i>
-                          {doc.approvalType}
-                        </div>
-                      </td>
-                      <td>{doc.submitted}</td>
-                      <td>
-                        <span className={`status-badge ${doc.status}`}>
-                          <i className="ri-checkbox-circle-line"></i> {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="action-buttons">
-                          <button className="btn-action" title="View">
-                            <i className="ri-eye-line"></i>
-                          </button>
-                          <button className="btn-action" title="Timeline" onClick={() => {
-                            setSelectedDocument(doc);
-                            setShowTimeline(true);
-                          }}>
-                            <i className="ri-time-line"></i>
-                          </button>
-                          <button className="btn-action success" title="Download">
-                            <i className="ri-download-line"></i>
-                          </button>
-                          {doc.status === 'pending' && (
-                            <button className="btn-action danger" title="Cancel">
-                              <i className="ri-close-line"></i>
-                            </button>
-                          )}
-                        </div>
-                      </td>
+            {myDocuments.length === 0 ? (
+              <div className="empty-state-modal">
+                <i className="ri-file-text-line"></i>
+                <h3>No documents yet</h3>
+                <p>Create your first document by selecting a template</p>
+              </div>
+            ) : (
+              <div className="documents-table-container">
+                <table className="documents-table">
+                  <thead>
+                    <tr>
+                      <th>REQUEST ID</th>
+                      <th>DOCUMENT TYPE</th>
+                      <th>SUBMITTED</th>
+                      <th>STATUS</th>
+                      <th>ACTIONS</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {myDocuments.map(doc => {
+                      const statusStyle = getStatusBadge(doc.status);
+                      return (
+                        <tr key={doc.id}>
+                          <td className="request-id-cell">{doc.requestId}</td>
+                          <td>{doc.templateName}</td>
+                          <td>{formatDate(doc.submittedAt || doc.createdAt)}</td>
+                          <td>
+                            <span 
+                              className="status-badge-table"
+                              style={{ background: statusStyle.bg, color: statusStyle.color }}
+                            >
+                              <i className={statusStyle.icon}></i>
+                              {doc.status}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="table-actions">
+                              <button className="action-btn" title="View">
+                                <i className="ri-eye-line"></i>
+                              </button>
+                              {doc.status === 'draft' && (
+                                <>
+                                  <button className="action-btn" title="Edit">
+                                    <i className="ri-edit-line"></i>
+                                  </button>
+                                  <button className="action-btn danger" title="Delete">
+                                    <i className="ri-delete-bin-line"></i>
+                                  </button>
+                                </>
+                              )}
+                              {doc.pdfIpfsHash && (
+                                <a 
+                                  href={`https://gateway.pinata.cloud/ipfs/${doc.pdfIpfsHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="action-btn"
+                                  title="Download"
+                                >
+                                  <i className="ri-download-line"></i>
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
-
-      {/* Timeline Modal */}
-      {showTimeline && selectedDocument && (
-        <div className="modal-overlay" onClick={(e) => e.target.className === 'modal-overlay' && setShowTimeline(false)}>
-          <div className="timeline-modal">
-            <div className="timeline-header">
-              <h2>Document Timeline</h2>
-              <button className="btn-close" onClick={() => setShowTimeline(false)}>
-                <i className="ri-close-line"></i> Close
-              </button>
-            </div>
-
-            <div className="timeline-container">
-              {selectedDocument.timeline.map((stage, index) => (
-                <div key={index} className={`timeline-item ${stage.status}`}>
-                  <div className="timeline-icon">
-                    {stage.status === 'completed' ? (
-                      <i className="ri-checkbox-circle-fill"></i>
-                    ) : stage.status === 'pending' ? (
-                      <i className="ri-time-line"></i>
-                    ) : (
-                      <i className="ri-checkbox-blank-circle-line"></i>
-                    )}
-                  </div>
-                  <div className="timeline-content">
-                    <h4>{stage.stage}</h4>
-                    <p>{stage.date}</p>
-                  </div>
-                  <div className="timeline-time">
-                    {stage.status === 'completed' && index < selectedDocument.timeline.length - 1 && (
-                      <span>{Math.floor(Math.random() * 500)}d ago</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Toast Notifications */}
-      {notifications.map(notification => (
-        <div key={notification.id} className={`toast ${notification.type}`}>
-          <i className={`ri-${
-            notification.type === 'success' ? 'checkbox-circle' :
-            notification.type === 'error' ? 'close-circle' :
-            'information'
-          }-line`}></i>
-          <div>
-            <strong>{notification.title}</strong>
-            <p style={{margin: '4px 0 0', fontSize: '13px', color: '#64748b'}}>{notification.message}</p>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

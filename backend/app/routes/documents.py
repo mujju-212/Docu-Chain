@@ -22,7 +22,7 @@ def list_documents():
         
         print(f"🔍 Listing documents for user: {current_user_id}, folder: {folder_id}, all: {get_all}")
         
-        # Check if user is viewing special folders (Received/Sent)
+        # Check if user is viewing special folders (Received/Sent under Shared folder ONLY)
         is_received_folder = False
         is_sent_folder = False
         
@@ -31,16 +31,20 @@ def list_documents():
             
             # Convert both to strings for comparison (JWT returns string, DB has UUID)
             if folder and str(folder.owner_id) == str(current_user_id):
-                if folder.name == 'Received':
+                # Check if this is under the "Shared" parent folder (not Document Approval)
+                parent_folder = Folder.query.get(folder.parent_id) if folder.parent_id else None
+                is_under_shared = parent_folder and parent_folder.name == 'Shared'
+                
+                if folder.name == 'Received' and is_under_shared:
                     is_received_folder = True
-                    print(f"📥 Viewing Received folder - will show documents shared WITH user")
-                elif folder.name == 'Sent':
+                    print(f"📥 Viewing Shared/Received folder - will show documents shared WITH user")
+                elif folder.name == 'Sent' and is_under_shared:
                     is_sent_folder = True
-                    print(f"📤 Viewing Sent folder - will show documents shared BY user")
+                    print(f"📤 Viewing Shared/Sent folder - will show documents shared BY user")
         
         documents = []
         
-        # If viewing Received folder, show documents shared WITH this user
+        # If viewing Shared/Received folder, show documents shared WITH this user
         if is_received_folder:
             from app.models.document import DocumentShare
             shared_docs_query = db.session.query(Document).join(
@@ -51,9 +55,9 @@ def list_documents():
             ).order_by(Document.created_at.desc()).all()
             
             documents = shared_docs_query
-            print(f"📥 Found {len(documents)} documents shared with user (Received)")
+            print(f"📥 Found {len(documents)} documents shared with user (Shared/Received)")
         
-        # If viewing Sent folder, show documents shared BY this user
+        # If viewing Shared/Sent folder, show documents shared BY this user
         elif is_sent_folder:
             from app.models.document import DocumentShare
             sent_docs_query = db.session.query(Document).join(
@@ -64,7 +68,7 @@ def list_documents():
             ).order_by(Document.created_at.desc()).all()
             
             documents = sent_docs_query
-            print(f"📤 Found {len(documents)} documents shared by user (Sent)")
+            print(f"📤 Found {len(documents)} documents shared by user (Shared/Sent)")
         
         else:
             # Build query for active documents owned by current user

@@ -50,8 +50,18 @@ class Folder(db.Model):
             document_count = 0
             subfolder_count = 0
             
-            # Special handling for "Received" folder - count documents shared WITH owner
-            if self.name == 'Received':
+            # Check if this folder is under the "Shared" parent folder
+            is_under_shared = False
+            if self.parent_id:
+                try:
+                    from app import db
+                    parent = db.session.get(Folder, self.parent_id)
+                    is_under_shared = parent and parent.name == 'Shared'
+                except:
+                    pass
+            
+            # Special handling for "Received" folder under Shared - count documents shared WITH owner
+            if self.name == 'Received' and is_under_shared:
                 try:
                     from app.models.document import DocumentShare, Document
                     from app import db
@@ -66,8 +76,8 @@ class Folder(db.Model):
                     print(f"Error counting shared documents for Received folder: {e}")
                     document_count = 0
             
-            # Special handling for "Sent" folder - count documents shared BY owner
-            elif self.name == 'Sent':
+            # Special handling for "Sent" folder under Shared - count documents shared BY owner
+            elif self.name == 'Sent' and is_under_shared:
                 try:
                     from app.models.document import DocumentShare, Document
                     from app import db
@@ -115,6 +125,7 @@ class Folder(db.Model):
                 'isActive': self.is_active,
                 'isInTrash': self.is_in_trash,
                 'isStarred': self.is_starred,
+                'isSystemFolder': self.is_system_folder,  # Protected system folders
                 'trashDate': self.trash_date.isoformat() if self.trash_date else None,
                 'createdAt': self.created_at.isoformat() if self.created_at else None,
                 'updatedAt': self.updated_at.isoformat() if self.updated_at else None,
@@ -147,6 +158,7 @@ class Folder(db.Model):
                 'isShared': False,
                 'isActive': True,
                 'isInTrash': False,
+                'isSystemFolder': self.is_system_folder,  # Protected system folders
                 'trashDate': None,
                 'createdAt': self.created_at.isoformat() if self.created_at else None,
                 'updatedAt': self.updated_at.isoformat() if self.updated_at else None,

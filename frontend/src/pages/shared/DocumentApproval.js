@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './DocumentApproval.css';
+import TransactionLoader from '../../components/shared/TransactionLoader';
 import {
   requestApprovalOnBlockchain,
   approveDocumentOnBlockchain,
@@ -23,6 +24,65 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     if (numBytes < 1024 * 1024) return (numBytes / 1024).toFixed(2) + ' KB';
     if (numBytes < 1024 * 1024 * 1024) return (numBytes / (1024 * 1024)).toFixed(2) + ' MB';
     return (numBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  };
+
+  // Helper function to check if approval type is digital signature
+  const isDigitalSignature = (approvalType) => {
+    if (!approvalType) return false;
+    const type = approvalType.toLowerCase();
+    return type === 'digital' || type === 'digital_signature';
+  };
+
+  // Utility function to format date/time properly
+  const formatDateTime = (dateInput) => {
+    if (!dateInput) return 'N/A';
+    
+    let date;
+    
+    // Handle Unix timestamp (seconds or milliseconds)
+    if (typeof dateInput === 'number') {
+      // If it's a Unix timestamp in seconds (10 digits), convert to milliseconds
+      date = new Date(dateInput < 10000000000 ? dateInput * 1000 : dateInput);
+    } else if (typeof dateInput === 'string') {
+      // Handle ISO string or other string formats
+      date = new Date(dateInput);
+    } else {
+      date = new Date(dateInput);
+    }
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    
+    // Format: "27 Nov 2025, 10:30 AM"
+    return date.toLocaleDateString('en-US', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  // Utility function to format date only (no time)
+  const formatDateOnly = (dateInput) => {
+    if (!dateInput) return 'N/A';
+    
+    let date;
+    
+    if (typeof dateInput === 'number') {
+      date = new Date(dateInput < 10000000000 ? dateInput * 1000 : dateInput);
+    } else {
+      date = new Date(dateInput);
+    }
+    
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    
+    return date.toLocaleDateString('en-US', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
   };
 
   // State Management
@@ -64,6 +124,15 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState(null);
+
+  // Transaction loader states
+  const [txLoading, setTxLoading] = useState(false);
+  const [txMessage, setTxMessage] = useState('');
+  const [txTitle, setTxTitle] = useState('');
+  const [txVariant, setTxVariant] = useState('blockchain');
+  const [txProgress, setTxProgress] = useState(0);
+  const [txCurrentStep, setTxCurrentStep] = useState(0);
+  const [txSteps, setTxSteps] = useState([]);
 
   // Real data states (replacing dummy data)
   const [blockchainDocuments, setBlockchainDocuments] = useState([]);
@@ -213,12 +282,12 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               approvalType: req.approvalType || 'standard',
               status: overallStatus, // Use backend status directly
               myStepStatus: myStepStatus, // Keep for individual step tracking
-              submittedDate: new Date(req.createdAt).toLocaleDateString(),
+              submittedDate: req.createdAt, // Keep raw date, format at display time
               approvedBy: req.steps?.filter(s => s.hasApproved).map(s => s.approver?.name || 'Unknown') || [],
               pendingWith: req.steps?.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approver?.name || 'Unknown') || [],
               myStep: myStep,
-              approvedDate: myStep?.hasApproved ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
-              rejectedDate: myStep?.hasRejected ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
+              approvedDate: myStep?.actionTimestamp || null, // Keep raw timestamp
+              rejectedDate: myStep?.actionTimestamp || null, // Keep raw timestamp
               rejectionReason: myStep?.reason || '',
               verificationCode: req.verificationCode,
               stampedIpfsHash: req.stampedDocumentIpfsHash,
@@ -275,13 +344,13 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                 purpose: req.purpose || '',
                 approvalType: req.approvalType || 'standard',
                 status: req.status,
-                submittedDate: new Date(req.createdAt).toLocaleDateString(),
+                submittedDate: req.createdAt, // Keep raw date, format at display time
                 approvedBy: req.steps?.filter(s => s.hasApproved).map(s => s.approver?.name || 'Unknown') || [],
                 pendingWith: req.steps?.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approver?.name || 'Unknown') || [],
                 myStep: myStep,
                 myStepStatus: myStep?.hasApproved ? 'approved' : (myStep?.hasRejected ? 'rejected' : 'pending'),
-                approvedDate: myStep?.hasApproved ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
-                rejectedDate: myStep?.hasRejected ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
+                approvedDate: myStep?.actionTimestamp || null, // Keep raw timestamp
+                rejectedDate: myStep?.actionTimestamp || null, // Keep raw timestamp
                 rejectionReason: myStep?.reason || '',
                 verificationCode: req.verificationCode,
                 stampedIpfsHash: req.stampedDocumentIpfsHash,
@@ -337,6 +406,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
             
             return {
               id: req.id,
+              requestId: req.requestId, // Add blockchain request ID for cancel functionality
               documentName: req.documentName,
               documentId: req.documentId,
               documentSize: req.documentFileSize || 'N/A',
@@ -519,6 +589,20 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     try {
       setIsGenerating(true);
       
+      // Show transaction loader with step tracking
+      setTxLoading(true);
+      setTxVariant('blockchain');
+      setTxTitle('Creating Approval Request');
+      setTxSteps([
+        { label: 'Preparing', icon: 'ri-file-list-3-line' },
+        { label: 'Wallet', icon: 'ri-wallet-3-line' },
+        { label: 'Blockchain', icon: 'ri-links-line' },
+        { label: 'Complete', icon: 'ri-checkbox-circle-line' }
+      ]);
+      setTxMessage('Preparing blockchain transaction...');
+      setTxProgress(10);
+      setTxCurrentStep(0); // Step 0: Preparing
+      
       // Step 1: Generate unique document ID (bytes32) for blockchain
       const web3Instance = new Web3(window.ethereum);
       const documentId = web3Instance.utils.randomHex(32);
@@ -527,30 +611,36 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       const currentWallet = accounts[0];
       
+      setTxProgress(15);
+      setTxCurrentStep(0); // Still preparing
+      setTxMessage('Validating approver wallets...');
+      
       // Get actual wallet addresses from recipients
-      // If recipient doesn't have wallet, use a placeholder
-      const approverWallets = recipients.map((recipient, index) => {
-        // Use recipient's actual wallet if they have one
-        if (recipient.walletAddress || recipient.wallet_address) {
-          return recipient.walletAddress || recipient.wallet_address;
-        }
-        // If no wallet, use placeholder (but this shouldn't happen in production)
-        const placeholders = [
-          '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
-          '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-          '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-          '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
-          '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc'
-        ];
-        console.warn(`⚠️ Recipient ${recipient.name || recipient.fullName} has no wallet address, using placeholder`);
-        return placeholders[index % placeholders.length];
+      // CRITICAL: Approvers MUST have wallet addresses for blockchain approval to work
+      const missingWallets = recipients.filter(r => !r.walletAddress && !r.wallet_address);
+      if (missingWallets.length > 0) {
+        const missingNames = missingWallets.map(r => r.name || r.fullName).join(', ');
+        showNotification(
+          `⚠️ Cannot submit: The following approvers don't have wallet addresses linked: ${missingNames}. They must connect their MetaMask wallet first.`,
+          'error'
+        );
+        setTxLoading(false);
+        setSubmitting(false);
+        return;
+      }
+      
+      const approverWallets = recipients.map((recipient) => {
+        // Use recipient's actual wallet - this is REQUIRED for blockchain approval
+        return recipient.walletAddress || recipient.wallet_address;
       });
       
       console.log('📍 Approver wallets:', approverWallets);
       console.log('📍 Recipients data:', recipients);
       
       // Step 3: Call blockchain contract
-      showNotification('Please confirm the blockchain transaction in MetaMask...', 'warning');
+      setTxProgress(25);
+      setTxCurrentStep(1); // Wallet Confirmation
+      setTxMessage('Please confirm transaction in MetaMask...');
       
       // Convert process type to string format expected by blockchain function
       const processTypeStr = approvalProcess === 'sequential' ? 'SEQUENTIAL' : 'PARALLEL';
@@ -575,7 +665,9 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         throw new Error('Blockchain did not return a request ID. Transaction may have failed.');
       }
       
-      showNotification('✅ Blockchain transaction confirmed! Saving to database...', 'success');
+      setTxProgress(50);
+      setTxCurrentStep(2); // Processing
+      setTxMessage('Blockchain confirmed! Saving to database...');
       console.log('📦 Blockchain TX Hash:', txHash);
       console.log('📦 Request ID from blockchain:', requestId);
       console.log('📦 Document ID:', documentId);
@@ -625,6 +717,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
           setCurrentDraftId(null);
         }
         
+        setTxProgress(80);
+        setTxCurrentStep(2); // Still processing while refreshing
+        setTxMessage('Refreshing data...');
+        
         showNotification(`Approval request generated successfully! Blockchain TX: ${txHash.substring(0, 20)}...`, 'success');
         
         // Refresh sent requests
@@ -671,17 +767,28 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
           setSentRequests(transformedRequests);
         }
         
+        setTxProgress(100);
+        setTxCurrentStep(3); // Complete
+        setTxMessage('Request created successfully!');
+        
+        // Small delay before hiding loader
+        setTimeout(() => {
+          setTxLoading(false);
+        }, 1500);
+        
         // Reset form
         setSelectedDocument(null);
         setRecipients([]);
         setPurpose('');
       } else {
+        setTxLoading(false);
         const errorData = await response.json();
         showNotification(`Error saving to database: ${errorData.error || 'Unknown error'}`, 'error');
       }
       
     } catch (error) {
       console.error('Error creating approval request:', error);
+      setTxLoading(false);
       if (error.message && error.message.includes('User denied')) {
         showNotification('Transaction cancelled by user.', 'warning');
       } else if (error.message && error.message.includes('insufficient funds')) {
@@ -717,46 +824,158 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     setShowApproveConfirm(false);
     setIsLoading(true);
 
+    // Check if this is a digital signature approval
+    const isDigitalSignature = request.approvalType === 'DIGITAL_SIGNATURE' || request.approvalType === 'digital';
+    
+    // Show transaction loader for approval with step tracking
+    setTxLoading(true);
+    setTxVariant('approval');
+    
+    if (isDigitalSignature) {
+      // Digital Signature specific steps
+      setTxTitle('Digitally Signing Document');
+      setTxSteps([
+        { label: 'Preparing', icon: 'ri-file-list-3-line' },
+        { label: 'Signing', icon: 'ri-shield-keyhole-line' },
+        { label: 'Blockchain', icon: 'ri-links-line' },
+        { label: 'Embedding', icon: 'ri-stamp-line' },
+        { label: 'Complete', icon: 'ri-checkbox-circle-line' }
+      ]);
+      setTxMessage('Preparing digital signature...');
+    } else {
+      // Standard approval steps
+      setTxTitle('Approving Document');
+      setTxSteps([
+        { label: 'Preparing', icon: 'ri-draft-line' },
+        { label: 'Wallet', icon: 'ri-wallet-3-line' },
+        { label: 'Stamping', icon: 'ri-stamp-line' },
+        { label: 'Recording', icon: 'ri-database-2-line' },
+        { label: 'Complete', icon: 'ri-checkbox-circle-line' }
+      ]);
+      setTxMessage('Preparing approval transaction...');
+    }
+    
+    setTxProgress(10);
+    setTxCurrentStep(0); // Preparing
+
     try {
       console.log('🔍 Approving request:', request);
       console.log('🔍 Database ID:', request.id);
       console.log('🔍 Blockchain requestId:', request.requestId);
-      console.log('🔍 Full request object:', JSON.stringify(request, null, 2));
+      console.log('🔍 Approval Type:', request.approvalType, '| Is Digital:', isDigitalSignature);
       
       if (!request.requestId) {
         console.error('❌ requestId is missing:', request.requestId);
       }
       
-      // Step 1: Generate signature hash
       const web3Instance = new Web3(window.ethereum);
-      const signatureHash = web3Instance.utils.randomHex(32); // In production, use actual signature
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const signerAddress = accounts[0];
       
-      // Step 2: Approve on blockchain FIRST
-      showNotification('Please confirm blockchain transaction in MetaMask...', 'info');
+      let signatureHash;
+      let digitalSignatureData = null;
       
+      if (isDigitalSignature) {
+        // ====== DIGITAL SIGNATURE FLOW ======
+        setTxProgress(15);
+        setTxCurrentStep(1); // Signing
+        setTxMessage('Please sign the document in MetaMask...');
+        
+        // Create a message to sign that includes document details
+        const documentHash = request.ipfsHash || request.documentIpfsHash;
+        const timestamp = Math.floor(Date.now() / 1000);
+        
+        // Create a structured message for signing
+        const messageToSign = JSON.stringify({
+          action: 'DIGITAL_SIGNATURE_APPROVAL',
+          documentName: request.documentName,
+          documentHash: documentHash,
+          requestId: request.requestId,
+          signer: signerAddress,
+          timestamp: timestamp,
+          message: `I hereby digitally sign and approve the document "${request.documentName}" with hash ${documentHash}`
+        });
+        
+        console.log('📝 Message to sign:', messageToSign);
+        
+        // Sign the message using MetaMask's personal_sign
+        // This uses the user's private key to create a cryptographic signature
+        const signature = await window.ethereum.request({
+          method: 'personal_sign',
+          params: [messageToSign, signerAddress]
+        });
+        
+        console.log('✅ Digital signature created:', signature);
+        
+        // The signature can be verified using the signer's public key (wallet address)
+        // Store all signature data for verification
+        digitalSignatureData = {
+          signature: signature,
+          message: messageToSign,
+          signerAddress: signerAddress,
+          timestamp: timestamp,
+          documentHash: documentHash,
+          // For verification: ecrecover(message, signature) should return signerAddress
+          verificationInfo: {
+            method: 'personal_sign',
+            recoveryMethod: 'ecrecover',
+            note: 'Verify by recovering address from signature and comparing with signerAddress'
+          }
+        };
+        
+        // Use the signature as the signatureHash for blockchain
+        signatureHash = web3Instance.utils.keccak256(signature);
+        
+        setTxProgress(30);
+        setTxCurrentStep(2); // Blockchain
+        setTxMessage('Recording signature on blockchain...');
+        
+      } else {
+        // ====== STANDARD APPROVAL FLOW ======
+        signatureHash = web3Instance.utils.randomHex(32);
+        
+        setTxProgress(20);
+        setTxCurrentStep(1); // Wallet Confirmation
+        setTxMessage('Please confirm transaction in MetaMask...');
+      }
+      
+      // Step: Approve on blockchain
       const result = await approveDocumentOnBlockchain(request.requestId, '', signatureHash);
       const txHash = result.transactionHash;
-      showNotification('✅ Blockchain approval confirmed! Updating database...', 'success');
       
-      // Step 3: ONLY update database AFTER blockchain success (this also generates stamped PDF)
+      setTxProgress(50);
+      setTxCurrentStep(isDigitalSignature ? 3 : 2); // Embedding/Stamping
+      setTxMessage(isDigitalSignature 
+        ? 'Blockchain confirmed! Embedding signature on document...' 
+        : 'Blockchain confirmed! Generating stamped document...');
+      
+      // Step: Update database and generate stamped document
       const response = await fetch(`${API_URL}/api/approvals/approve/${request.requestId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
           signatureHash: signatureHash,
-          blockchainTxHash: txHash
+          blockchainTxHash: txHash,
+          isDigitalSignature: isDigitalSignature,
+          digitalSignatureData: digitalSignatureData // Include full signature data for embedding
         })
       });
       
       if (response.ok) {
         const data = await response.json();
-        const isDigital = request.approvalType === 'digital';
+        
+        setTxProgress(65);
+        setTxMessage(isDigitalSignature 
+          ? 'Embedding digital signature on document...' 
+          : 'Recording stamped document...');
         
         // Step 4: If stamped document was created, record it on blockchain
         const stampedIpfsHash = data.data?.stampedDocumentIpfsHash;
         if (stampedIpfsHash && data.data?.status === 'APPROVED') {
           try {
-            showNotification('📝 Recording stamped document on blockchain...', 'info');
+            setTxProgress(70);
+            setTxCurrentStep(3); // Recording
+            setTxMessage('Recording stamped document on blockchain...');
             
             // Generate document ID and hash for the stamped version
             const approvedDocumentId = web3Instance.utils.keccak256(
@@ -788,16 +1007,35 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
             );
             
             console.log('✅ Stamped document recorded on blockchain:', recordResult.transactionHash);
-            showNotification(`✅ Document approved and stamped! QR code generated. TX: ${txHash.substring(0, 10)}...`, 'success');
+            showNotification(
+              isDigitalSignature 
+                ? `✅ Document digitally signed! Signature embedded and verified. TX: ${txHash.substring(0, 10)}...`
+                : `✅ Document approved and stamped! QR code generated. TX: ${txHash.substring(0, 10)}...`, 
+              'success'
+            );
           } catch (recordError) {
             // Log error but don't fail the approval - document is already approved
             console.error('⚠️ Failed to record stamped document on blockchain:', recordError);
-            showNotification(`${isDigital ? 'Document signed and approved!' : 'Document approved!'} (Note: Blockchain record pending)`, 'warning');
+            showNotification(
+              isDigitalSignature 
+                ? 'Document digitally signed! (Note: Blockchain record pending)' 
+                : 'Document approved! (Note: Blockchain record pending)', 
+              'warning'
+            );
           }
         } else {
-          showNotification(`${isDigital ? 'Document signed and approved!' : 'Document approved!'} TX: ${txHash.substring(0, 20)}...`, 'success');
+          showNotification(
+            isDigitalSignature 
+              ? `✅ Document digitally signed and verified! TX: ${txHash.substring(0, 20)}...`
+              : `Document approved! TX: ${txHash.substring(0, 20)}...`, 
+            'success'
+          );
         }
       
+        setTxProgress(85);
+        setTxCurrentStep(3); // Recording/refreshing
+        setTxMessage('Refreshing data...');
+        
         // Refresh both incoming and sent requests to update counts
         const timestamp = new Date().getTime();
         
@@ -859,6 +1097,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
             
             return {
               id: req.id,
+              requestId: req.requestId, // Add blockchain request ID for cancel functionality
               documentName: req.documentName,
               documentId: req.documentId,
               documentSize: req.documentFileSize || 'N/A',
@@ -881,14 +1120,27 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
           setSentRequests(transformedSentRequests);
         }
         
+        setTxProgress(100);
+        setTxCurrentStep(4); // Complete
+        setTxMessage(isDigitalSignature 
+          ? 'Document digitally signed successfully!' 
+          : 'Document approved successfully!');
+        
+        // Small delay before hiding loader
+        setTimeout(() => {
+          setTxLoading(false);
+        }, 1000);
+        
         setShowRequestModal(false);
       } else {
+        setTxLoading(false);
         const errorData = await response.json();
         showNotification(`Error updating database: ${errorData.error || 'Unknown error'}`, 'error');
       }
       
     } catch (error) {
       console.error('Error approving document:', error);
+      setTxLoading(false);
       if (error.message && error.message.includes('User denied')) {
         showNotification('Transaction cancelled by user', 'warning');
       } else if (error.message && error.message.includes('Request not active')) {
@@ -932,17 +1184,34 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     setShowRejectConfirm(false);
     setIsLoading(true);
 
+    // Show transaction loader for rejection with steps
+    setTxLoading(true);
+    setTxVariant('blockchain');
+    setTxTitle('Rejecting Document');
+    setTxSteps([
+      { label: 'Preparing', description: 'Setting up rejection' },
+      { label: 'Blockchain', description: 'Confirm in MetaMask' },
+      { label: 'Database', description: 'Updating records' },
+      { label: 'Complete', description: 'Request rejected' }
+    ]);
+    setTxCurrentStep(0);
+    setTxMessage('Please confirm transaction in MetaMask...');
+    setTxShowProgress(true);
+    setTxProgress(20);
+
     try {
       console.log('🔍 Rejecting request:', request);
       console.log('🔍 Database ID:', request.id);
       console.log('🔍 Blockchain requestId:', request.requestId);
       
       // Step 1: Reject on blockchain FIRST
-      showNotification('Please confirm blockchain transaction in MetaMask...', 'info');
-      
+      setTxCurrentStep(1); // Blockchain
       const result = await rejectDocumentOnBlockchain(request.requestId, reason);
       const txHash = result.transactionHash;
-      showNotification('✅ Blockchain rejection confirmed! Updating database...', 'success');
+      
+      setTxProgress(50);
+      setTxCurrentStep(2); // Database
+      setTxMessage('Blockchain confirmed! Updating database...');
       
       // Step 2: ONLY update database AFTER blockchain success
       const response = await fetch(`${API_URL}/api/approvals/reject/${request.requestId}`, {
@@ -955,6 +1224,9 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       });
       
       if (response.ok) {
+        setTxProgress(70);
+        setTxMessage('Refreshing data...');
+        
         showNotification(`Request rejected successfully. TX: ${txHash.substring(0, 20)}...`, 'success');
         
         // Refresh both incoming and sent requests to update counts
@@ -1018,6 +1290,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
             
             return {
               id: req.id,
+              requestId: req.requestId, // Add blockchain request ID for cancel functionality
               documentName: req.documentName,
               documentId: req.documentId,
               documentSize: req.documentFileSize || 'N/A',
@@ -1040,14 +1313,25 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
           setSentRequests(transformedSentRequests);
         }
         
+        setTxProgress(100);
+        setTxCurrentStep(3); // Complete
+        setTxMessage('Document rejected successfully!');
+        
+        // Small delay before hiding loader
+        setTimeout(() => {
+          setTxLoading(false);
+        }, 1000);
+        
         setShowRequestModal(false);
       } else {
+        setTxLoading(false);
         const errorData = await response.json();
         showNotification(`Error updating database: ${errorData.error || 'Unknown error'}`, 'error');
       }
       
     } catch (error) {
       console.error('Error rejecting document:', error);
+      setTxLoading(false);
       if (error.message && error.message.includes('User denied')) {
         showNotification('Transaction cancelled by user', 'warning');
       } else if (error.message && error.message.includes('Request not active')) {
@@ -1135,33 +1419,53 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   };
 
   const handleCancelApproval = async (docId) => {
+    // Find the request to get the requestId
+    const requestToCancel = sentRequests.find(r => r.id === docId);
+    if (!requestToCancel) {
+      showNotification('❌ Request not found', 'error');
+      return;
+    }
+    
+    if (!requestToCancel.requestId) {
+      showNotification('❌ Cannot cancel: Missing blockchain request ID', 'error');
+      return;
+    }
+    
     if (confirm('❌ Cancel Approval Request?\n\nThis will:\n• Withdraw the request from all approvers\n• Update blockchain status\n• Notify all recipients\n\nAre you sure?')) {
       try {
-        // TODO: Add backend API call here when backend endpoint is ready
-        // const response = await fetch(`${API_URL}/api/approvals/${docId}/cancel`, {
-        //   method: 'POST',
-        //   headers: getAuthHeaders()
-        // });
+        setIsLoading(true);
         
-        // For now, update frontend state
-        const cancelledDate = new Date().toLocaleString();
-        setSentRequests(prev => prev.map(req => 
-          req.id === docId ? { 
-            ...req, 
-            status: 'cancelled',
-            cancelledDate: cancelledDate
-          } : req
-        ));
+        const response = await fetch(`${API_URL}/api/approvals/cancel/${requestToCancel.requestId}`, {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
         
-        // Close details modal if open
-        if (showDocumentDetails && selectedDocForDetails?.id === docId) {
-          setShowDocumentDetails(false);
+        if (response.ok) {
+          // Update frontend state
+          const cancelledDate = new Date().toLocaleString();
+          setSentRequests(prev => prev.map(req => 
+            req.id === docId ? { 
+              ...req, 
+              status: 'cancelled',
+              cancelledDate: cancelledDate
+            } : req
+          ));
+          
+          // Close details modal if open
+          if (showDocumentDetails && selectedDocForDetails?.id === docId) {
+            setShowDocumentDetails(false);
+          }
+          
+          showNotification('✅ Approval request canceled successfully!', 'success');
+        } else {
+          const errorData = await response.json();
+          showNotification(`❌ ${errorData.error || 'Failed to cancel approval request'}`, 'error');
         }
-        
-        showNotification('✅ Approval request canceled successfully!', 'success');
       } catch (error) {
         console.error('Error canceling approval:', error);
         showNotification('❌ Failed to cancel approval request', 'error');
+      } finally {
+        setIsLoading(false);
       }
     }
   };
@@ -1235,6 +1539,19 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
 
   return (
     <div className="document-approval">
+      {/* Transaction Loader Overlay */}
+      <TransactionLoader 
+        isVisible={txLoading}
+        variant={txVariant}
+        title={txTitle}
+        message={txMessage}
+        progress={txProgress}
+        currentStep={txCurrentStep}
+        steps={txSteps}
+        showProgress={true}
+        overlay={true}
+      />
+      
       {/* Notification Toast */}
       {notification && (
         <div className={`notification-toast ${notification.type}`}>
@@ -1350,7 +1667,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                       <i className="ri-close-line"></i>
                     </button>
                   </div>
-                  <div className="search-bar" style={{padding: '0 20px 15px'}}>
+                  <div className="search-bar" style={{padding: '0 12px 10px'}}>
                     <i className="ri-search-line"></i>
                     <input 
                       type="text" 
@@ -1686,6 +2003,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                       <th>Document</th>
                       <th>Purpose</th>
                       <th>Recipients</th>
+                      <th>Type</th>
                       <th>Status</th>
                       <th>Version</th>
                       <th>Date</th>
@@ -1721,14 +2039,30 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                           </div>
                         </td>
                         <td>
+                          <span className={`approval-type-badge ${isDigitalSignature(req.approvalType) ? 'digital' : 'standard'}`}>
+                            {isDigitalSignature(req.approvalType) ? (
+                              <><i className="ri-shield-keyhole-fill"></i> Digital Sign</>
+                            ) : (
+                              <><i className="ri-checkbox-circle-fill"></i> Standard</>
+                            )}
+                          </span>
+                        </td>
+                        <td>
                           <span className={`status-badge ${req.status}`}>
-                            {req.status === 'approved' && <span className="status-dot green"></span>}
+                            {req.status === 'approved' && (
+                              isDigitalSignature(req.approvalType)
+                                ? <i className="ri-shield-check-fill"></i>
+                                : <span className="status-dot green"></span>
+                            )}
                             {req.status === 'partial' && <i className="ri-progress-3-line"></i>}
                             {req.status === 'pending' && <i className="ri-time-line"></i>}
                             {req.status === 'draft' && <i className="ri-draft-line"></i>}
                             {req.status === 'rejected' && <i className="ri-close-circle-fill"></i>}
                             {req.status === 'cancelled' && <i className="ri-indeterminate-circle-line"></i>}
-                            {(req.status || '').toUpperCase()}
+                            {req.status === 'approved' 
+                              ? (isDigitalSignature(req.approvalType) ? 'SIGNED' : 'APPROVED')
+                              : (req.status || '').toUpperCase()
+                            }
                           </span>
                           {req.status === 'partial' && req.approvedBy && (
                             <div className="sub-status">
@@ -1741,7 +2075,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                         </td>
                         <td>
                           <div className="date-cell">
-                            {req.submittedDate}
+                            {formatDateTime(req.submittedDate)}
                           </div>
                         </td>
                         <td>
@@ -1752,6 +2086,14 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                               title="View Details"
                             >
                               <i className="ri-eye-line"></i>
+                            </button>
+                            {/* Preview Button */}
+                            <button 
+                              className="btn-icon" 
+                              onClick={() => handlePreviewDocument(req.stampedIpfsHash || req.ipfsHash)}
+                              title="Preview Document"
+                            >
+                              <i className="ri-file-search-line"></i>
                             </button>
                             {req.status === 'approved' && (
                               <button 
@@ -1798,7 +2140,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                         <small>Save a draft from the approval request form to continue later</small>
                       </div>
                     ) : (
-                      <div className="drafts-list" style={{ padding: '20px' }}>
+                      <div className="drafts-list" style={{ padding: '12px' }}>
                         {savedDrafts.map(draft => (
                           <div key={draft.id} className="draft-card">
                             <div className="draft-header">
@@ -1983,6 +2325,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                         <th>Purpose</th>
                         <th>Type</th>
                         <th>Status</th>
+                        <th>Version</th>
                         <th>Date</th>
                         <th>Actions</th>
                       </tr>
@@ -2047,8 +2390,13 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                             </span>
                           </td>
                           <td>
+                            <span className="version-badge">
+                              {request.stampedIpfsHash ? 'v2.0 (Certified)' : 'v1.0'}
+                            </span>
+                          </td>
+                          <td>
                             <div className="date-cell">
-                              {request.submittedDate}
+                              {formatDateTime(request.submittedDate)}
                             </div>
                           </td>
                           <td>
@@ -2059,6 +2407,14 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                                 title="View Details"
                               >
                                 <i className="ri-eye-line"></i>
+                              </button>
+                              {/* Preview Button */}
+                              <button 
+                                className="btn-icon" 
+                                onClick={() => handlePreviewDocument(request.stampedIpfsHash || request.ipfsHash)}
+                                title="Preview Document"
+                              >
+                                <i className="ri-file-search-line"></i>
                               </button>
                               {(request.status || '').toLowerCase() === 'pending' && (
                                 <>
@@ -2123,7 +2479,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               </button>
             </div>
             <div className="modal-body">
-              <div className="search-bar" style={{marginBottom: '20px'}}>
+              <div className="search-bar" style={{marginBottom: '12px'}}>
                 <i className="ri-search-line"></i>
                 <input 
                   type="text" 
@@ -2148,14 +2504,20 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                   return (user.fullName || user.name || '').toLowerCase().includes(searchLower) ||
                          (user.email || '').toLowerCase().includes(searchLower) ||
                          (user.department || '').toLowerCase().includes(searchLower);
-                }).map(user => (
-                  <div key={user.id} className="user-item">
+                }).map(user => {
+                  const hasWallet = user.walletAddress || user.wallet_address;
+                  return (
+                  <div key={user.id} className={`user-item ${!hasWallet ? 'no-wallet' : ''}`}>
                     <div className="user-avatar">
                       {(user.fullName || user.name || 'U').split(' ').map(n => n[0]).join('')}
                     </div>
                     <div className="user-info">
-                      <strong>{user.fullName || user.name || user.email}</strong>
+                      <strong>
+                        {user.fullName || user.name || user.email}
+                        {!hasWallet && <span className="wallet-warning" title="No wallet linked - cannot approve on blockchain"> ⚠️</span>}
+                      </strong>
                       <small>{user.department} • {user.email}</small>
+                      {!hasWallet && <small className="no-wallet-text">⚠️ No wallet linked</small>}
                     </div>
                     <input 
                       type="text" 
@@ -2170,11 +2532,12 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                         const customRole = roleInput.value.trim() || user.role;
                         handleAddRecipient(user, customRole);
                       }}
+                      title={!hasWallet ? 'Warning: This user has no wallet linked' : 'Add as approver'}
                     >
                       <i className="ri-add-line"></i>
                     </button>
                   </div>
-                ))}
+                )})}
               </div>
             </div>
           </div>
@@ -2189,6 +2552,11 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               <h3>
                 <i className="ri-file-text-line"></i>
                 Approval Request Details
+                {isDigitalSignature(selectedRequest.approvalType) && (
+                  <span className="digital-sig-badge" style={{ marginLeft: '12px' }}>
+                    <i className="ri-shield-keyhole-fill"></i> Digital Signature Required
+                  </span>
+                )}
               </h3>
               <button className="btn-close" onClick={() => setShowRequestModal(false)}>
                 <i className="ri-close-line"></i>
@@ -2214,6 +2582,16 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                   <div className="detail-item">
                     <label>Transaction ID:</label>
                     <code className="hash-code">{selectedRequest.txId}</code>
+                  </div>
+                  <div className="detail-item">
+                    <label>Approval Type:</label>
+                    <span className={`approval-type-badge ${isDigitalSignature(selectedRequest.approvalType) ? 'digital' : 'standard'}`}>
+                      {isDigitalSignature(selectedRequest.approvalType) ? (
+                        <><i className="ri-shield-keyhole-fill"></i> Digital Signature</>
+                      ) : (
+                        <><i className="ri-checkbox-circle-fill"></i> Standard Approval</>
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2273,7 +2651,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                   {selectedRequest.verificationCode && (
                     <div className="detail-item">
                       <label>Verification Code:</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <code className="hash-code">{selectedRequest.verificationCode}</code>
                         <button 
                           className="btn-icon primary" 
@@ -2349,7 +2727,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                     Reject
                   </button>
                   <button className="btn-success" onClick={() => handleApproveRequest(selectedRequest.id)}>
-                    {selectedRequest.approvalType === 'digital' ? (
+                    {isDigitalSignature(selectedRequest.approvalType) ? (
                       <>
                         <i className="ri-shield-keyhole-line"></i>
                         Sign & Approve
@@ -2376,6 +2754,11 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               <h3>
                 <i className="ri-file-list-3-line"></i>
                 Document Details & Version History
+                {isDigitalSignature(selectedDocForDetails.approvalType) && selectedDocForDetails.status === 'approved' && (
+                  <span className="digital-sig-badge" style={{ marginLeft: '12px' }}>
+                    <i className="ri-shield-check-fill"></i> Digitally Signed
+                  </span>
+                )}
               </h3>
               <button className="btn-close" onClick={() => setShowDocumentDetails(false)}>
                 <i className="ri-close-line"></i>
@@ -2408,11 +2791,11 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                   </div>
                   <div className="detail-item">
                     <label>Approval Type:</label>
-                    <span>
-                      {selectedDocForDetails.approvalType === 'digital' ? (
-                        <><i className="ri-shield-keyhole-line"></i> Digital Signature</>
+                    <span className={`approval-type-badge ${isDigitalSignature(selectedDocForDetails.approvalType) ? 'digital' : 'standard'}`}>
+                      {isDigitalSignature(selectedDocForDetails.approvalType) ? (
+                        <><i className="ri-shield-keyhole-fill"></i> Digital Signature</>
                       ) : (
-                        <><i className="ri-checkbox-circle-line"></i> Standard Approval</>
+                        <><i className="ri-checkbox-circle-fill"></i> Standard Approval</>
                       )}
                     </span>
                   </div>
@@ -2477,8 +2860,12 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                                   </span>
                                 )}
                               </div>
-                              <span className={`timeline-badge ${isApproved ? 'success' : isRejected ? 'danger' : 'warning'}`}>
-                                {isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending'}
+                              <span className={`timeline-badge ${isApproved ? 'success' : isRejected ? 'danger' : 'warning'} ${isDigitalSignature(selectedDocForDetails.approvalType) ? 'digital-sign' : ''}`}>
+                                {isApproved ? (
+                                  isDigitalSignature(selectedDocForDetails.approvalType) ? (
+                                    <><i className="ri-shield-keyhole-fill"></i> Digitally Signed</>
+                                  ) : 'Approved'
+                                ) : isRejected ? 'Rejected' : 'Pending'}
                               </span>
                             </div>
                             <div className="timeline-meta">
@@ -2497,9 +2884,38 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                             {step.actionTimestamp && (
                               <div className="timeline-timestamp">
                                 <i className="ri-time-line"></i>
-                                {isApproved ? 'Approved' : 'Rejected'} on {new Date(step.actionTimestamp * 1000).toLocaleString()}
+                                {isApproved ? (
+                                  isDigitalSignature(selectedDocForDetails.approvalType)
+                                    ? 'Digitally Signed' 
+                                    : 'Approved'
+                                ) : 'Rejected'} on {formatDateTime(step.actionTimestamp)}
                               </div>
                             )}
+                            
+                            {/* Digital Signature Details */}
+                            {isApproved && isDigitalSignature(selectedDocForDetails.approvalType) && step.signatureHash && (
+                              <div className="digital-signature-details">
+                                <div className="signature-header">
+                                  <i className="ri-shield-keyhole-fill"></i>
+                                  <span>Digital Signature Verified</span>
+                                </div>
+                                <div className="signature-info">
+                                  <div className="signature-row">
+                                    <label>Signer Wallet:</label>
+                                    <code>{step.approverWallet || 'N/A'}</code>
+                                  </div>
+                                  <div className="signature-row">
+                                    <label>Signature Hash:</label>
+                                    <code>{step.signatureHash.substring(0, 20)}...{step.signatureHash.substring(step.signatureHash.length - 10)}</code>
+                                  </div>
+                                  <div className="signature-note">
+                                    <i className="ri-information-line"></i>
+                                    <span>Verify using ecrecover: signature + message → wallet address</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
                             {step.reason && (
                               <div className="timeline-reason">
                                 <i className="ri-chat-quote-line"></i>

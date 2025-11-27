@@ -1979,6 +1979,28 @@
   transform: scale(1.05);
 }
 
+/* No Wallet Warning Styles */
+.user-item.no-wallet {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.user-item.no-wallet:hover {
+  border-color: rgba(245, 158, 11, 0.6);
+}
+
+.wallet-warning {
+  color: #f59e0b;
+  margin-left: 6px;
+  cursor: help;
+}
+
+.no-wallet-text {
+  color: #f59e0b !important;
+  font-weight: 500;
+  font-size: 11px !important;
+}
+
 /* Detail Section (in modal) */
 .detail-section {
   margin-bottom: 24px;
@@ -4021,4 +4043,1452 @@
 .rejection-textarea::placeholder {
   color: var(--muted, #94a3b8);
 }
+
+/* =====================================================
+   COMPACT & PROFESSIONAL UI OVERRIDES
+   Make elements smaller, cleaner, and more professional
+   ===================================================== */
+
+/* Completely Redesigned Compact Layout */
+.document-approval {
+  padding: 16px;
+  gap: 12px;
+  background: #ffffff;
+}
+
+/* Compact Header */
+.approval-header {
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+}
+
+.header-left h1 {
+  font-size: 20px;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.header-left h1 i {
+  font-size: 20px;
+}
+
+.header-left p {
+  font-size: 12px;
+}
+
+.blockchain-status {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+  gap: 5px;
+}
+
+/* Compact Tab Navigation - Inline Pills */
+.approval-tabs {
+  gap: 6px;
+  padding: 8px 0;
+  background: transparent;
+}
+
+.tab-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  gap: 6px;
+  border-width: 1px;
+}
+
+.tab-btn i {
+  font-size: 14px;
+}
+
+.tab-badge {
+  padding: 1px 6px;
+  font-size: 10px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* Ultra Compact Cards */
+.approval-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.card-header {
+  margin-bottom: 10px;
+  padding-bottom: 0;
+}
+
+.card-header h3 {
+  font-size: 13px;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.step-number {
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  border-radius: 5px;
+}
+
+/* Compact Buttons - Smaller & Tighter */
+.btn-primary,
+.btn-outline,
+.btn-success,
+.btn-danger {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 5px;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.btn-primary i,
+.btn-outline i,
+.btn-success i,
+.btn-danger i {
+  font-size: 12px;
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 10px;
+  border-radius: 4px;
+  gap: 4px;
+}
+
+/* Compact Icon Buttons */
+.btn-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+.btn-icon-remove,
+.btn-remove,
+.btn-add,
+.btn-close {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  border-radius: 5px;
+}
+
+/* Minimal Empty State - Much Smaller */
+.empty-state {
+  padding: 20px 16px;
+  background: var(--bg, #f8fafc);
+  border-radius: 8px;
+  border: 1px dashed var(--line, #e2e8f0);
+}
+
+.empty-state i {
+  font-size: 28px;
+  margin-bottom: 6px;
+  opacity: 0.4;
+}
+
+.empty-state p {
+  font-size: 12px;
+  font-weight: 500;
+  margin: 0 0 2px 0;
+}
+
+.empty-state small {
+  font-size: 11px;
+  color: var(--muted, #94a3b8);
+}
+
+/* Compact Selected Document */
+.selected-document {
+  padding: 10px 12px;
+  gap: 10px;
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e2e8f0);
+}
+
+.doc-icon {
+  width: 38px;
+  height: 38px;
+  font-size: 18px;
+  border-radius: 8px;
+}
+
+.doc-info {
+  gap: 4px;
+}
+
+.doc-info h4 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.doc-meta {
+  font-size: 11px;
+  gap: 10px;
+}
+
+.doc-meta span {
+  gap: 4px;
+}
+
+.doc-meta i {
+  font-size: 11px;
+}
+
+.doc-hashes {
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.hash-item {
+  gap: 6px;
+}
+
+.hash-item small {
+  font-size: 10px;
+  min-width: 70px;
+}
+
+.hash-item code {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Compact File Selector */
+.file-selector {
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 10px;
+  border-width: 1px;
+}
+
+.selector-header {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+}
+
+.selector-header h4 {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.file-list {
+  gap: 6px;
+  max-height: 200px;
+}
+
+.file-item {
+  padding: 8px 10px;
+  gap: 8px;
+  border-radius: 6px;
+  border-width: 1px;
+}
+
+.file-item:hover {
+  transform: translateX(3px);
+}
+
+.file-icon {
+  font-size: 20px;
+}
+
+.file-details strong {
+  font-size: 12px;
+}
+
+.file-details small {
+  font-size: 10px;
+}
+
+.file-details .ipfs-hash {
+  font-size: 9px;
+}
+
+/* Compact Recipients List */
+.recipients-list {
+  gap: 6px;
+}
+
+.recipient-item {
+  padding: 8px 10px;
+  gap: 10px;
+  border-radius: 8px;
+}
+
+.recipient-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+.recipient-info {
+  gap: 2px;
+}
+
+.recipient-info strong {
+  font-size: 12px;
+}
+
+.recipient-info small {
+  font-size: 10px;
+}
+
+.role-badge {
+  padding: 2px 6px;
+  font-size: 9px;
+  border-radius: 4px;
+}
+
+.recipient-order {
+  min-width: 30px;
+}
+
+.order-number {
+  font-size: 11px;
+}
+
+.btn-order {
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  border-radius: 4px;
+}
+
+/* Compact Radio Options - Horizontal Layout */
+.config-grid {
+  gap: 12px;
+}
+
+.config-section {
+  gap: 6px;
+}
+
+.config-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--muted, #64748b);
+}
+
+.radio-group {
+  gap: 6px;
+}
+
+.radio-option {
+  padding: 8px 10px;
+  gap: 8px;
+  border-radius: 6px;
+  border-width: 1px;
+}
+
+.radio-option input[type="radio"] {
+  width: 14px;
+  height: 14px;
+}
+
+.radio-content {
+  gap: 8px;
+}
+
+.radio-content i {
+  font-size: 16px;
+}
+
+.radio-content strong {
+  font-size: 12px;
+}
+
+.radio-content small {
+  font-size: 10px;
+}
+
+.radio-content div {
+  gap: 1px;
+}
+
+/* Compact Purpose Input */
+.purpose-input {
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  min-height: 60px;
+}
+
+/* Compact Action Buttons Row */
+.action-buttons {
+  gap: 8px;
+  padding-top: 10px;
+  flex-wrap: wrap;
+}
+
+/* Compact Table Styles */
+.requests-table {
+  margin-top: 10px;
+}
+
+.requests-table th {
+  padding: 6px 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+  background: var(--bg, #f1f5f9);
+}
+
+.requests-table td {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.doc-cell {
+  gap: 6px;
+}
+
+.doc-cell i {
+  font-size: 14px;
+}
+
+.doc-cell span {
+  font-size: 12px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.purpose-cell {
+  font-size: 11px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipients-cell {
+  gap: 4px;
+}
+
+.recipient-tag {
+  padding: 2px 5px;
+  font-size: 10px;
+  border-radius: 3px;
+}
+
+.more-count {
+  font-size: 10px;
+  padding: 2px 5px;
+  background: var(--primary-color, #8b5cf6);
+  color: white;
+  border-radius: 3px;
+}
+
+.no-recipients {
+  font-size: 10px;
+  color: var(--muted, #94a3b8);
+  font-style: italic;
+}
+
+/* Compact Status Badge */
+.status-badge {
+  padding: 3px 6px;
+  font-size: 9px;
+  border-radius: 4px;
+  gap: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.status-badge.approved {
+  padding: 3px 8px;
+  font-size: 9px;
+  border-radius: 10px;
+  border-width: 1px;
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  margin-right: 4px;
+}
+
+/* Compact Version Badge */
+.version-badge {
+  padding: 2px 6px;
+  font-size: 10px;
+  border-radius: 4px;
+  background: var(--bg, #f8fafc);
+  border: 1px solid var(--line, #e6ebf2);
+  font-weight: 500;
+}
+
+/* Compact Date Cell */
+.date-cell {
+  font-size: 10px;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+}
+
+/* Compact Action Buttons Group */
+.action-buttons-group {
+  gap: 3px;
+  display: flex;
+}
+
+.action-buttons-group .btn-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+/* Compact Search & Filter Bar */
+.search-filter-bar {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  max-width: 280px;
+}
+
+.search-box input {
+  padding: 6px 8px 6px 30px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+.search-box i {
+  left: 8px;
+  font-size: 13px;
+}
+
+.filter-group {
+  gap: 4px;
+}
+
+.filter-group label {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.filter-group select {
+  padding: 5px 24px 5px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+}
+
+.request-count {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 10px;
+}
+
+/* Compact History Tabs - Pill Style */
+.history-tabs {
+  gap: 4px;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.history-tab {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 12px;
+  gap: 4px;
+  border: 1px solid var(--line, #e2e8f0);
+  background: var(--surface, #fff);
+}
+
+.history-tab.active {
+  background: var(--primary-color, #8b5cf6);
+  color: white;
+  border-color: var(--primary-color, #8b5cf6);
+}
+
+.history-tab .tab-badge {
+  padding: 1px 4px;
+  font-size: 9px;
+  border-radius: 8px;
+  min-width: 14px;
+}
+
+/* Compact Receive Tabs */
+.receive-tabs {
+  gap: 0;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+
+.receive-tab {
+  padding: 8px 14px;
+  gap: 6px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.receive-tab.active {
+  border-bottom-color: var(--primary-color, #8b5cf6);
+  background: transparent;
+}
+
+.receive-tab.active::after {
+  display: none;
+}
+
+.receive-tab i {
+  font-size: 16px;
+}
+
+.receive-tab .tab-content {
+  gap: 0;
+}
+
+.receive-tab .tab-title {
+  font-size: 12px;
+}
+
+.receive-tab .tab-count {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+/* Compact Request Cards Grid */
+.requests-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.request-card {
+  padding: 10px;
+  gap: 8px;
+  border-radius: 8px;
+}
+
+.doc-icon-large {
+  width: 34px;
+  height: 34px;
+  font-size: 16px;
+  border-radius: 6px;
+}
+
+.request-title-area h4 {
+  font-size: 12px;
+}
+
+.detail-row {
+  font-size: 10px;
+  gap: 4px;
+}
+
+.detail-row i {
+  font-size: 10px;
+}
+
+.request-purpose {
+  padding: 6px 8px;
+  border-radius: 5px;
+}
+
+.request-purpose strong {
+  font-size: 9px;
+}
+
+.request-purpose p {
+  font-size: 10px;
+}
+
+.btn-view-full {
+  padding: 6px 10px;
+  font-size: 11px;
+  border-radius: 5px;
+}
+
+/* Compact Modal Styles */
+.modal-overlay {
+  padding: 16px;
+}
+
+.modal-box {
+  border-radius: 12px;
+  max-height: 85vh;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+}
+
+.modal-box.large {
+  max-width: 700px;
+}
+
+.modal-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+
+.modal-header h3 {
+  font-size: 14px;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.modal-header h3 i {
+  font-size: 16px;
+}
+
+.modal-body {
+  padding: 14px;
+}
+
+.modal-footer {
+  padding: 10px 14px;
+  gap: 8px;
+  border-top: 1px solid var(--line, #e2e8f0);
+}
+
+/* Compact Detail Sections in Modal */
+.detail-section {
+  margin-bottom: 14px;
+}
+
+.detail-section:last-child {
+  margin-bottom: 0;
+}
+
+.detail-section h4 {
+  font-size: 12px;
+  margin-bottom: 8px;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.detail-section h4 i {
+  font-size: 13px;
+}
+
+.detail-grid {
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.detail-item {
+  gap: 3px;
+}
+
+.detail-item label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.detail-item span {
+  font-size: 12px;
+}
+
+.hash-code {
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.purpose-text {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  line-height: 1.5;
+}
+
+/* Compact Preview */
+.pdf-preview-frame {
+  height: 350px;
+  border-radius: 8px;
+  border-width: 1px;
+}
+
+.preview-container {
+  gap: 10px;
+}
+
+.preview-placeholder {
+  padding: 30px 16px;
+  border-radius: 8px;
+}
+
+.preview-placeholder i {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.preview-placeholder p {
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+/* Compact User List in Modal */
+.users-list {
+  gap: 6px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.user-item {
+  padding: 8px 10px;
+  gap: 8px;
+  border-radius: 6px;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+.user-info strong {
+  font-size: 12px;
+}
+
+.user-info small {
+  font-size: 10px;
+}
+
+.role-input {
+  padding: 4px 8px;
+  font-size: 11px;
+  width: 100px;
+  border-radius: 4px;
+}
+
+/* Compact Stamped Badge */
+.stamped-badge {
+  padding: 4px 10px;
+  font-size: 10px;
+  border-radius: 5px;
+  gap: 5px;
+}
+
+.stamped-badge i {
+  font-size: 12px;
+}
+
+/* Compact Version History */
+.version-history-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.version-title strong {
+  font-size: 11px;
+}
+
+.certified-badge {
+  padding: 1px 5px;
+  font-size: 9px;
+  border-radius: 3px;
+}
+
+.version-action-text {
+  font-size: 10px;
+}
+
+.version-hash-info {
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+.version-hash-info code {
+  font-size: 9px;
+  padding: 2px 4px;
+}
+
+.version-actions-row {
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.version-btn {
+  padding: 4px 8px;
+  font-size: 10px;
+  border-radius: 4px;
+}
+
+/* Compact Empty Table State */
+.empty-table-state {
+  padding: 24px;
+}
+
+.empty-table-state i {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.empty-table-state p {
+  font-size: 12px;
+}
+
+.empty-table-state small {
+  font-size: 10px;
+}
+
+/* Compact Blockchain Actions */
+.blockchain-actions {
+  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.blockchain-actions .btn-success,
+.blockchain-actions .btn-outline {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+/* Compact Notification Toast */
+.notification-toast {
+  padding: 10px 14px;
+  min-width: 260px;
+  max-width: 360px;
+  border-radius: 8px;
+  gap: 8px;
+  top: 70px;
+}
+
+.notification-toast i:first-child {
+  font-size: 18px;
+}
+
+.notification-toast span {
+  font-size: 12px;
+}
+
+.close-notification {
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+  border-radius: 5px;
+}
+
+/* Compact Draft Cards */
+.draft-card {
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.draft-header h4 {
+  font-size: 12px;
+}
+
+.draft-header small {
+  font-size: 10px;
+}
+
+.draft-details {
+  font-size: 10px;
+  gap: 6px;
+}
+
+.draft-details span {
+  padding: 3px 6px;
+  background: var(--bg, #f1f5f9);
+  border-radius: 4px;
+}
+
+.draft-actions {
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.draft-actions button {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+/* Compact Confirmation Modal */
+.confirmation-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+
+.confirmation-text {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.confirmation-subtext {
+  font-size: 12px;
+}
+
+.confirmation-list li {
+  font-size: 11px;
+  padding: 4px 0;
+}
+
+.rejection-textarea {
+  padding: 8px 10px;
+  font-size: 12px;
+  min-height: 70px;
+  border-radius: 6px;
+}
+
+/* Compact Loading State */
+.loading-state {
+  padding: 20px;
+}
+
+.loading-state i {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.loading-state p {
+  font-size: 12px;
+}
+
+/* Search Bar in Selector */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg, #f8fafc);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line, #e2e8f0);
+}
+
+.search-bar i {
+  font-size: 14px;
+  color: var(--muted, #94a3b8);
+}
+
+.search-bar input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  outline: none;
+}
+
+.search-bar .clear-search {
+  padding: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted, #94a3b8);
+  font-size: 12px;
+  border-radius: 3px;
+}
+
+.search-bar .clear-search:hover {
+  background: var(--line, #e2e8f0);
+}
+
+/* Compact Sub Status */
+.sub-status {
+  font-size: 9px;
+  color: var(--muted, #64748b);
+  margin-top: 2px;
+}
+
+/* Improve Table Row Hover */
+.requests-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.requests-table tbody tr:hover {
+  background: var(--bg, #f8fafc);
+}
+
+/* Smooth Transitions */
+.approval-card,
+.request-card,
+.file-item,
+.recipient-item,
+.user-item,
+.btn-primary,
+.btn-outline,
+.btn-success,
+.btn-danger,
+.btn-icon,
+.tab-btn,
+.receive-tab,
+.status-badge,
+.radio-option {
+  transition: all 0.15s ease;
+}
+
+/* Professional Focus States */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary-color, #8b5cf6);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.1);
+}
+
+/* Compact Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted, #cbd5e1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-color, #8b5cf6);
+}
+
+/* Responsive Compact */
+@media (max-width: 768px) {
+  .document-approval {
+    padding: 10px;
+    gap: 10px;
+  }
+  
+  .header-left h1 {
+    font-size: 16px;
+  }
+  
+  .approval-tabs {
+    gap: 4px;
+  }
+  
+  .tab-btn {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+  
+  .approval-card {
+    padding: 10px;
+  }
+  
+  .card-header h3 {
+    font-size: 12px;
+  }
+  
+  .requests-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .modal-box {
+    margin: 8px;
+    max-height: 92vh;
+  }
+  
+  .modal-body {
+    padding: 10px;
+  }
+  
+  .pdf-preview-frame {
+    height: 250px;
+  }
+  
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =====================================================
+   DIGITAL SIGNATURE STYLES
+   ===================================================== */
+
+/* Digital Signature Badge in Timeline */
+.digital-sig-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+
+.digital-sig-badge i {
+  font-size: 11px;
+}
+
+/* Digital Signature Info in Timeline */
+.digital-signature-info {
+  margin-top: 8px;
+  padding: 10px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(29, 78, 216, 0.05));
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.signature-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  color: #374151;
+}
+
+.signature-detail:not(:last-child) {
+  border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.signature-detail i {
+  color: #3b82f6;
+  font-size: 12px;
+  width: 16px;
+  text-align: center;
+}
+
+.signature-detail strong {
+  color: #1e40af;
+  font-weight: 600;
+  min-width: 70px;
+}
+
+.signature-detail span {
+  color: #4b5563;
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 10px;
+}
+
+.signature-detail a {
+  color: #3b82f6;
+  text-decoration: none;
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 10px;
+}
+
+.signature-detail a:hover {
+  text-decoration: underline;
+  color: #1d4ed8;
+}
+
+/* Version Badge in Tables */
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.version-badge.certified {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+/* Preview Button Styles */
+.action-buttons button[title="Preview Document"] {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: white;
+}
+
+.action-buttons button[title="Preview Document"]:hover {
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+/* Digital Signature Section in Modal */
+.digital-signature-section {
+  margin-top: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(29, 78, 216, 0.02));
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+}
+
+.digital-signature-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.digital-signature-section h4 i {
+  color: #3b82f6;
+  font-size: 16px;
+}
+
+.signature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.signature-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.signature-item label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.signature-item .value {
+  font-size: 11px;
+  color: #1f2937;
+  font-family: 'Monaco', 'Consolas', monospace;
+  padding: 6px 8px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  word-break: break-all;
+}
+
+.signature-item .value a {
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.signature-item .value a:hover {
+  text-decoration: underline;
+}
+
+/* Approval Type Badge */
+.approval-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.approval-type-badge.digital {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(29, 78, 216, 0.1));
+  color: #1e40af;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.approval-type-badge.digital i {
+  color: #3b82f6;
+}
+
+.approval-type-badge.standard {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.1));
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.approval-type-badge.standard i {
+  color: #10b981;
+}
+
+/* Digital Signature Details Block */
+.digital-signature-details {
+  margin-top: 10px;
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(29, 78, 216, 0.04));
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+}
+
+.digital-signature-details .signature-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.15);
+  color: #1e40af;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.digital-signature-details .signature-header i {
+  color: #3b82f6;
+  font-size: 14px;
+}
+
+.digital-signature-details .signature-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.digital-signature-details .signature-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.digital-signature-details .signature-row label {
+  color: #6b7280;
+  font-weight: 600;
+  min-width: 100px;
+  flex-shrink: 0;
+}
+
+.digital-signature-details .signature-row code {
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 10px;
+  color: #374151;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 2px 6px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.digital-signature-details .signature-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(59, 130, 246, 0.2);
+  font-size: 10px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.digital-signature-details .signature-note i {
+  color: #3b82f6;
+  font-size: 12px;
+}
+
+/* Timeline badge for digital signature */
+.timeline-badge.digital-sign {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8) !important;
+  color: white !important;
+}
+
+.timeline-badge.digital-sign i {
+  margin-right: 4px;
+}
+
 

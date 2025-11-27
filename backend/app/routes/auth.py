@@ -14,8 +14,10 @@ bp = Blueprint('auth', __name__)
 
 
 def create_default_folders_for_user(user):
-    """Create default folder structure for a new user"""
+    """Create default folder structure for a new user based on their role"""
     try:
+        user_role = (user.role or '').lower()
+        
         # 1. Shared folder with subfolders
         shared_folder = Folder(
             name="Shared",
@@ -61,29 +63,68 @@ def create_default_folders_for_user(user):
         )
         db.session.add(generated_folder)
         
-        # 3. Approved folder (root level - separate from Generated)
-        approved_folder = Folder(
-            name="Approved",
+        # 3. Document Approval folder structure (NEW)
+        doc_approval_folder = Folder(
+            name="Document Approval",
             owner_id=user.id,
             parent_id=None,
-            path="/Approved",
+            path="/Document Approval",
             level=0,
             is_system_folder=True
         )
-        db.session.add(approved_folder)
+        db.session.add(doc_approval_folder)
+        db.session.flush()
         
-        # 4. Rejected folder (root level - separate from Generated)
-        rejected_folder = Folder(
-            name="Rejected",
+        # 3a. Sent folder under Document Approval (for all users)
+        sent_approval_folder = Folder(
+            name="Sent",
             owner_id=user.id,
-            parent_id=None,
-            path="/Rejected",
-            level=0,
+            parent_id=doc_approval_folder.id,
+            path="/Document Approval/Sent",
+            level=1,
             is_system_folder=True
         )
-        db.session.add(rejected_folder)
+        db.session.add(sent_approval_folder)
+        db.session.flush()
         
-        # 5. Department folder (if user has department)
+        # Subfolders under Sent: Approved, Rejected, Pending, Canceled
+        for status_name in ["Approved", "Rejected", "Pending", "Canceled"]:
+            status_folder = Folder(
+                name=status_name,
+                owner_id=user.id,
+                parent_id=sent_approval_folder.id,
+                path=f"/Document Approval/Sent/{status_name}",
+                level=2,
+                is_system_folder=True
+            )
+            db.session.add(status_folder)
+        
+        # 3b. Received folder under Document Approval (only for faculty and admin)
+        if user_role in ['faculty', 'admin', 'staff']:
+            received_approval_folder = Folder(
+                name="Received",
+                owner_id=user.id,
+                parent_id=doc_approval_folder.id,
+                path="/Document Approval/Received",
+                level=1,
+                is_system_folder=True
+            )
+            db.session.add(received_approval_folder)
+            db.session.flush()
+            
+            # Subfolders under Received: Approved, Rejected, Pending
+            for status_name in ["Approved", "Rejected", "Pending"]:
+                status_folder = Folder(
+                    name=status_name,
+                    owner_id=user.id,
+                    parent_id=received_approval_folder.id,
+                    path=f"/Document Approval/Received/{status_name}",
+                    level=2,
+                    is_system_folder=True
+                )
+                db.session.add(status_folder)
+        
+        # 4. Department folder (if user has department)
         if user.department_id:
             from app.models.institution import Department
             department = Department.query.get(user.department_id)
@@ -98,7 +139,7 @@ def create_default_folders_for_user(user):
                 )
                 db.session.add(dept_folder)
         
-        # 6. Institution folder
+        # 5. Institution folder
         if user.institution_id:
             institution = Institution.query.get(user.institution_id)
             if institution:
@@ -112,7 +153,7 @@ def create_default_folders_for_user(user):
                 )
                 db.session.add(inst_folder)
         
-        print(f"✅ Created default folders for user: {user.email}")
+        print(f"✅ Created default folders for user: {user.email} (role: {user_role})")
         
     except Exception as e:
         print(f"❌ Error creating default folders for {user.email}: {str(e)}")

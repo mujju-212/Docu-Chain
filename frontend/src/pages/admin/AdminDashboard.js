@@ -351,7 +351,7 @@ const AdminDashboard = () => {
         {/* Sidebar */}
         <aside className="sidebar">
           <div className="brand">
-            <div className="logo">A</div>
+            <div className="logo">D</div>
             <div className="info">
               <div className="name">DocuChain</div>
               <div className="role">ADMIN</div>

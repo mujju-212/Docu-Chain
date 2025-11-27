@@ -3,6 +3,7 @@ from app import db
 from app.models import User, ApprovalRequest, ApprovalStep, ApprovedDocument, ApprovalHistory
 from app.models.approval import generate_verification_code
 from app.services.pdf_stamping import pdf_stamping_service
+from app.services.approval_folder_service import approval_folder_service
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from sqlalchemy import or_
@@ -114,6 +115,14 @@ def create_approval_request():
         db.session.add(history)
         
         db.session.commit()
+        
+        # Add document reference to approval folders
+        try:
+            approval_folder_service.on_request_created(approval_request)
+            logger.info(f"Added document to approval folders for request {approval_request.request_id}")
+        except Exception as folder_error:
+            logger.warning(f"Could not add to approval folders: {folder_error}")
+        
         return jsonify({'success': True, 'data': approval_request.to_dict_detailed()}), 201
         
     except Exception as e:
@@ -137,10 +146,18 @@ def approve_document(request_id):
         if not all([user, approval_request, step]):
             return jsonify({'error': 'Not found'}), 404
         
+        # Check if this is a digital signature approval
+        is_digital_signature = data.get('isDigitalSignature', False)
+        digital_signature_data = data.get('digitalSignatureData')
+        
         step.has_approved = True
         step.action_timestamp = int(datetime.utcnow().timestamp())
         step.reason = data.get('reason', '')
         step.blockchain_tx_hash = data.get('blockchainTxHash')
+        
+        # Store digital signature data if provided
+        if is_digital_signature and digital_signature_data:
+            step.signature_hash = data.get('signatureHash')  # The keccak256 hash of signature
         
         all_steps = ApprovalStep.query.filter_by(blockchain_request_id=request_id).all()
         approved = sum(1 for s in all_steps if s.has_approved)
@@ -156,11 +173,17 @@ def approve_document(request_id):
                 for s in all_steps:
                     approver = User.query.get(s.approver_id)
                     if approver:
-                        approvers_info.append({
+                        approver_info = {
                             'name': f"{approver.first_name} {approver.last_name}",
                             'role': s.approver_role or approver.role,
-                            'timestamp': datetime.fromtimestamp(s.action_timestamp).isoformat() if s.action_timestamp else None
-                        })
+                            'timestamp': datetime.fromtimestamp(s.action_timestamp).isoformat() if s.action_timestamp else None,
+                            'wallet_address': approver.wallet_address
+                        }
+                        # Add digital signature info if available
+                        if hasattr(s, 'signature_hash') and s.signature_hash:
+                            approver_info['signature_hash'] = s.signature_hash
+                            approver_info['is_digital_signature'] = True
+                        approvers_info.append(approver_info)
                 
                 # Prepare approval details for stamping
                 approval_details = {
@@ -169,13 +192,25 @@ def approve_document(request_id):
                     'approved_at': approval_request.completed_at.isoformat(),
                     'approvers': approvers_info,
                     'blockchain_tx': data.get('blockchainTxHash', approval_request.blockchain_tx_hash),
-                    'approval_type': approval_request.approval_type
+                    'approval_type': approval_request.approval_type,
+                    'is_digital_signature': is_digital_signature
                 }
+                
+                # Add digital signature data for embedding
+                if is_digital_signature and digital_signature_data:
+                    approval_details['digital_signature'] = {
+                        'signature': digital_signature_data.get('signature'),
+                        'signer_address': digital_signature_data.get('signerAddress'),
+                        'timestamp': digital_signature_data.get('timestamp'),
+                        'document_hash': digital_signature_data.get('documentHash'),
+                        'verification_info': digital_signature_data.get('verificationInfo', {})
+                    }
                 
                 # Generate stamped PDF
                 logger.info(f"📄 Starting PDF stamping for document: {approval_request.document_name}")
                 logger.info(f"📄 IPFS Hash: {approval_request.document_ipfs_hash}")
                 logger.info(f"📄 Verification Code: {approval_request.verification_code}")
+                logger.info(f"📄 Is Digital Signature: {is_digital_signature}")
                 
                 stamped_pdf = pdf_stamping_service.stamp_pdf_from_url(
                     approval_request.document_ipfs_hash,
@@ -225,6 +260,15 @@ def approve_document(request_id):
                 logger.error(f"Error generating stamped PDF: {stamp_error}")
         
         db.session.commit()
+        
+        # Update folder references
+        try:
+            # Update approver's folder (move to Approved)
+            approval_folder_service.on_approved(approval_request, current_user_id)
+            logger.info(f"Updated approval folders for approver {current_user_id}")
+        except Exception as folder_error:
+            logger.warning(f"Could not update approval folders: {folder_error}")
+        
         return jsonify({'success': True, 'data': approval_request.to_dict_detailed()}), 200
         
     except Exception as e:
@@ -259,6 +303,63 @@ def reject_document(request_id):
         approval_request.completed_at = datetime.utcnow()
         
         db.session.commit()
+        
+        # Update folder references when rejected
+        try:
+            approval_folder_service.on_rejected(approval_request, current_user_id)
+            logger.info(f"Updated approval folders on rejection")
+        except Exception as folder_error:
+            logger.warning(f"Could not update approval folders: {folder_error}")
+        
+        return jsonify({'success': True, 'data': approval_request.to_dict_detailed()}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/cancel/<request_id>', methods=['POST'])
+@jwt_required()
+def cancel_document(request_id):
+    """Cancel a pending approval request (only by the requester)"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        approval_request = ApprovalRequest.query.filter_by(request_id=request_id).first()
+        
+        if not approval_request:
+            return jsonify({'error': 'Approval request not found'}), 404
+        
+        # Only the requester can cancel
+        if str(approval_request.requester_id) != str(current_user_id):
+            return jsonify({'error': 'Only the requester can cancel this request'}), 403
+        
+        # Can only cancel pending requests
+        if approval_request.status != 'PENDING':
+            return jsonify({'error': 'Can only cancel pending requests'}), 400
+        
+        approval_request.status = 'CANCELLED'
+        approval_request.completed_at = datetime.utcnow()
+        
+        # Create history entry
+        history = ApprovalHistory(
+            request_id=approval_request.id,
+            event_type='CANCELLED',
+            event_description='Approval request cancelled by requester',
+            actor_id=current_user_id,
+            new_status='CANCELLED'
+        )
+        db.session.add(history)
+        
+        db.session.commit()
+        
+        # Update folder references when canceled
+        try:
+            approval_folder_service.on_canceled(approval_request)
+            logger.info(f"Updated approval folders on cancellation")
+        except Exception as folder_error:
+            logger.warning(f"Could not update approval folders: {folder_error}")
+        
         return jsonify({'success': True, 'data': approval_request.to_dict_detailed()}), 200
         
     except Exception as e:
@@ -359,14 +460,31 @@ def verify_document(verification_code):
         approvers_info = []
         for step in steps:
             approver = User.query.get(step.approver_id)
-            approvers_info.append({
+            approver_info = {
                 'name': f"{approver.first_name} {approver.last_name}" if approver else 'Unknown',
                 'role': step.approver_role or (approver.role if approver else 'Approver'),
                 'has_approved': step.has_approved,
                 'has_rejected': step.has_rejected,
                 'action_timestamp': datetime.fromtimestamp(step.action_timestamp).isoformat() if step.action_timestamp else None,
-                'reason': step.reason
-            })
+                'reason': step.reason,
+                'wallet_address': approver.wallet_address if approver else None,
+                'signature_hash': step.signature_hash,
+                'blockchain_tx_hash': step.blockchain_tx_hash
+            }
+            
+            # Check if this is a digital signature (signature_hash is keccak256 of actual signature)
+            if step.signature_hash and approval_request.approval_type == 'DIGITAL_SIGNATURE':
+                approver_info['is_digital_signature'] = True
+                approver_info['digital_signature'] = {
+                    'signature_hash': step.signature_hash,
+                    'signer_address': approver.wallet_address if approver else None,
+                    'signed_at': datetime.fromtimestamp(step.action_timestamp).isoformat() if step.action_timestamp else None,
+                    'tx_hash': step.blockchain_tx_hash,
+                    'verification_method': 'ecrecover',
+                    'verification_note': 'Signature can be verified by recovering the signer address using ecrecover'
+                }
+            
+            approvers_info.append(approver_info)
         
         # Build verification response
         verification_data = {

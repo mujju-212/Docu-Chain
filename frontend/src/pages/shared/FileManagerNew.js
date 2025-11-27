@@ -6,6 +6,7 @@ import hybridFileManagerService from '../../services/hybridFileManagerService';
 import blockchainServiceV2 from '../../services/blockchainServiceV2';
 import pinataService from '../../services/pinataService';
 import { toggleStarDocument, toggleStarFolder, getStarredDocuments, getStarredFolders, getRecentActivities, addRecentActivity as addRecentActivityAPI } from '../../services/api';
+import TransactionLoader from '../../components/shared/TransactionLoader';
 import './FileManagerNew.css';
 
 const FileManager = () => {
@@ -76,6 +77,15 @@ const FileManager = () => {
   const [currentUser, setCurrentUser] = useState(null); // Current logged in user from database
   const [institutionUsers, setInstitutionUsers] = useState([]);
   const [isUploadingToBlockchain, setIsUploadingToBlockchain] = useState(false);
+
+  // Transaction loader states
+  const [txLoading, setTxLoading] = useState(false);
+  const [txMessage, setTxMessage] = useState('');
+  const [txTitle, setTxTitle] = useState('');
+  const [txVariant, setTxVariant] = useState('upload');
+  const [txProgress, setTxProgress] = useState(0);
+  const [txCurrentStep, setTxCurrentStep] = useState(0);
+  const [txSteps, setTxSteps] = useState([]);
 
   // Aliases for clarity (map global context to local names used in component)
   const isBlockchainConnected = isWalletConnectedGlobal;
@@ -1129,6 +1139,15 @@ const FileManager = () => {
   const handleContextAction = (action) => {
     const { item, type } = contextMenu;
     
+    // Prevent modifying system folders
+    if (type === 'folder' && item?.isSystemFolder) {
+      if (['share', 'move', 'rename', 'delete'].includes(action)) {
+        showNotification('warning', 'Cannot Modify', 'This is a system folder and cannot be modified');
+        hideContextMenu();
+        return;
+      }
+    }
+    
     switch(action) {
       case 'open':
         if (type === 'file') {
@@ -1262,6 +1281,11 @@ const FileManager = () => {
 
   // Delete functionality for blockchain files
   const handleDelete = (item) => {
+    // Prevent deletion of system folders
+    if (item.type === 'folder' && item.isSystemFolder) {
+      showNotification('warning', 'Cannot Delete', 'This is a system folder and cannot be deleted');
+      return;
+    }
     setDeleteItem(item);
     setIsDeleteModalOpen(true);
   };
@@ -1331,7 +1355,7 @@ const FileManager = () => {
           version: v.versionNumber,
           action: v.description || 'File updated',
           user: file.owner || 'You',
-          date: v.createdAt,
+          date: formatDate(v.createdAt),
           size: formatFileSize(v.fileSize),
           ipfsHash: v.ipfsHash,
           fileName: v.fileName,
@@ -1405,11 +1429,28 @@ const FileManager = () => {
         
         console.log('📁 New file selected:', newFile.name, newFile.size, 'bytes');
         
+        // Show transaction loader for file update
+        setTxLoading(true);
+        setTxVariant('upload');
+        setTxTitle('Updating Document');
+        setTxSteps([
+          { label: 'Preparing', icon: 'ri-file-edit-line' },
+          { label: 'IPFS Upload', icon: 'ri-cloud-line' },
+          { label: 'Blockchain', icon: 'ri-links-line' },
+          { label: 'Database', icon: 'ri-database-2-line' },
+          { label: 'Complete', icon: 'ri-checkbox-circle-line' }
+        ]);
+        setTxCurrentStep(0);
+        setTxMessage('Preparing file update...');
+        setTxProgress(10);
+        
         try {
-          showNotification('info', 'Uploading...', 'Uploading new version to blockchain...');
-          
           // Step 1: Upload new file to IPFS
           console.log('📤 Uploading to IPFS...');
+          setTxCurrentStep(1);
+          setTxMessage(`Uploading ${newFile.name} to IPFS...`);
+          setTxProgress(25);
+          
           const ipfsResult = await pinataService.uploadFile(newFile);
           if (!ipfsResult.success) {
             throw new Error(ipfsResult.error || 'IPFS upload failed');
@@ -1418,7 +1459,9 @@ const FileManager = () => {
           
           // Step 2: Update document on blockchain (keeps same document_id, creates new version)
           console.log('⛓️ Updating document on blockchain...');
-          const docId = file.documentId || file.document_id;
+          setTxCurrentStep(2);
+          setTxMessage('Please confirm transaction in MetaMask...');
+          setTxProgress(50);          const docId = file.documentId || file.document_id;
           console.log('📋 Using existing document_id:', docId);
           const blockchainResult = await blockchainServiceV2.updateDocument(
             docId,                     // Existing document ID (bytes32 hash)
@@ -1430,7 +1473,11 @@ const FileManager = () => {
           console.log('✅ Blockchain updated successfully');
           
           // Step 3: Update document in database with new IPFS hash (document_id stays the same)
-          console.log('� Updating database...');
+          console.log('💾 Updating database...');
+          setTxCurrentStep(3);
+          setTxMessage('Saving changes to database...');
+          setTxProgress(75);
+          
           const token = localStorage.getItem('token');
           const updateResponse = await axios.put(
             `http://localhost:5000/api/documents/${file.id}`,
@@ -1451,11 +1498,20 @@ const FileManager = () => {
           
           if (updateResponse.data.success) {
             console.log('✅ Database updated successfully');
+            setTxCurrentStep(4);
+            setTxProgress(100);
+            setTxMessage('File updated successfully!');
+            
             const copiesCount = updateResponse.data.copies_updated || 0;
             const message = copiesCount > 0 
               ? `${file.name} updated successfully! All ${copiesCount + 1} copies now show the new version.`
               : `${file.name} updated successfully!`;
-            showNotification('success', 'File Updated', message);
+            
+            // Small delay before hiding loader
+            setTimeout(() => {
+              setTxLoading(false);
+              showNotification('success', 'File Updated', message);
+            }, 1000);
             
             // Track recent activity
             addRecentActivity(file.id, newFile.name, 'updated', getFileExtension(newFile.name));
@@ -1473,6 +1529,7 @@ const FileManager = () => {
           }
         } catch (error) {
           console.error('❌ Error updating file:', error);
+          setTxLoading(false);
           showNotification('error', 'Update Failed', error.message || 'Failed to update file');
         }
       };
@@ -1570,11 +1627,15 @@ const FileManager = () => {
         setNewFolderName('');
         setIsCreateFolderModalOpen(false);
       } else {
-        throw new Error(result.error);
+        // Show specific error message from backend
+        const errorMsg = result.error || 'Failed to create folder';
+        showNotification('error', 'Folder Creation Failed', errorMsg);
       }
     } catch (error) {
       console.error('Folder creation error:', error);
-      showNotification('error', 'Failed to Create Folder', error.message);
+      // Extract error message from response or error object
+      const errorMsg = error.response?.data?.error || error.message || 'An unexpected error occurred';
+      showNotification('error', 'Folder Creation Failed', errorMsg);
     }
   };
 
@@ -1611,6 +1672,21 @@ const FileManager = () => {
       }
     }
 
+    // Show transaction loader with steps
+    setTxLoading(true);
+    setTxVariant('upload');
+    setTxTitle('Uploading to Blockchain');
+    setTxSteps([
+      { label: 'Preparing', icon: 'ri-file-add-line' },
+      { label: 'Database', icon: 'ri-database-2-line' },
+      { label: 'IPFS Upload', icon: 'ri-cloud-line' },
+      { label: 'Blockchain', icon: 'ri-links-line' },
+      { label: 'Finalizing', icon: 'ri-save-line' }
+    ]);
+    setTxCurrentStep(0);
+    setTxMessage('Preparing file upload...');
+    setTxProgress(0);
+
     setIsProgressModalOpen(true);
     setUploadProgress(0);
     setIsUploadingToBlockchain(true);
@@ -1624,6 +1700,10 @@ const FileManager = () => {
         // Step 1: Upload to traditional database (25%)
         console.log('📊 Step 1: Database upload');
         setUploadProgress(baseProgress + 25);
+        setTxProgress(baseProgress + 25);
+        setTxCurrentStep(1); // Database
+        setTxMessage(`Uploading ${file.name} to database...`);
+        
         const metadata = {
           filePath: currentPath,
           description: `Uploaded via DocuChain on ${new Date().toLocaleString()}`,
@@ -1641,6 +1721,10 @@ const FileManager = () => {
         // Step 2: Upload to IPFS via Pinata (50%)
         console.log('🌐 Step 2: IPFS upload');
         setUploadProgress(baseProgress + 50);
+        setTxProgress(baseProgress + 50);
+        setTxCurrentStep(2); // IPFS Upload
+        setTxMessage(`Uploading ${file.name} to IPFS...`);
+        
         const ipfsResult = await pinataService.uploadFile(file);
         console.log('🌐 IPFS result:', ipfsResult);
         
@@ -1651,6 +1735,9 @@ const FileManager = () => {
         // Step 3: Store metadata on blockchain (75%)
         console.log('⛓️ Step 3: Blockchain upload');
         setUploadProgress(baseProgress + 75);
+        setTxProgress(baseProgress + 75);
+        setTxCurrentStep(3); // Blockchain
+        setTxMessage(`Recording ${file.name} on blockchain...`);
         
         console.log('⛓️ Blockchain service ready:', blockchainServiceV2.isReady());
         
@@ -1677,6 +1764,9 @@ const FileManager = () => {
 
         // Step 3.5: Update database with blockchain documentId (bytes32 hash)
         console.log('💾 Step 3.5: Saving blockchain documentId to database');
+        setTxCurrentStep(4); // Finalizing
+        setTxMessage(`Finalizing ${file.name}...`);
+        
         const documentId = blockchainResult.documentId; // This is the bytes32 hash
         console.log('📝 Blockchain documentId (bytes32):', documentId);
         
@@ -1703,6 +1793,9 @@ const FileManager = () => {
 
         // Step 4: Complete (100%)
         setUploadProgress(baseProgress + 100/files.length);
+        setTxProgress(100);
+        setTxMessage(`${file.name} uploaded successfully!`);
+        
         console.log('✅ File uploaded successfully:', {
           database: result,
           ipfs: ipfsResult,
@@ -1720,9 +1813,15 @@ const FileManager = () => {
       console.log('🔄 Reloading blockchain files');
       await loadBlockchainFiles();
       await loadTotalFileCounts(); // Update Quick Access counts
+      
+      // Small delay before hiding loader
+      setTimeout(() => {
+        setTxLoading(false);
+      }, 1500);
     } catch (error) {
       console.error('💥 Upload error:', error);
       showNotification('error', 'Upload Failed', error.message);
+      setTxLoading(false);
     } finally {
       setIsProgressModalOpen(false);
       setUploadProgress(0);
@@ -2265,6 +2364,21 @@ const FileManager = () => {
       return;
     }
     
+    // Show transaction loader for share operation with steps
+    setTxLoading(true);
+    setTxVariant('blockchain');
+    setTxTitle('Sharing Documents');
+    setTxSteps([
+      { label: 'Preparing', icon: 'ri-file-list-3-line' },
+      { label: 'Wallet', icon: 'ri-wallet-3-line' },
+      { label: 'Blockchain', icon: 'ri-links-line' },
+      { label: 'Database', icon: 'ri-database-2-line' },
+      { label: 'Complete', icon: 'ri-checkbox-circle-line' }
+    ]);
+    setTxCurrentStep(0);
+    setTxMessage('Preparing to share documents...');
+    setTxProgress(10);
+    
     setIsProgressModalOpen(true);
     setIsLoadingBlockchain(true);
     
@@ -2339,6 +2453,8 @@ const FileManager = () => {
             
             // Step 1: Share document on blockchain
             console.log(`  🔗 Sharing on blockchain...`);
+            setTxCurrentStep(1); // Wallet confirmation
+            setTxMessage('Please confirm transaction in MetaMask...');
             // V2 contract expects "read" or "write" strings (not numbers)
             const accessType = recipient.permission === 'write' ? 'write' : 'read';
             const blockchainResult = await shareDocumentOnBlockchain(
@@ -2349,8 +2465,12 @@ const FileManager = () => {
             
             if (blockchainResult && blockchainResult.success) {
               console.log(`  ✅ Blockchain share successful:`, blockchainResult);
+              setTxCurrentStep(2); // Blockchain confirmed
+              setTxMessage('Blockchain confirmed! Recording share...');
               
               // Step 2: Record share in database with blockchain reference
+              setTxCurrentStep(3); // Database
+              setTxMessage('Saving to database...');
               try {
                 const shareResponse = await axios.post(
                   `http://localhost:5000/api/shares/document/${fileId}`,
@@ -2421,8 +2541,22 @@ const FileManager = () => {
       
       console.log(`\n📊 Final results: ${successCount}/${totalShares} successful`);
       
+      setTxProgress(90);
+      setTxCurrentStep(4); // Complete
+      setTxMessage('Finalizing share operation...');
+      
       if (successCount > 0) {
         const percentage = Math.round((successCount / totalShares) * 100);
+        
+        setTxProgress(100);
+        setTxCurrentStep(4); // Complete
+        setTxMessage(`Successfully shared ${currentSharingItems.length} item(s)!`);
+        
+        // Small delay before hiding loader
+        setTimeout(() => {
+          setTxLoading(false);
+        }, 1500);
+        
         showNotification('success', 'Share Complete', 
           `Successfully shared ${currentSharingItems.length} item(s) with ${selectedRecipients.length} user(s) (${percentage}% success)`);
         setIsShareModalOpen(false);
@@ -2432,10 +2566,12 @@ const FileManager = () => {
         // Refresh data to show shared status
         await loadBlockchainFiles();
       } else {
+        setTxLoading(false);
         showNotification('error', 'Share Failed', 'Failed to share documents. Check console for details.');
       }
     } catch (error) {
       console.error('❌ Share execution error:', error);
+      setTxLoading(false);
       showNotification('error', 'Share Error', 'An error occurred while sharing');
     } finally {
       setIsProgressModalOpen(false);
@@ -2542,6 +2678,19 @@ const FileManager = () => {
 
   return (
     <div className="content">
+      {/* Transaction Loader for Upload/Share Operations */}
+      <TransactionLoader 
+        isVisible={txLoading}
+        variant={txVariant}
+        title={txTitle}
+        message={txMessage}
+        progress={txProgress}
+        currentStep={txCurrentStep}
+        steps={txSteps}
+        showProgress={true}
+        overlay={true}
+      />
+      
       <div className="file-manager-content">
         {/* Section Navigation */}
         <div className="section-nav" style={{marginBottom: '24px', borderBottom: '1px solid #e5e5e5', paddingBottom: '16px'}}>
@@ -4710,7 +4859,24 @@ const FileManager = () => {
 
               {/* Select Recipients */}
               <div className="fm-share-section">
-                <h4><i className="ri-team-line"></i> Select Recipients ({institutionUsers.length} available)</h4>
+                <h4><i className="ri-team-line"></i> Select Recipients ({institutionUsers.filter(u => u.id !== currentUser?.id).length} available)</h4>
+                
+                {/* Legend for wallet status */}
+                <div style={{
+                  display: 'flex',
+                  gap: '16px',
+                  marginBottom: '12px',
+                  fontSize: '12px',
+                  color: '#6b7280'
+                }}>
+                  <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                    <i className="ri-wallet-3-fill" style={{color: '#10b981'}}></i> Wallet Connected
+                  </span>
+                  <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                    <i className="ri-wallet-3-line" style={{color: '#ef4444'}}></i> No Wallet
+                  </span>
+                </div>
+                
                 <div className="fm-user-list" style={{
                   maxHeight: '250px',
                   overflowY: 'auto',
@@ -4720,8 +4886,19 @@ const FileManager = () => {
                 }}>
                   {institutionUsers && institutionUsers.length > 0 ? institutionUsers
                     .filter(user => user.id !== currentUser?.id) // Don't show current user
+                    .sort((a, b) => {
+                      // Sort users with wallets first
+                      const aHasWallet = a.wallet_address || a.walletAddress;
+                      const bHasWallet = b.wallet_address || b.walletAddress;
+                      if (aHasWallet && !bHasWallet) return -1;
+                      if (!aHasWallet && bHasWallet) return 1;
+                      return 0;
+                    })
                     .map(user => {
                       const isSelected = selectedRecipients.find(r => r.id === user.id);
+                      const hasWallet = user.wallet_address || user.walletAddress;
+                      const walletAddress = user.wallet_address || user.walletAddress;
+                      
                       return (
                         <div 
                           key={user.id} 
@@ -4732,29 +4909,81 @@ const FileManager = () => {
                             cursor: 'pointer',
                             borderRadius: '6px',
                             marginBottom: '8px',
-                            border: isSelected ? '2px solid #10b981' : '1px solid #e5e7eb',
-                            backgroundColor: isSelected ? '#f0fdf4' : 'white',
+                            border: isSelected 
+                              ? '2px solid #10b981' 
+                              : hasWallet 
+                                ? '1px solid #e5e7eb' 
+                                : '1px dashed #fca5a5',
+                            backgroundColor: isSelected 
+                              ? '#f0fdf4' 
+                              : hasWallet 
+                                ? 'white' 
+                                : '#fef2f2',
+                            opacity: hasWallet ? 1 : 0.75,
                             transition: 'all 0.2s'
                           }}
                         >
                           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
                             <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-                              <div className="fm-user-avatar" style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '50%',
-                                backgroundImage: `url(${user.avatar})`,
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center'
-                              }}></div>
+                              {/* Avatar with wallet indicator */}
+                              <div style={{position: 'relative'}}>
+                                <div className="fm-user-avatar" style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '50%',
+                                  backgroundImage: `url(${user.avatar})`,
+                                  backgroundSize: 'cover',
+                                  backgroundPosition: 'center',
+                                  border: hasWallet ? '2px solid #10b981' : '2px solid #ef4444'
+                                }}></div>
+                                {/* Wallet status badge */}
+                                <div style={{
+                                  position: 'absolute',
+                                  bottom: '-2px',
+                                  right: '-2px',
+                                  width: '18px',
+                                  height: '18px',
+                                  borderRadius: '50%',
+                                  backgroundColor: hasWallet ? '#10b981' : '#ef4444',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  border: '2px solid white'
+                                }}>
+                                  <i className={hasWallet ? 'ri-wallet-3-fill' : 'ri-wallet-3-line'} 
+                                     style={{fontSize: '10px', color: 'white'}}></i>
+                                </div>
+                              </div>
+                              
                               <div className="fm-user-info">
-                                <div className="fm-user-name" style={{fontWeight: '600', fontSize: '14px'}}>
+                                <div className="fm-user-name" style={{fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px'}}>
                                   {user.username}
-                                  {isSelected && <i className="ri-check-line" style={{marginLeft: '8px', color: '#10b981'}}></i>}
+                                  {isSelected && <i className="ri-check-line" style={{color: '#10b981'}}></i>}
+                                  {!hasWallet && (
+                                    <span style={{
+                                      fontSize: '10px',
+                                      backgroundColor: '#fef2f2',
+                                      color: '#ef4444',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontWeight: '500'
+                                    }}>No Wallet</span>
+                                  )}
                                 </div>
                                 <div className="fm-user-details" style={{fontSize: '12px', color: '#6b7280'}}>
                                   {user.email}
                                 </div>
+                                {hasWallet ? (
+                                  <div style={{fontSize: '11px', color: '#10b981', marginTop: '2px', fontFamily: 'monospace'}}>
+                                    <i className="ri-wallet-3-line" style={{marginRight: '4px'}}></i>
+                                    {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
+                                  </div>
+                                ) : (
+                                  <div style={{fontSize: '11px', color: '#ef4444', marginTop: '2px'}}>
+                                    <i className="ri-error-warning-line" style={{marginRight: '4px'}}></i>
+                                    User must connect MetaMask first
+                                  </div>
+                                )}
                                 {user.role && (
                                   <div style={{fontSize: '11px', color: '#9ca3af', marginTop: '2px'}}>
                                     Role: {user.role}
@@ -4763,8 +4992,8 @@ const FileManager = () => {
                               </div>
                             </div>
                             
-                            {/* Permission Selector */}
-                            {isSelected && (
+                            {/* Permission Selector - Only show if has wallet */}
+                            {isSelected && hasWallet && (
                               <select
                                 value={isSelected.permission}
                                 onChange={(e) => {
@@ -4790,6 +5019,23 @@ const FileManager = () => {
                                 <option value="read">👁️ View Only</option>
                                 <option value="write">✏️ Can Edit</option>
                               </select>
+                            )}
+                            
+                            {/* Show database-only badge for users without wallet */}
+                            {isSelected && !hasWallet && (
+                              <div style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#fef3c7',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                color: '#92400e',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <i className="ri-database-2-line"></i>
+                                Database Only
+                              </div>
                             )}
                           </div>
                         </div>
@@ -4819,30 +5065,69 @@ const FileManager = () => {
                   <h5 style={{marginBottom: '8px', fontSize: '14px', fontWeight: '600'}}>
                     <i className="ri-user-add-line"></i> Selected: {selectedRecipients.length} user(s)
                   </h5>
-                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
-                    {selectedRecipients.map(recipient => (
-                      <div key={recipient.id} style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '4px 10px',
-                        backgroundColor: 'white',
-                        borderRadius: '16px',
-                        fontSize: '12px',
-                        border: '1px solid #d1d5db'
-                      }}>
-                        <span>{recipient.username}</span>
-                        <span style={{color: '#6b7280'}}>
-                          ({recipient.permission === 'write' ? '✏️ Edit' : '👁️ View'})
-                        </span>
-                        <i 
-                          className="ri-close-line" 
-                          onClick={() => toggleUserSelection(recipient)}
-                          style={{cursor: 'pointer', color: '#ef4444', marginLeft: '4px'}}
-                        ></i>
-                      </div>
-                    ))}
+                  
+                  {/* Show blockchain vs database-only share counts */}
+                  <div style={{
+                    display: 'flex',
+                    gap: '16px',
+                    marginBottom: '10px',
+                    fontSize: '12px'
+                  }}>
+                    <span style={{color: '#10b981'}}>
+                      <i className="ri-links-line"></i> Blockchain: {selectedRecipients.filter(r => r.wallet_address || r.walletAddress || r.address).length}
+                    </span>
+                    <span style={{color: '#f59e0b'}}>
+                      <i className="ri-database-2-line"></i> Database Only: {selectedRecipients.filter(r => !(r.wallet_address || r.walletAddress || r.address)).length}
+                    </span>
                   </div>
+                  
+                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
+                    {selectedRecipients.map(recipient => {
+                      const hasWallet = recipient.wallet_address || recipient.walletAddress || recipient.address;
+                      return (
+                        <div key={recipient.id} style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '4px 10px',
+                          backgroundColor: hasWallet ? '#f0fdf4' : '#fef3c7',
+                          borderRadius: '16px',
+                          fontSize: '12px',
+                          border: hasWallet ? '1px solid #86efac' : '1px solid #fcd34d'
+                        }}>
+                          <i className={hasWallet ? 'ri-wallet-3-fill' : 'ri-database-2-line'} 
+                             style={{color: hasWallet ? '#10b981' : '#f59e0b', fontSize: '11px'}}></i>
+                          <span>{recipient.username}</span>
+                          <span style={{color: '#6b7280'}}>
+                            ({recipient.permission === 'write' ? '✏️ Edit' : '👁️ View'})
+                          </span>
+                          <i 
+                            className="ri-close-line" 
+                            onClick={() => toggleUserSelection(recipient)}
+                            style={{cursor: 'pointer', color: '#ef4444', marginLeft: '4px'}}
+                          ></i>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Warning if some users don't have wallets */}
+                  {selectedRecipients.some(r => !(r.wallet_address || r.walletAddress || r.address)) && (
+                    <div style={{
+                      marginTop: '10px',
+                      padding: '8px 12px',
+                      backgroundColor: '#fef3c7',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      color: '#92400e',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <i className="ri-error-warning-line"></i>
+                      <span>Users without wallets will only have database access (not blockchain-verified).</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -4903,27 +5188,44 @@ const FileManager = () => {
                   <div {...getContextMenuItemProps('open')}>
                     <i className="ri-folder-open-line"></i> Open
                   </div>
-                  <div {...getContextMenuItemProps('share')}>
-                    <i className="ri-share-line"></i> Share Folder
-                  </div>
-                  <div {...getContextMenuItemProps('copy')}>
-                    <i className="ri-file-copy-line"></i> Copy
-                  </div>
-                  <div {...getContextMenuItemProps('move')}>
-                    <i className="ri-scissors-line"></i> Cut
-                  </div>
-                  {clipboard.items.length > 0 && (
-                    <div {...getContextMenuItemProps('paste')}>
-                      <i className="ri-clipboard-line"></i> Paste {clipboard.items.length} item(s)
+                  {/* Hide these options for system folders */}
+                  {!contextMenu.item?.isSystemFolder && (
+                    <>
+                      <div {...getContextMenuItemProps('share')}>
+                        <i className="ri-share-line"></i> Share Folder
+                      </div>
+                      <div {...getContextMenuItemProps('copy')}>
+                        <i className="ri-file-copy-line"></i> Copy
+                      </div>
+                      <div {...getContextMenuItemProps('move')}>
+                        <i className="ri-scissors-line"></i> Cut
+                      </div>
+                      {clipboard.items.length > 0 && (
+                        <div {...getContextMenuItemProps('paste')}>
+                          <i className="ri-clipboard-line"></i> Paste {clipboard.items.length} item(s)
+                        </div>
+                      )}
+                      <div {...getContextMenuItemProps('rename')}>
+                        <i className="ri-edit-line"></i> Rename
+                      </div>
+                      <hr style={{margin: '6px 0', border: 'none', borderTop: '1px solid #e5e7eb'}} />
+                      <div {...getContextMenuItemProps('delete', true)}>
+                        <i className="ri-delete-bin-line"></i> Delete
+                      </div>
+                    </>
+                  )}
+                  {/* Show message for system folders */}
+                  {contextMenu.item?.isSystemFolder && (
+                    <div style={{
+                      padding: '8px 16px',
+                      fontSize: '12px',
+                      color: '#9ca3af',
+                      fontStyle: 'italic'
+                    }}>
+                      <i className="ri-lock-line" style={{marginRight: '6px'}}></i>
+                      System folder (protected)
                     </div>
                   )}
-                  <div {...getContextMenuItemProps('rename')}>
-                    <i className="ri-edit-line"></i> Rename
-                  </div>
-                  <hr style={{margin: '6px 0', border: 'none', borderTop: '1px solid #e5e7eb'}} />
-                  <div {...getContextMenuItemProps('delete', true)}>
-                    <i className="ri-delete-bin-line"></i> Delete
-                  </div>
                 </>
               ) : contextMenu.type === 'empty' ? (
                 // Empty Space Context Menu

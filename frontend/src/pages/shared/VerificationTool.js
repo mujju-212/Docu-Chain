@@ -964,7 +964,11 @@ export default function VerificationTool() {
                     >
                       <div className="vt-timeline-marker">
                         {approver.has_approved ? (
-                          <i className="ri-checkbox-circle-fill"></i>
+                          approver.is_digital_signature ? (
+                            <i className="ri-shield-keyhole-fill"></i>
+                          ) : (
+                            <i className="ri-checkbox-circle-fill"></i>
+                          )
                         ) : approver.has_rejected ? (
                           <i className="ri-close-circle-fill"></i>
                         ) : (
@@ -972,10 +976,24 @@ export default function VerificationTool() {
                         )}
                       </div>
                       <div className="vt-timeline-content">
-                        <h4>{approver.name}</h4>
+                        <h4>
+                          {approver.name}
+                          {approver.is_digital_signature && (
+                            <span className="vt-digital-badge">
+                              <i className="ri-shield-check-fill"></i>
+                              Digitally Signed
+                            </span>
+                          )}
+                        </h4>
                         <span className="vt-role">{approver.role}</span>
                         {approver.action_timestamp && (
                           <span className="vt-timestamp">{formatDate(approver.action_timestamp)}</span>
+                        )}
+                        {approver.wallet_address && approver.is_digital_signature && (
+                          <div className="vt-wallet-info">
+                            <i className="ri-wallet-3-line"></i>
+                            <code>{approver.wallet_address.slice(0, 10)}...{approver.wallet_address.slice(-8)}</code>
+                          </div>
                         )}
                         {approver.reason && (
                           <p className="vt-reason">"{approver.reason}"</p>
@@ -1026,6 +1044,104 @@ export default function VerificationTool() {
                   )}
                 </div>
               </div>
+
+              {/* Digital Signature Verification Section */}
+              {verificationResult.approval?.approval_type === 'DIGITAL_SIGNATURE' && 
+               verificationResult.approvers?.some(a => a.is_digital_signature) && (
+                <div className="vt-section digital-signature">
+                  <div className="vt-section-header">
+                    <i className="ri-shield-keyhole-line"></i>
+                    <h3>Digital Signature Verification</h3>
+                  </div>
+                  <div className="vt-signature-info">
+                    <div className="vt-signature-notice">
+                      <i className="ri-information-line"></i>
+                      <p>This document was cryptographically signed using the signer's private key via MetaMask. 
+                         The signature can be mathematically verified to prove authenticity.</p>
+                    </div>
+                    
+                    {verificationResult.approvers?.filter(a => a.is_digital_signature).map((signer, idx) => (
+                      <div key={idx} className="vt-signer-card">
+                        <div className="vt-signer-header">
+                          <div className="vt-signer-icon">
+                            <i className="ri-shield-user-fill"></i>
+                          </div>
+                          <div className="vt-signer-info">
+                            <h4>{signer.name}</h4>
+                            <span className="vt-signer-role">{signer.role}</span>
+                          </div>
+                          <div className="vt-verified-badge">
+                            <i className="ri-checkbox-circle-fill"></i>
+                            Verified
+                          </div>
+                        </div>
+                        
+                        <div className="vt-signer-details">
+                          <div className="vt-detail-row">
+                            <label><i className="ri-wallet-3-line"></i> Wallet Address</label>
+                            <code>{signer.wallet_address || signer.digital_signature?.signer_address || 'N/A'}</code>
+                          </div>
+                          
+                          <div className="vt-detail-row">
+                            <label><i className="ri-time-line"></i> Signed At</label>
+                            <span>{formatDate(signer.digital_signature?.signed_at || signer.action_timestamp)}</span>
+                          </div>
+                          
+                          {signer.signature_hash && (
+                            <div className="vt-detail-row">
+                              <label><i className="ri-key-2-line"></i> Signature Hash</label>
+                              <code className="vt-signature-hash">
+                                {signer.signature_hash.slice(0, 20)}...{signer.signature_hash.slice(-16)}
+                              </code>
+                            </div>
+                          )}
+                          
+                          {signer.blockchain_tx_hash && (
+                            <div className="vt-detail-row">
+                              <label><i className="ri-links-line"></i> Blockchain TX</label>
+                              <div className="vt-tx-link">
+                                <code>{signer.blockchain_tx_hash.slice(0, 16)}...{signer.blockchain_tx_hash.slice(-12)}</code>
+                                <a 
+                                  href={`https://sepolia.etherscan.io/tx/${signer.blockchain_tx_hash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <i className="ri-external-link-line"></i>
+                                </a>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="vt-verification-method">
+                          <div className="vt-method-header">
+                            <i className="ri-shield-check-line"></i>
+                            <span>How to Verify This Signature</span>
+                          </div>
+                          <div className="vt-method-steps">
+                            <div className="vt-step">
+                              <span className="vt-step-num">1</span>
+                              <p>The signer signed a message containing the document hash using their private key in MetaMask</p>
+                            </div>
+                            <div className="vt-step">
+                              <span className="vt-step-num">2</span>
+                              <p>The signature was recorded on the Ethereum blockchain</p>
+                            </div>
+                            <div className="vt-step">
+                              <span className="vt-step-num">3</span>
+                              <p>To verify: Use <code>ecrecover(message, signature)</code> which returns the signer's wallet address</p>
+                            </div>
+                            <div className="vt-step">
+                              <span className="vt-step-num">4</span>
+                              <p>If recovered address matches <code>{signer.wallet_address?.slice(0, 10)}...{signer.wallet_address?.slice(-6)}</code> → Signature is VALID</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Clear Results Button */}
               <button 

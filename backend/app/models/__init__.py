@@ -4,6 +4,7 @@ from .institution import Institution
 from .folder import Folder
 from .recent_activity import RecentActivity
 from .approval import ApprovalRequest, ApprovalStep, ApprovedDocument, ApprovalHistory
+from .document_template import DocumentTemplate, GeneratedDocument
 
 __all__ = [
     'User', 
@@ -15,5 +16,7 @@ __all__ = [
     'ApprovalRequest',
     'ApprovalStep',
     'ApprovedDocument',
-    'ApprovalHistory'
+    'ApprovalHistory',
+    'DocumentTemplate',
+    'GeneratedDocument'
 ]
