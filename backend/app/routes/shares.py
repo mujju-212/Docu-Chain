@@ -13,6 +13,24 @@ def token_required(f):
     """Decorator for routes that require authentication"""
     return jwt_required()(f)
 
+def send_share_chat_message(sender_id, recipient_id, document):
+    """Send an auto-generated chat message when a document is shared"""
+    try:
+        from app.routes.chat import create_document_share_message
+        create_document_share_message(
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            document={
+                'id': str(document.id),
+                'name': document.title,
+                'ipfs_hash': document.ipfs_hash,
+                'size': document.file_size
+            },
+            message_content=f"📄 Shared document: {document.title}"
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to send chat message for share: {e}")
+
 @bp.route('/document/<document_id>', methods=['POST'])
 @token_required
 def share_document(document_id):
@@ -99,6 +117,9 @@ def share_document(document_id):
                 )
                 db.session.add(new_share)
                 print(f"✅ Created new share with user: {user.email}")
+                
+                # Send auto-generated chat message
+                send_share_chat_message(current_user_id, user_id, document)
                 
                 # Move document to "Received" folder for recipient
                 received_folder = Folder.query.filter_by(
@@ -215,26 +236,34 @@ def get_shared_with_me():
             shared_with_id=current_user_id
         ).all()
         
+        print(f"📥 Found {len(shares)} share records in database")
+        
         shared_documents = []
         for share in shares:
+            print(f"📥 Processing share: document_id={share.document_id}, shared_by={share.shared_by_id}")
+            
             document = Document.query.filter_by(
                 id=share.document_id,
                 is_active=True
             ).first()
             
             if document:
-                owner = User.query.get(document.owner_id)
+                # Get the user who shared (not necessarily the owner)
+                shared_by_user = User.query.get(share.shared_by_id)
                 
                 doc_data = document.to_dict()
                 doc_data['shared_by'] = {
                     'id': str(share.shared_by_id),
-                    'username': f"{owner.first_name} {owner.last_name}" if owner else 'Unknown',
-                    'email': owner.email if owner else ''
+                    'username': f"{shared_by_user.first_name} {shared_by_user.last_name}" if shared_by_user else 'Unknown',
+                    'email': shared_by_user.email if shared_by_user else ''
                 }
                 doc_data['permission'] = share.permission
                 doc_data['shared_at'] = share.shared_at.isoformat() if share.shared_at else None
                 
                 shared_documents.append(doc_data)
+                print(f"✅ Added shared document: {document.file_name}")
+            else:
+                print(f"⚠️ Document {share.document_id} not found or inactive")
         
         print(f"✅ Found {len(shared_documents)} shared documents")
         

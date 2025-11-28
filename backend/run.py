@@ -13,10 +13,11 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     
-    # Run the app with SocketIO
+    # Run the app with SocketIO (threading mode for development)
     socketio.run(
         app,
         host='0.0.0.0',
         port=5000,
-        debug=app.config['DEBUG']
+        debug=app.config['DEBUG'],
+        allow_unsafe_werkzeug=True  # Allow debug mode with SocketIO
     )

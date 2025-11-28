@@ -85,6 +85,24 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     });
   };
 
+  // Helper to get correct IPFS URL
+  // Since files are now uploaded with wrapWithDirectory: false, the CID is the file itself
+  const getIpfsUrl = (ipfsHash, fileName) => {
+    if (!ipfsHash) return null;
+    // Direct CID URL - no filename path needed for wrapWithDirectory: false
+    return `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+  };
+  
+  // Open IPFS preview in new tab
+  const openIpfsPreview = (ipfsHash, fileName) => {
+    if (!ipfsHash) {
+      showNotification('No IPFS hash available', 'error');
+      return;
+    }
+    // Direct URL - files are uploaded with wrapWithDirectory: false
+    window.open(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`, '_blank');
+  };
+
   // State Management
   const [activeTab, setActiveTab] = useState('send'); // 'send' or 'receive'
   const [selectedDocument, setSelectedDocument] = useState(null);
@@ -815,11 +833,8 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       return;
     }
 
-    if (!request.requestId) {
-      console.error('❌ Request missing blockchain requestId:', request);
-      showNotification('❌ This request is missing blockchain ID. Please create a new approval request.', 'error');
-      return;
-    }
+    // For legacy requests without blockchain ID, we'll do database-only approval
+    const hasBlockchainId = request.requestId && request.requestId.startsWith('0x');
 
     setShowApproveConfirm(false);
     setIsLoading(true);
@@ -862,11 +877,8 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       console.log('🔍 Approving request:', request);
       console.log('🔍 Database ID:', request.id);
       console.log('🔍 Blockchain requestId:', request.requestId);
+      console.log('🔍 Has valid blockchain ID:', hasBlockchainId);
       console.log('🔍 Approval Type:', request.approvalType, '| Is Digital:', isDigitalSignature);
-      
-      if (!request.requestId) {
-        console.error('❌ requestId is missing:', request.requestId);
-      }
       
       const web3Instance = new Web3(window.ethereum);
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
@@ -874,74 +886,175 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       
       let signatureHash;
       let digitalSignatureData = null;
+      let txHash = null;
+      let blockchainRequestId = request.requestId;
+      let isLegacyRequest = false;
+      let isWalletMismatch = false;
       
-      if (isDigitalSignature) {
-        // ====== DIGITAL SIGNATURE FLOW ======
-        setTxProgress(15);
-        setTxCurrentStep(1); // Signing
-        setTxMessage('Please sign the document in MetaMask...');
-        
-        // Create a message to sign that includes document details
-        const documentHash = request.ipfsHash || request.documentIpfsHash;
-        const timestamp = Math.floor(Date.now() / 1000);
-        
-        // Create a structured message for signing
-        const messageToSign = JSON.stringify({
-          action: 'DIGITAL_SIGNATURE_APPROVAL',
-          documentName: request.documentName,
-          documentHash: documentHash,
-          requestId: request.requestId,
-          signer: signerAddress,
-          timestamp: timestamp,
-          message: `I hereby digitally sign and approve the document "${request.documentName}" with hash ${documentHash}`
-        });
-        
-        console.log('📝 Message to sign:', messageToSign);
-        
-        // Sign the message using MetaMask's personal_sign
-        // This uses the user's private key to create a cryptographic signature
-        const signature = await window.ethereum.request({
-          method: 'personal_sign',
-          params: [messageToSign, signerAddress]
-        });
-        
-        console.log('✅ Digital signature created:', signature);
-        
-        // The signature can be verified using the signer's public key (wallet address)
-        // Store all signature data for verification
-        digitalSignatureData = {
-          signature: signature,
-          message: messageToSign,
-          signerAddress: signerAddress,
-          timestamp: timestamp,
-          documentHash: documentHash,
-          // For verification: ecrecover(message, signature) should return signerAddress
-          verificationInfo: {
-            method: 'personal_sign',
-            recoveryMethod: 'ecrecover',
-            note: 'Verify by recovering address from signature and comparing with signerAddress'
+      // Check if this request exists on blockchain AND if current wallet is registered
+      if (hasBlockchainId) {
+        try {
+          const blockchainRequest = await getApprovalRequestFromBlockchain(request.requestId);
+          console.log('📦 Blockchain request found:', blockchainRequest);
+          
+          if (!blockchainRequest || blockchainRequest.requester === '0x0000000000000000000000000000000000000000') {
+            console.log('⚠️ Request not found on blockchain - treating as legacy request');
+            isLegacyRequest = true;
+          } else {
+            // Request exists - check if current wallet is a registered approver
+            // Check the approvers array in the blockchain request
+            const registeredApprovers = blockchainRequest.approvers || [];
+            const normalizedApprovers = registeredApprovers.map(a => a.toLowerCase());
+            const isRegistered = normalizedApprovers.includes(signerAddress.toLowerCase());
+            
+            console.log('👤 Current wallet:', signerAddress);
+            console.log('📋 Registered approvers:', normalizedApprovers);
+            console.log('✅ Is registered:', isRegistered);
+            
+            if (!isRegistered) {
+              console.log('⚠️ Wallet mismatch - current wallet not registered as approver');
+              isWalletMismatch = true;
+              // Treat as legacy request for database-only approval
+              isLegacyRequest = true;
+            }
           }
-        };
-        
-        // Use the signature as the signatureHash for blockchain
-        signatureHash = web3Instance.utils.keccak256(signature);
-        
-        setTxProgress(30);
-        setTxCurrentStep(2); // Blockchain
-        setTxMessage('Recording signature on blockchain...');
-        
+        } catch (checkError) {
+          console.log('⚠️ Could not verify request on blockchain:', checkError.message);
+          // Check if the error is about wallet mismatch
+          if (checkError.message && checkError.message.includes('not registered')) {
+            isWalletMismatch = true;
+          }
+          isLegacyRequest = true;
+        }
       } else {
-        // ====== STANDARD APPROVAL FLOW ======
-        signatureHash = web3Instance.utils.randomHex(32);
-        
-        setTxProgress(20);
-        setTxCurrentStep(1); // Wallet Confirmation
-        setTxMessage('Please confirm transaction in MetaMask...');
+        console.log('⚠️ No blockchain ID - treating as legacy request');
+        isLegacyRequest = true;
       }
       
-      // Step: Approve on blockchain
-      const result = await approveDocumentOnBlockchain(request.requestId, '', signatureHash);
-      const txHash = result.transactionHash;
+      if (isLegacyRequest) {
+        if (isWalletMismatch) {
+          console.log('📋 Processing as wallet mismatch (database-only) approval');
+          setTxMessage('Wallet mismatch detected - processing database-only approval...');
+          showNotification('ℹ️ Your wallet differs from the registered one. Processing database-only approval.', 'info');
+        } else {
+          console.log('📋 Processing as legacy (database-only) approval');
+          setTxMessage('Processing legacy approval (database-only)...');
+        }
+        
+        // For legacy requests, skip blockchain transaction but still create signature
+        if (isDigitalSignature) {
+          setTxProgress(15);
+          setTxCurrentStep(1); // Signing
+          setTxMessage('Please sign the document in MetaMask...');
+          
+          const documentHash = request.ipfsHash || request.documentIpfsHash;
+          const timestamp = Math.floor(Date.now() / 1000);
+          
+          const messageToSign = JSON.stringify({
+            action: 'DIGITAL_SIGNATURE_APPROVAL',
+            documentName: request.documentName,
+            documentHash: documentHash,
+            requestId: request.requestId || request.id,
+            signer: signerAddress,
+            timestamp: timestamp,
+            message: `I hereby digitally sign and approve the document "${request.documentName}" with hash ${documentHash}`
+          });
+          
+          const signature = await window.ethereum.request({
+            method: 'personal_sign',
+            params: [messageToSign, signerAddress]
+          });
+          
+          console.log('✅ Digital signature created:', signature);
+          
+          digitalSignatureData = {
+            signature: signature,
+            message: messageToSign,
+            signerAddress: signerAddress,
+            timestamp: timestamp,
+            documentHash: documentHash,
+            verificationInfo: {
+              method: 'personal_sign',
+              recoveryMethod: 'ecrecover',
+              note: 'Verify by recovering address from signature and comparing with signerAddress'
+            }
+          };
+          
+          signatureHash = web3Instance.utils.keccak256(signature);
+        } else {
+          signatureHash = web3Instance.utils.randomHex(32);
+        }
+        
+        // Skip blockchain transaction for legacy requests
+        txHash = 'LEGACY_DB_ONLY';
+        setTxProgress(40);
+        setTxCurrentStep(2);
+        setTxMessage('Updating database...');
+      } else {
+        // ====== NORMAL BLOCKCHAIN FLOW ======
+        if (isDigitalSignature) {
+          // ====== DIGITAL SIGNATURE FLOW ======
+          setTxProgress(15);
+          setTxCurrentStep(1); // Signing
+          setTxMessage('Please sign the document in MetaMask...');
+          
+          // Create a message to sign that includes document details
+          const documentHash = request.ipfsHash || request.documentIpfsHash;
+          const timestamp = Math.floor(Date.now() / 1000);
+          
+          // Create a structured message for signing
+          const messageToSign = JSON.stringify({
+            action: 'DIGITAL_SIGNATURE_APPROVAL',
+            documentName: request.documentName,
+            documentHash: documentHash,
+            requestId: request.requestId,
+            signer: signerAddress,
+            timestamp: timestamp,
+            message: `I hereby digitally sign and approve the document "${request.documentName}" with hash ${documentHash}`
+          });
+          
+          console.log('📝 Message to sign:', messageToSign);
+          
+          // Sign the message using MetaMask's personal_sign
+          const signature = await window.ethereum.request({
+            method: 'personal_sign',
+            params: [messageToSign, signerAddress]
+          });
+          
+          console.log('✅ Digital signature created:', signature);
+          
+          digitalSignatureData = {
+            signature: signature,
+            message: messageToSign,
+            signerAddress: signerAddress,
+            timestamp: timestamp,
+            documentHash: documentHash,
+            verificationInfo: {
+              method: 'personal_sign',
+              recoveryMethod: 'ecrecover',
+              note: 'Verify by recovering address from signature and comparing with signerAddress'
+            }
+          };
+          
+          signatureHash = web3Instance.utils.keccak256(signature);
+          
+          setTxProgress(30);
+          setTxCurrentStep(2); // Blockchain
+          setTxMessage('Recording signature on blockchain...');
+          
+        } else {
+          // ====== STANDARD APPROVAL FLOW ======
+          signatureHash = web3Instance.utils.randomHex(32);
+          
+          setTxProgress(20);
+          setTxCurrentStep(1); // Wallet Confirmation
+          setTxMessage('Please confirm transaction in MetaMask...');
+        }
+        
+        // Step: Approve on blockchain
+        const result = await approveDocumentOnBlockchain(request.requestId, '', signatureHash);
+        txHash = result.transactionHash;
+      }
       
       setTxProgress(50);
       setTxCurrentStep(isDigitalSignature ? 3 : 2); // Embedding/Stamping
@@ -949,15 +1062,19 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         ? 'Blockchain confirmed! Embedding signature on document...' 
         : 'Blockchain confirmed! Generating stamped document...');
       
+      // Use database ID for legacy requests, blockchain ID for normal requests
+      const approveEndpointId = isLegacyRequest ? request.id : request.requestId;
+      
       // Step: Update database and generate stamped document
-      const response = await fetch(`${API_URL}/api/approvals/approve/${request.requestId}`, {
+      const response = await fetch(`${API_URL}/api/approvals/approve/${approveEndpointId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
           signatureHash: signatureHash,
           blockchainTxHash: txHash,
           isDigitalSignature: isDigitalSignature,
-          digitalSignatureData: digitalSignatureData // Include full signature data for embedding
+          digitalSignatureData: digitalSignatureData,
+          isLegacyRequest: isLegacyRequest // Tell backend this is a legacy request
         })
       });
       
@@ -969,9 +1086,9 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
           ? 'Embedding digital signature on document...' 
           : 'Recording stamped document...');
         
-        // Step 4: If stamped document was created, record it on blockchain
+        // Step 4: If stamped document was created, record it on blockchain (skip for legacy requests)
         const stampedIpfsHash = data.data?.stampedDocumentIpfsHash;
-        if (stampedIpfsHash && data.data?.status === 'APPROVED') {
+        if (stampedIpfsHash && data.data?.status === 'APPROVED' && !isLegacyRequest) {
           try {
             setTxProgress(70);
             setTxCurrentStep(3); // Recording
@@ -1023,6 +1140,14 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               'warning'
             );
           }
+        } else if (isLegacyRequest) {
+          // Legacy request - database only approval
+          showNotification(
+            isDigitalSignature 
+              ? `✅ Document digitally signed! (Legacy request - database only)`
+              : `✅ Document approved! (Legacy request - database only)`, 
+            'success'
+          );
         } else {
           showNotification(
             isDigitalSignature 
@@ -1145,6 +1270,9 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         showNotification('Transaction cancelled by user', 'warning');
       } else if (error.message && error.message.includes('Request not active')) {
         showNotification('❌ Request not found on blockchain. Please create a new approval request.', 'error');
+      } else if (error.message && error.message.includes('not registered as an approver')) {
+        // Wallet mismatch - explain the issue
+        showNotification('❌ Wallet mismatch: Your connected wallet is not the one registered for this approval. Please update your wallet address in your profile settings, or ask the requester to send a new approval request.', 'error');
       } else {
         showNotification(`Failed to approve: ${error.message || 'Unknown error'}`, 'error');
       }
@@ -1175,11 +1303,9 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       return;
     }
 
-    if (!request.requestId) {
-      console.error('❌ Request missing blockchain requestId:', request);
-      showNotification('❌ This request is missing blockchain ID. Please create a new approval request.', 'error');
-      return;
-    }
+    // For legacy requests without blockchain ID, we'll do database-only rejection
+    const hasBlockchainId = request.requestId && request.requestId.startsWith('0x');
+    let isLegacyRequest = false;
 
     setShowRejectConfirm(false);
     setIsLoading(true);
@@ -1203,23 +1329,75 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       console.log('🔍 Rejecting request:', request);
       console.log('🔍 Database ID:', request.id);
       console.log('🔍 Blockchain requestId:', request.requestId);
+      console.log('🔍 Has valid blockchain ID:', hasBlockchainId);
       
-      // Step 1: Reject on blockchain FIRST
-      setTxCurrentStep(1); // Blockchain
-      const result = await rejectDocumentOnBlockchain(request.requestId, reason);
-      const txHash = result.transactionHash;
+      let txHash = 'LEGACY_DB_ONLY';
+      let isWalletMismatch = false;
+      
+      // Get current wallet
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const signerAddress = accounts[0];
+      
+      // Check if this request exists on blockchain AND if current wallet is registered
+      if (hasBlockchainId) {
+        try {
+          const blockchainRequest = await getApprovalRequestFromBlockchain(request.requestId);
+          if (!blockchainRequest || blockchainRequest.requester === '0x0000000000000000000000000000000000000000') {
+            console.log('⚠️ Request not found on blockchain - treating as legacy request');
+            isLegacyRequest = true;
+          } else {
+            // Request exists - check if current wallet is a registered approver
+            const registeredApprovers = blockchainRequest.approvers || [];
+            const normalizedApprovers = registeredApprovers.map(a => a.toLowerCase());
+            const isRegistered = normalizedApprovers.includes(signerAddress.toLowerCase());
+            
+            if (!isRegistered) {
+              console.log('⚠️ Wallet mismatch - current wallet not registered as approver');
+              isWalletMismatch = true;
+              isLegacyRequest = true;
+            }
+          }
+        } catch (checkError) {
+          console.log('⚠️ Could not verify request on blockchain:', checkError.message);
+          if (checkError.message && checkError.message.includes('not registered')) {
+            isWalletMismatch = true;
+          }
+          isLegacyRequest = true;
+        }
+      } else {
+        isLegacyRequest = true;
+      }
+      
+      if (!isLegacyRequest) {
+        // Step 1: Reject on blockchain FIRST
+        setTxCurrentStep(1); // Blockchain
+        const result = await rejectDocumentOnBlockchain(request.requestId, reason);
+        txHash = result.transactionHash;
+      } else {
+        if (isWalletMismatch) {
+          console.log('📋 Processing as wallet mismatch (database-only) rejection');
+          setTxMessage('Wallet mismatch - processing database-only rejection...');
+        } else {
+          console.log('📋 Processing as legacy (database-only) rejection');
+          setTxMessage('Processing legacy rejection (database-only)...');
+        }
+      }
       
       setTxProgress(50);
       setTxCurrentStep(2); // Database
-      setTxMessage('Blockchain confirmed! Updating database...');
+      setTxMessage('Updating database...');
       
-      // Step 2: ONLY update database AFTER blockchain success
-      const response = await fetch(`${API_URL}/api/approvals/reject/${request.requestId}`, {
+      // Use database ID for legacy requests, blockchain ID for normal requests
+      const rejectEndpointId = isLegacyRequest ? request.id : request.requestId;
+      
+      // Step 2: Update database
+      const response = await fetch(`${API_URL}/api/approvals/reject/${rejectEndpointId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
           reason: reason,
-          blockchainTxHash: txHash
+          blockchainTxHash: txHash,
+          isLegacyRequest: isLegacyRequest
         })
       });
       
@@ -1227,7 +1405,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         setTxProgress(70);
         setTxMessage('Refreshing data...');
         
-        showNotification(`Request rejected successfully. TX: ${txHash.substring(0, 20)}...`, 'success');
+        const message = isLegacyRequest 
+          ? 'Request rejected successfully (Legacy - database only)'
+          : `Request rejected successfully. TX: ${txHash.substring(0, 20)}...`;
+        showNotification(message, 'success');
         
         // Refresh both incoming and sent requests to update counts
         const timestamp = new Date().getTime();
@@ -1355,13 +1536,13 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     setShowDocumentDetails(true);
   };
 
-  const handlePreviewDocument = (ipfsHash) => {
+  const handlePreviewDocument = (ipfsHash, fileName) => {
     if (!ipfsHash) {
       showNotification('No IPFS hash available for preview', 'error');
       return;
     }
-    const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
-    window.open(ipfsUrl, '_blank');
+    // Use smart preview that handles both directory-wrapped and direct CIDs
+    openIpfsPreview(ipfsHash, fileName);
   };
 
   const handleDownloadVersion = async (version) => {
@@ -1374,9 +1555,8 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       
       showNotification(`Downloading from IPFS: ${ipfsHash.substring(0, 20)}...`, 'success');
       
-      // Download from IPFS gateway
-      const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
-      window.open(ipfsUrl, '_blank');
+      // Use smart preview/download that handles both directory-wrapped and direct CIDs
+      openIpfsPreview(ipfsHash, version.fileName || version.name);
     } catch (error) {
       console.error('Download error:', error);
       showNotification('Failed to download document', 'error');
@@ -1392,8 +1572,8 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       
       showNotification('Downloading document...', 'info');
       
-      // Use IPFS gateway to download
-      const ipfsUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
+      // Direct URL - files are uploaded with wrapWithDirectory: false
+      const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
       
       // Create invisible link and trigger download
       const link = document.createElement('a');
@@ -2579,10 +2759,12 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                     <label>IPFS Hash:</label>
                     <code className="hash-code">{selectedRequest.ipfsHash}</code>
                   </div>
-                  <div className="detail-item">
-                    <label>Transaction ID:</label>
-                    <code className="hash-code">{selectedRequest.txId}</code>
-                  </div>
+                  {selectedRequest.txId && (
+                    <div className="detail-item">
+                      <label>Transaction ID:</label>
+                      <code className="hash-code">{selectedRequest.txId}</code>
+                    </div>
+                  )}
                   <div className="detail-item">
                     <label>Approval Type:</label>
                     <span className={`approval-type-badge ${isDigitalSignature(selectedRequest.approvalType) ? 'digital' : 'standard'}`}>
@@ -2685,15 +2867,19 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                   {(selectedRequest.stampedIpfsHash || selectedRequest.ipfsHash) ? (
                     <>
                       <div className="pdf-preview-frame">
+                        {/* Use Google Docs Viewer for PDF preview to avoid X-Frame-Options issues */}
                         <iframe
-                          src={`https://gateway.pinata.cloud/ipfs/${selectedRequest.stampedIpfsHash || selectedRequest.ipfsHash}`}
+                          src={`https://docs.google.com/viewer?url=${encodeURIComponent(getIpfsUrl(selectedRequest.stampedIpfsHash || selectedRequest.ipfsHash, selectedRequest.documentName || selectedRequest.fileName))}&embedded=true`}
                           title="Document Preview"
                           className="pdf-iframe"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
                         />
                       </div>
                       <button 
                         className="btn-primary"
-                        onClick={() => window.open(`https://gateway.pinata.cloud/ipfs/${selectedRequest.stampedIpfsHash || selectedRequest.ipfsHash}`, '_blank')}
+                        onClick={() => window.open(getIpfsUrl(selectedRequest.stampedIpfsHash || selectedRequest.ipfsHash, selectedRequest.documentName || selectedRequest.fileName), '_blank')}
                       >
                         <i className="ri-external-link-line"></i>
                         Open Full Preview

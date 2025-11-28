@@ -279,47 +279,67 @@ class PDFStampingService:
         Returns:
             Stamped PDF content as bytes
         """
-        # Read original PDF
-        original_pdf = PdfReader(io.BytesIO(pdf_content))
-        output_pdf = PdfWriter()
+        print(f"📄 stamp_pdf called with approval_type: {approval_type}")
+        print(f"📄 signature_hash: {signature_hash}")
+        print(f"📄 tx_hash: {tx_hash}")
+        print(f"📄 signer_address: {signer_address}")
         
-        # Process each page
-        for page_num, page in enumerate(original_pdf.pages):
-            # Get page dimensions
-            page_box = page.mediabox
-            page_width = float(page_box.width)
-            page_height = float(page_box.height)
+        try:
+            # Read original PDF
+            original_pdf = PdfReader(io.BytesIO(pdf_content))
+            output_pdf = PdfWriter()
+            print(f"📄 Original PDF has {len(original_pdf.pages)} pages")
             
-            # Create QR overlay for first page only
-            if page_num == 0:
-                # Create QR overlay
-                qr_overlay = self.create_qr_overlay(verification_code, page_width, page_height)
-                qr_pdf = PdfReader(qr_overlay)
-                page.merge_page(qr_pdf.pages[0])
+            # Process each page
+            for page_num, page in enumerate(original_pdf.pages):
+                # Get page dimensions
+                page_box = page.mediabox
+                page_width = float(page_box.width)
+                page_height = float(page_box.height)
+                print(f"📄 Processing page {page_num + 1}, size: {page_width}x{page_height}")
                 
-                # Create stamp overlay
-                stamp_overlay = self.create_approval_stamp(
-                    approver_name, approval_date, verification_code, approval_type
-                )
-                
-                # For digital signature, update the stamp creation
-                if approval_type == "DIGITAL_SIGNATURE":
-                    stamp_overlay = self._create_digital_stamp_overlay(
-                        page_width, page_height, approver_name, approval_date,
-                        verification_code, signature_hash, tx_hash, signer_address
+                # Create QR overlay for first page only
+                if page_num == 0:
+                    # Create QR overlay
+                    qr_overlay = self.create_qr_overlay(verification_code, page_width, page_height)
+                    qr_pdf = PdfReader(qr_overlay)
+                    page.merge_page(qr_pdf.pages[0])
+                    print(f"📄 QR overlay merged")
+                    
+                    # Create stamp overlay
+                    stamp_overlay = self.create_approval_stamp(
+                        approver_name, approval_date, verification_code, approval_type
                     )
+                    
+                    # For digital signature, update the stamp creation
+                    if approval_type == "DIGITAL_SIGNATURE":
+                        print(f"📄 Creating DIGITAL_SIGNATURE stamp overlay")
+                        stamp_overlay = self._create_digital_stamp_overlay(
+                            page_width, page_height, approver_name, approval_date,
+                            verification_code, signature_hash, tx_hash, signer_address
+                        )
+                    else:
+                        print(f"📄 Using standard approval stamp")
+                    
+                    stamp_pdf = PdfReader(stamp_overlay)
+                    page.merge_page(stamp_pdf.pages[0])
+                    print(f"📄 Stamp overlay merged")
                 
-                stamp_pdf = PdfReader(stamp_overlay)
-                page.merge_page(stamp_pdf.pages[0])
+                output_pdf.add_page(page)
             
-            output_pdf.add_page(page)
-        
-        # Write output
-        output_buffer = io.BytesIO()
-        output_pdf.write(output_buffer)
-        output_buffer.seek(0)
-        
-        return output_buffer.read()
+            # Write output
+            output_buffer = io.BytesIO()
+            output_pdf.write(output_buffer)
+            output_buffer.seek(0)
+            
+            result = output_buffer.read()
+            print(f"📄 Stamped PDF created, size: {len(result)} bytes")
+            return result
+        except Exception as e:
+            print(f"❌ Error in stamp_pdf: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     def _create_digital_stamp_overlay(self, page_width, page_height, approver_name, 
                                        approval_date, verification_code, 
@@ -362,10 +382,22 @@ class PDFStampingService:
         try:
             # Build IPFS gateway URL
             pdf_url = f"https://gateway.pinata.cloud/ipfs/{ipfs_hash}"
+            print(f"📥 Downloading PDF from: {pdf_url}")
             
             # Download PDF
             response = requests.get(pdf_url, timeout=60)
             response.raise_for_status()
+            print(f"📥 PDF downloaded successfully, size: {len(response.content)} bytes")
+            print(f"📥 Content-Type: {response.headers.get('content-type', 'unknown')}")
+            
+            # Verify it's a PDF
+            content_type = response.headers.get('content-type', '')
+            if 'pdf' not in content_type.lower() and not response.content[:4] == b'%PDF':
+                print(f"⚠️ Warning: Content may not be a PDF. Content-Type: {content_type}")
+                # Check if it's HTML (directory listing)
+                if b'<!DOCTYPE' in response.content[:100] or b'<html' in response.content[:100]:
+                    print(f"❌ Error: Received HTML instead of PDF. This might be a directory CID.")
+                    return None
             
             # Extract details
             verification_code = approval_details.get('verification_code', 'N/A')
@@ -397,10 +429,24 @@ class PDFStampingService:
             # Use DIGITAL_SIGNATURE type if digital signature data is present
             effective_approval_type = "DIGITAL_SIGNATURE" if is_digital_signature else approval_type
             
-            return self.stamp_pdf(
+            print(f"📄 Stamping PDF with type: {effective_approval_type}")
+            print(f"📄 Approver: {approver_name}")
+            print(f"📄 Verification code: {verification_code}")
+            print(f"📄 Signature hash: {signature_hash}")
+            print(f"📄 Signer address: {signer_address}")
+            print(f"📄 TX hash: {tx_hash}")
+            
+            stamped_result = self.stamp_pdf(
                 response.content, verification_code, approver_name, approval_date,
                 effective_approval_type, signature_hash, tx_hash, signer_address
             )
+            
+            if stamped_result:
+                print(f"✅ PDF stamped successfully, size: {len(stamped_result)} bytes")
+            else:
+                print(f"❌ PDF stamping returned None")
+            
+            return stamped_result
         except Exception as e:
             print(f"Error stamping PDF from URL: {e}")
             import traceback

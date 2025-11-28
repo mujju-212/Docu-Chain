@@ -14,6 +14,27 @@ import requests as http_requests
 bp = Blueprint('approvals', __name__)
 logger = logging.getLogger(__name__)
 
+def send_approval_request_chat_message(sender_id, recipient_id, approval_request, document):
+    """Send an auto-generated chat message when an approval is requested"""
+    try:
+        from app.routes.chat import create_approval_request_message
+        create_approval_request_message(
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            approval_request={
+                'id': str(approval_request.id),
+                'requestId': approval_request.request_id
+            },
+            document={
+                'id': str(approval_request.document_id) if approval_request.document_id else None,
+                'name': approval_request.document_name,
+                'ipfs_hash': approval_request.document_ipfs_hash,
+                'size': approval_request.document_file_size
+            }
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send chat message for approval request: {e}")
+
 # ========== CREATE APPROVAL REQUEST ==========
 
 @bp.route('/request', methods=['POST'])
@@ -116,6 +137,19 @@ def create_approval_request():
         
         db.session.commit()
         
+        # Send chat messages to all approvers
+        try:
+            for step in ApprovalStep.query.filter_by(request_id=approval_request.id).all():
+                send_approval_request_chat_message(
+                    sender_id=current_user_id,
+                    recipient_id=step.approver_id,
+                    approval_request=approval_request,
+                    document={'name': approval_request.document_name}
+                )
+            logger.info(f"Sent chat messages to approvers for request {approval_request.request_id}")
+        except Exception as chat_error:
+            logger.warning(f"Could not send chat messages: {chat_error}")
+        
         # Add document reference to approval folders
         try:
             approval_folder_service.on_request_created(approval_request)
@@ -134,16 +168,33 @@ def create_approval_request():
 @bp.route('/approve/<request_id>', methods=['POST'])
 @jwt_required()
 def approve_document(request_id):
-    """Approve document"""
+    """Approve document - supports both blockchain request_id and database UUID"""
     try:
         current_user_id = get_jwt_identity()
         data = request.get_json()
+        is_legacy_request = data.get('isLegacyRequest', False)
         
         user = User.query.get(current_user_id)
+        
+        # Try to find approval request by blockchain request_id first
         approval_request = ApprovalRequest.query.filter_by(request_id=request_id).first()
         step = ApprovalStep.query.filter_by(blockchain_request_id=request_id, approver_id=current_user_id).first()
         
+        # If not found by blockchain ID, try finding by database UUID (for legacy requests)
+        if not approval_request and is_legacy_request:
+            try:
+                from uuid import UUID
+                uuid_id = UUID(request_id)
+                approval_request = ApprovalRequest.query.get(uuid_id)
+                if approval_request:
+                    # Find step by approval request ID
+                    step = ApprovalStep.query.filter_by(request_id=approval_request.id, approver_id=current_user_id).first()
+                    logger.info(f"Found legacy approval request by UUID: {request_id}")
+            except ValueError:
+                logger.warning(f"Invalid UUID format for legacy request: {request_id}")
+        
         if not all([user, approval_request, step]):
+            logger.error(f"Approval not found - user: {user}, approval_request: {approval_request}, step: {step}")
             return jsonify({'error': 'Not found'}), 404
         
         # Check if this is a digital signature approval
@@ -159,7 +210,18 @@ def approve_document(request_id):
         if is_digital_signature and digital_signature_data:
             step.signature_hash = data.get('signatureHash')  # The keccak256 hash of signature
         
-        all_steps = ApprovalStep.query.filter_by(blockchain_request_id=request_id).all()
+        # Get all steps for this approval request
+        # For legacy requests, look by request_id (database UUID)
+        # For blockchain requests, look by blockchain_request_id
+        if is_legacy_request:
+            all_steps = ApprovalStep.query.filter_by(request_id=approval_request.id).all()
+        else:
+            all_steps = ApprovalStep.query.filter_by(blockchain_request_id=request_id).all()
+            # If empty, fallback to request_id
+            if not all_steps:
+                all_steps = ApprovalStep.query.filter_by(request_id=approval_request.id).all()
+        
+        logger.info(f"📋 Found {len(all_steps)} approval steps for request")
         approved = sum(1 for s in all_steps if s.has_approved)
         
         if approved == len(all_steps):
@@ -211,11 +273,17 @@ def approve_document(request_id):
                 logger.info(f"📄 IPFS Hash: {approval_request.document_ipfs_hash}")
                 logger.info(f"📄 Verification Code: {approval_request.verification_code}")
                 logger.info(f"📄 Is Digital Signature: {is_digital_signature}")
+                logger.info(f"📄 Approval Type from request: {approval_request.approval_type}")
+                logger.info(f"📄 Digital Signature Data: {digital_signature_data}")
+                
+                # Use DIGITAL_SIGNATURE type if this is a digital signature approval
+                effective_approval_type = 'DIGITAL_SIGNATURE' if is_digital_signature else approval_request.approval_type
+                logger.info(f"📄 Effective Approval Type: {effective_approval_type}")
                 
                 stamped_pdf = pdf_stamping_service.stamp_pdf_from_url(
                     approval_request.document_ipfs_hash,
                     approval_details,
-                    approval_request.approval_type
+                    effective_approval_type
                 )
                 
                 logger.info(f"📄 Stamped PDF result: {'Success' if stamped_pdf else 'Failed'}")
@@ -279,10 +347,11 @@ def approve_document(request_id):
 @bp.route('/reject/<request_id>', methods=['POST'])
 @jwt_required()
 def reject_document(request_id):
-    """Reject document"""
+    """Reject document - supports both blockchain request_id and database UUID"""
     try:
         current_user_id = get_jwt_identity()
         data = request.get_json()
+        is_legacy_request = data.get('isLegacyRequest', False)
         
         if not data.get('reason'):
             return jsonify({'error': 'Reason required'}), 400
@@ -290,6 +359,18 @@ def reject_document(request_id):
         user = User.query.get(current_user_id)
         approval_request = ApprovalRequest.query.filter_by(request_id=request_id).first()
         step = ApprovalStep.query.filter_by(blockchain_request_id=request_id, approver_id=current_user_id).first()
+        
+        # If not found by blockchain ID, try finding by database UUID (for legacy requests)
+        if not approval_request and is_legacy_request:
+            try:
+                from uuid import UUID
+                uuid_id = UUID(request_id)
+                approval_request = ApprovalRequest.query.get(uuid_id)
+                if approval_request:
+                    step = ApprovalStep.query.filter_by(request_id=approval_request.id, approver_id=current_user_id).first()
+                    logger.info(f"Found legacy approval request for rejection by UUID: {request_id}")
+            except ValueError:
+                logger.warning(f"Invalid UUID format for legacy request: {request_id}")
         
         if not all([user, approval_request, step]):
             return jsonify({'error': 'Not found'}), 404

@@ -5,6 +5,7 @@ from .folder import Folder
 from .recent_activity import RecentActivity
 from .approval import ApprovalRequest, ApprovalStep, ApprovedDocument, ApprovalHistory
 from .document_template import DocumentTemplate, GeneratedDocument
+from .chat import Conversation, ConversationMember, Message, UserOnlineStatus
 
 __all__ = [
     'User', 
@@ -18,5 +19,9 @@ __all__ = [
     'ApprovedDocument',
     'ApprovalHistory',
     'DocumentTemplate',
-    'GeneratedDocument'
+    'GeneratedDocument',
+    'Conversation',
+    'ConversationMember',
+    'Message',
+    'UserOnlineStatus'
 ]

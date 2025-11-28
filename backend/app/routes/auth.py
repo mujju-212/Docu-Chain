@@ -279,6 +279,13 @@ def login():
         user.last_login = datetime.utcnow()
         db.session.commit()
         
+        # Create/join auto-generated groups (institution, department)
+        try:
+            from app.routes.chat import create_auto_groups_for_user
+            create_auto_groups_for_user(user)
+        except Exception as e:
+            print(f"Warning: Could not create auto groups for user: {e}")
+        
         # Create access token
         access_token = create_access_token(identity=user.id)
         
@@ -392,7 +399,7 @@ def create_institution():
 @bp.route('/me', methods=['GET'])
 @jwt_required()
 def get_current_user():
-    """Get current user information"""
+    """Get current user information with institution details"""
     try:
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
@@ -400,9 +407,22 @@ def get_current_user():
         if not user:
             return jsonify({'success': False, 'message': 'User not found'}), 404
         
+        user_data = user.to_dict()
+        
+        # Include institution details
+        if user.institution:
+            user_data['institution'] = {
+                'id': str(user.institution.id),
+                'name': user.institution.name,
+                'address': user.institution.address if hasattr(user.institution, 'address') else '',
+                'phone': user.institution.phone if hasattr(user.institution, 'phone') else '',
+                'email': user.institution.email if hasattr(user.institution, 'email') else '',
+                'logo': user.institution.logo if hasattr(user.institution, 'logo') else None
+            }
+        
         return jsonify({
             'success': True,
-            'user': user.to_dict()
+            'user': user_data
         }), 200
         
     except Exception as e:

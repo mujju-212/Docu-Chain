@@ -109,7 +109,8 @@ class PinataService {
             formData.append('pinataMetadata', pinataMetadata);
             
             const pinataOptions = JSON.stringify({
-                cidVersion: 0
+                cidVersion: 1,
+                wrapWithDirectory: false
             });
             
             formData.append('pinataOptions', pinataOptions);

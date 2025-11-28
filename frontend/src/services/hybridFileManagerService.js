@@ -269,7 +269,8 @@ class HybridFileManagerService {
   async getFolders(parentId = null) {
     try {
       const params = parentId ? { parent_id: parentId } : {};
-      const response = await axios.get(`${this.apiBaseUrl}/api/folders/`, { params });
+      const headers = this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {};
+      const response = await axios.get(`${this.apiBaseUrl}/api/folders/`, { params, headers });
       
       if (response.data.success) {
         return {
@@ -296,6 +297,7 @@ class HybridFileManagerService {
       console.log('📄 getDocuments called with folderId:', folderId, 'getAll:', getAll);
       
       const params = {};
+      const headers = this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {};
       if (getAll) {
         params.all = 'true';  // Get ALL documents from all folders
       } else if (folderId) {
@@ -304,7 +306,7 @@ class HybridFileManagerService {
       
       console.log('📄 Making request to /api/documents/ with params:', params);
       
-      const response = await axios.get(`${this.apiBaseUrl}/api/documents/`, { params });
+      const response = await axios.get(`${this.apiBaseUrl}/api/documents/`, { params, headers });
       
       console.log('📄 Backend response:', response.data);
       

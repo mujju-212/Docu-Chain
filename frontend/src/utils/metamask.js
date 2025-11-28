@@ -244,6 +244,7 @@ const APPROVAL_MANAGER_ABI = [
 
 // Keep CONTRACT_ABI for backward compatibility
 const CONTRACT_ABI = DOCUMENT_MANAGER_ABI;
+const CONTRACT_ADDRESS = DOCUMENT_MANAGER_ADDRESS;
 
 // Initialize MetaMask
 export const initializeMetaMask = async () => {
@@ -464,24 +465,30 @@ export const uploadDocumentToBlockchain = async (ipfsHash, fileName, fileType, f
     try {
         const contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
         
+        // Ensure fileSize is a string for the contract
+        const fileSizeStr = String(fileSize);
+        
         // Estimate gas
         const gasEstimate = await contract.methods
-            .uploadDocument(ipfsHash, fileName, fileSize, fileType)
+            .uploadDocument(ipfsHash, fileName, fileSizeStr, fileType)
             .estimateGas({ from: userAccount });
+        
+        // Convert BigInt to Number for gas calculation (safe for gas values)
+        const gasLimit = Math.round(Number(gasEstimate) * 1.2);
         
         // Send transaction
         const result = await contract.methods
-            .uploadDocument(ipfsHash, fileName, fileSize, fileType)
+            .uploadDocument(ipfsHash, fileName, fileSizeStr, fileType)
             .send({
                 from: userAccount,
-                gas: Math.round(gasEstimate * 1.2) // Add 20% buffer
+                gas: gasLimit
             });
         
         return {
             success: true,
             transactionHash: result.transactionHash,
             blockNumber: result.blockNumber,
-            documentId: result.events.DocumentUploaded.returnValues.documentId
+            documentId: result.events?.DocumentUploaded?.returnValues?.documentId || null
         };
     } catch (error) {
         console.error('Blockchain upload error:', error);

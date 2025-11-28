@@ -119,12 +119,19 @@ class GeneratedDocument(db.Model):
     def to_dict_with_requester(self):
         data = self.to_dict()
         if self.requester:
+            # Get department name if department_id exists
+            dept_name = None
+            if self.requester.department_id:
+                from app.models.institution import Department
+                dept = Department.query.get(self.requester.department_id)
+                dept_name = dept.name if dept else None
+            
             data['requester'] = {
                 'id': str(self.requester.id),
                 'name': f"{self.requester.first_name} {self.requester.last_name}",
                 'email': self.requester.email,
                 'role': self.requester.role,
-                'department': self.requester.department
+                'department': dept_name
             }
         return data
 

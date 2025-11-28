@@ -141,6 +141,21 @@ const FileManager = () => {
     }
   };
 
+  // Helper to get correct IPFS URL
+  // Since files are now uploaded with wrapWithDirectory: false, the CID is the file itself
+  const getIpfsUrl = (ipfsHash, fileName) => {
+    if (!ipfsHash) return null;
+    // Direct CID URL - no filename path needed for wrapWithDirectory: false
+    return `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+  };
+  
+  // Open IPFS preview in new tab
+  const openIpfsPreview = (ipfsHash, fileName) => {
+    if (!ipfsHash) return;
+    // Direct URL - files are uploaded with wrapWithDirectory: false
+    window.open(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`, '_blank');
+  };
+
   // Initialize file manager (backend connection only)
   useEffect(() => {
     console.log('📂 Initializing File Manager...');
@@ -827,6 +842,11 @@ const FileManager = () => {
     if (section === 'section-trash') {
       await loadTrashItems();
     }
+    
+    // Reload shared documents when switching to shared section
+    if (section === 'section-shared') {
+      await loadSharedWithMe();
+    }
   };
 
   // Load trash items
@@ -1457,37 +1477,100 @@ const FileManager = () => {
           }
           console.log('✅ IPFS upload successful:', ipfsResult.ipfsHash);
           
-          // Step 2: Update document on blockchain (keeps same document_id, creates new version)
-          console.log('⛓️ Updating document on blockchain...');
-          setTxCurrentStep(2);
-          setTxMessage('Please confirm transaction in MetaMask...');
-          setTxProgress(50);          const docId = file.documentId || file.document_id;
-          console.log('📋 Using existing document_id:', docId);
-          const blockchainResult = await blockchainServiceV2.updateDocument(
-            docId,                     // Existing document ID (bytes32 hash)
-            ipfsResult.ipfsHash        // New IPFS hash
-          );
-          if (!blockchainResult.success) {
-            throw new Error(blockchainResult.error || 'Blockchain update failed');
-          }
-          console.log('✅ Blockchain updated successfully');
+          // Step 2: Check if document exists on blockchain, then update or register
+          const docId = file.documentId || file.document_id;
+          console.log('📋 Document ID:', docId);
           
-          // Step 3: Update document in database with new IPFS hash (document_id stays the same)
+          let blockchainUpdated = false;
+          let newDocumentId = docId;
+          
+          // Check if document exists on blockchain
+          let documentExistsOnBlockchain = false;
+          if (docId && isWalletConnected()) {
+            try {
+              console.log('🔍 Checking if document exists on blockchain...');
+              const docInfo = await blockchainServiceV2.getDocument(docId);
+              documentExistsOnBlockchain = docInfo && docInfo.isActive;
+              console.log('📄 Document exists on blockchain:', documentExistsOnBlockchain);
+            } catch (error) {
+              console.log('📄 Document not found on blockchain (likely shared or legacy document)');
+              documentExistsOnBlockchain = false;
+            }
+          }
+          
+          if (documentExistsOnBlockchain) {
+            // Document exists on blockchain - update it
+            console.log('⛓️ Updating document on blockchain...');
+            setTxCurrentStep(2);
+            setTxMessage('Please confirm transaction in MetaMask...');
+            setTxProgress(50);
+            
+            const blockchainResult = await blockchainServiceV2.updateDocument(
+              docId,                     // Existing document ID (bytes32 hash)
+              ipfsResult.ipfsHash        // New IPFS hash
+            );
+            if (!blockchainResult.success) {
+              throw new Error(blockchainResult.error || 'Blockchain update failed');
+            }
+            console.log('✅ Blockchain updated successfully');
+            blockchainUpdated = true;
+          } else if (isWalletConnected()) {
+            // Document doesn't exist on blockchain - register it as new document
+            console.log('⛓️ Document not on blockchain, registering as new...');
+            setTxCurrentStep(2);
+            setTxMessage('Registering document on blockchain (first time)...');
+            setTxProgress(50);
+            
+            try {
+              const blockchainResult = await blockchainServiceV2.uploadDocument(
+                ipfsResult.ipfsHash,
+                newFile.name,
+                newFile.size,
+                'general'
+              );
+              
+              if (blockchainResult.success && blockchainResult.documentId) {
+                newDocumentId = blockchainResult.documentId;
+                console.log('✅ Document registered on blockchain:', newDocumentId);
+                blockchainUpdated = true;
+              } else {
+                console.log('⚠️ Blockchain registration skipped, continuing with database only');
+              }
+            } catch (blockchainError) {
+              console.log('⚠️ Blockchain registration failed, continuing with database only:', blockchainError.message);
+            }
+          } else {
+            console.log('ℹ️ Wallet not connected, skipping blockchain update');
+            setTxCurrentStep(2);
+            setTxMessage('Skipping blockchain (wallet not connected)...');
+            setTxProgress(50);
+          }
+          
+          // Step 3: Update document in database with new IPFS hash
           console.log('💾 Updating database...');
           setTxCurrentStep(3);
           setTxMessage('Saving changes to database...');
           setTxProgress(75);
           
           const token = localStorage.getItem('token');
+          
+          // Build update payload
+          const updatePayload = {
+            name: newFile.name,
+            ipfs_hash: ipfsResult.ipfsHash,
+            file_size: newFile.size,
+            file_type: newFile.type
+          };
+          
+          // Include document_id if it was newly registered on blockchain
+          if (newDocumentId && newDocumentId !== docId) {
+            updatePayload.document_id = newDocumentId;
+            console.log('📝 Including new document_id in update:', newDocumentId);
+          }
+          
           const updateResponse = await axios.put(
             `http://localhost:5000/api/documents/${file.id}`,
-            {
-              name: newFile.name,
-              ipfs_hash: ipfsResult.ipfsHash,
-              file_size: newFile.size,
-              file_type: newFile.type
-              // document_id stays the same - not updating it
-            },
+            updatePayload,
             {
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -2111,8 +2194,8 @@ const FileManager = () => {
   const downloadFile = async (file) => {
     try {
       if (file.ipfsHash) {
-        // Download from IPFS
-        const url = `https://gateway.pinata.cloud/ipfs/${file.ipfsHash}`;
+        // Download from IPFS - use helper to handle directory CIDs
+        const url = getIpfsUrl(file.ipfsHash, file.fileName || file.name);
         const link = document.createElement('a');
         link.href = url;
         link.download = file.name;
@@ -4387,7 +4470,7 @@ const FileManager = () => {
                       backgroundColor: '#f9fafb'
                     }}>
                       <img 
-                        src={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                        src={getIpfsUrl(currentFile.ipfsHash, currentFile.fileName || currentFile.name)}
                         alt={currentFile.name}
                         style={{
                           maxWidth: '100%',
@@ -4415,18 +4498,52 @@ const FileManager = () => {
                       backgroundColor: '#ffffff',
                       overflow: 'hidden'
                     }}>
+                      {/* Use Google Docs Viewer for PDF preview to avoid X-Frame-Options issues */}
                       <iframe
-                        src={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                        src={`https://docs.google.com/viewer?url=${encodeURIComponent(getIpfsUrl(currentFile.ipfsHash, currentFile.fileName || currentFile.name))}&embedded=true`}
                         style={{
                           width: '100%',
                           height: '600px',
                           border: 'none'
                         }}
                         title={currentFile.name}
+                        onError={(e) => {
+                          // If Google viewer fails, show fallback
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
                       />
+                      {/* Fallback UI if iframe fails */}
+                      <div style={{
+                        display: 'none',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '60px 20px',
+                        backgroundColor: '#f9fafb'
+                      }}>
+                        <i className="ri-file-pdf-2-line" style={{fontSize: '64px', color: '#ef4444', marginBottom: '16px'}}></i>
+                        <h3 style={{margin: '0 0 8px 0', color: '#1f2937'}}>{currentFile.name}</h3>
+                        <p style={{margin: '0 0 20px 0', color: '#6b7280'}}>PDF preview not available in browser</p>
+                        <button
+                          onClick={() => window.open(getIpfsUrl(currentFile.ipfsHash, currentFile.fileName || currentFile.name), '_blank')}
+                          style={{
+                            padding: '10px 24px',
+                            backgroundColor: '#2563eb',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}
+                        >
+                          <i className="ri-external-link-line"></i> Open PDF in New Tab
+                        </button>
+                      </div>
                       <div style={{padding: '12px', backgroundColor: '#f9fafb', borderTop: '1px solid #e5e7eb', textAlign: 'center'}}>
                         <a 
-                          href={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                          href={getIpfsUrl(currentFile.ipfsHash, currentFile.fileName || currentFile.name)}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{color: '#2563eb', textDecoration: 'none', fontSize: '14px'}}
@@ -4452,7 +4569,7 @@ const FileManager = () => {
                       overflow: 'hidden'
                     }}>
                       <iframe
-                        src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`)}`}
+                        src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(getIpfsUrl(currentFile.ipfsHash, currentFile.fileName || currentFile.name))}`}
                         style={{
                           width: '100%',
                           height: '600px',
@@ -4462,7 +4579,7 @@ const FileManager = () => {
                       />
                       <div style={{padding: '12px', backgroundColor: '#f9fafb', borderTop: '1px solid #e5e7eb', textAlign: 'center'}}>
                         <a 
-                          href={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                          href={getIpfsUrl(currentFile.ipfsHash, currentFile.fileName || currentFile.name)}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{color: '#2563eb', textDecoration: 'none', fontSize: '14px', marginRight: '16px'}}
@@ -4470,7 +4587,7 @@ const FileManager = () => {
                           <i className="ri-external-link-line"></i> Open in New Tab
                         </a>
                         <a 
-                          href={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
+                          href={getIpfsUrl(currentFile.ipfsHash, currentFile.fileName || currentFile.name)}
                           download={currentFile.name}
                           style={{color: '#059669', textDecoration: 'none', fontSize: '14px'}}
                         >
@@ -4488,18 +4605,33 @@ const FileManager = () => {
                       backgroundColor: '#ffffff',
                       padding: '20px'
                     }}>
-                      <iframe
-                        src={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`}
-                        style={{
-                          width: '100%',
-                          height: '400px',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '4px',
-                          fontFamily: 'monospace',
-                          padding: '12px'
-                        }}
-                        title={currentFile.name}
-                      />
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '40px 20px',
+                        backgroundColor: '#f9fafb',
+                        borderRadius: '8px'
+                      }}>
+                        <i className="ri-file-text-line" style={{fontSize: '48px', color: '#6b7280', marginBottom: '16px'}}></i>
+                        <p style={{margin: '0 0 16px 0', color: '#6b7280'}}>Text file preview</p>
+                        <button
+                          onClick={() => window.open(getIpfsUrl(currentFile.ipfsHash, currentFile.fileName || currentFile.name), '_blank')}
+                          style={{
+                            padding: '10px 24px',
+                            backgroundColor: '#2563eb',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}
+                        >
+                          <i className="ri-external-link-line"></i> Open in New Tab
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -4520,7 +4652,7 @@ const FileManager = () => {
                           borderRadius: '8px'
                         }}
                       >
-                        <source src={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`} type={currentFile.documentType || 'video/mp4'} />
+                        <source src={getIpfsUrl(currentFile.ipfsHash, currentFile.fileName || currentFile.name)} type={currentFile.documentType || 'video/mp4'} />
                         Your browser does not support the video tag.
                       </video>
                     </div>
@@ -4544,7 +4676,7 @@ const FileManager = () => {
                           marginTop: '20px'
                         }}
                       >
-                        <source src={`https://gateway.pinata.cloud/ipfs/${currentFile.ipfsHash}`} type={currentFile.documentType || 'audio/mpeg'} />
+                        <source src={getIpfsUrl(currentFile.ipfsHash, currentFile.fileName || currentFile.name)} type={currentFile.documentType || 'audio/mpeg'} />
                         Your browser does not support the audio tag.
                       </audio>
                     </div>

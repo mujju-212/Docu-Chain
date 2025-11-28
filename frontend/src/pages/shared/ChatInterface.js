@@ -1,17 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { io } from 'socket.io-client';
 import './ChatInterface.css';
+
+const API_URL = 'http://localhost:5000/api';
+const SOCKET_URL = 'http://localhost:5000';
 
 const ChatInterface = () => {
     const { theme } = useTheme();
     
-    // Application State
-    const [currentUser, setCurrentUser] = useState({
-        name: 'John Doe',
-        role: 'Student',
-        department: 'Computer Science',
-        email: 'john.doe@university.edu',
-        phone: '+1 (555) 123-4567'
+    // Get current user from localStorage
+    const [currentUser, setCurrentUser] = useState(() => {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+            try {
+                return JSON.parse(storedUser);
+            } catch {
+                return null;
+            }
+        }
+        return null;
     });
 
     const [activeTab, setActiveTab] = useState('direct');
@@ -33,355 +41,333 @@ const ChatInterface = () => {
     const [isTyping, setIsTyping] = useState(false);
     const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
     const [searchInConversation, setSearchInConversation] = useState('');
+    
+    // New states for user search and real data
+    const [isUserSearchModalOpen, setIsUserSearchModalOpen] = useState(false);
+    const [userSearchQuery, setUserSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
+    const [newGroupName, setNewGroupName] = useState('');
+    const [newGroupMembers, setNewGroupMembers] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     const messagesContainerRef = useRef(null);
     const contextMenuRef = useRef(null);
+    const socketRef = useRef(null);
+    const lastMessageTimeRef = useRef(null);
+    const typingTimeoutRef = useRef(null);
+    
+    // Online status state
+    const [onlineUsers, setOnlineUsers] = useState({});
+    const [typingUsers, setTypingUsers] = useState({});
 
-    // Sample Data - Enhanced with more users and groups
-    const [conversations, setConversations] = useState([
-        {
-            id: 1,
-            type: 'direct',
-            name: 'Dr. John Smith',
-            role: 'Faculty',
-            department: 'Computer Science',
-            email: 'john.smith@university.edu',
-            phone: '+1 (555) 234-5678',
-            lastMessage: 'Document verification completed',
-            timestamp: '2 min ago',
-            unread: 2,
-            online: true,
-            avatar: 'JS',
-            lastSeen: null,
-            isTyping: false,
-            isPinned: false,
-            isMuted: false,
-            isBlocked: false
-        },
-        {
-            id: 2,
-            type: 'direct',
-            name: 'Prof. Sarah Wilson',
-            role: 'Faculty',
-            department: 'Mathematics',
-            email: 'sarah.wilson@university.edu',
-            phone: '+1 (555) 345-6789',
-            lastMessage: 'Your assignment has been graded',
-            timestamp: '15 min ago',
-            unread: 0,
-            online: true,
-            avatar: 'SW',
-            lastSeen: null,
-            isTyping: true,
-            isPinned: true,
-            isMuted: false,
-            isBlocked: false
-        },
-        {
-            id: 3,
-            type: 'direct',
-            name: 'Dr. Michael Chen',
-            role: 'Faculty',
-            department: 'Computer Science',
-            email: 'michael.chen@university.edu',
-            phone: '+1 (555) 456-7890',
-            lastMessage: 'Research proposal looks good',
-            timestamp: '1 hour ago',
-            unread: 0,
-            online: false,
-            avatar: 'MC',
-            lastSeen: '1 hour ago',
-            isTyping: false,
-            isPinned: false,
-            isMuted: false,
-            isBlocked: false
-        },
-        {
-            id: 4,
-            type: 'direct',
-            name: 'Alice Rodriguez',
-            role: 'Student',
-            department: 'Computer Science',
-            email: 'alice.rodriguez@university.edu',
-            phone: '+1 (555) 567-8901',
-            lastMessage: 'Can we work on the project together?',
-            timestamp: '2 hours ago',
-            unread: 3,
-            online: true,
-            avatar: 'AR',
-            lastSeen: null,
-            isTyping: false,
-            isPinned: false,
-            isMuted: false,
-            isBlocked: false
-        },
-        {
-            id: 5,
-            type: 'direct',
-            name: 'Bob Anderson',
-            role: 'Student',
-            department: 'Computer Science',
-            email: 'bob.anderson@university.edu',
-            phone: '+1 (555) 678-9012',
-            lastMessage: 'Thanks for sharing the notes!',
-            timestamp: '3 hours ago',
-            unread: 0,
-            online: false,
-            avatar: 'BA',
-            lastSeen: '30 minutes ago',
-            isTyping: false,
-            isPinned: false,
-            isMuted: false,
-            isBlocked: false
-        },
-        {
-            id: 6,
-            type: 'direct',
-            name: 'Dr. Emily Foster',
-            role: 'Faculty',
-            department: 'Physics',
-            email: 'emily.foster@university.edu',
-            phone: '+1 (555) 789-0123',
-            lastMessage: 'Lab report approved',
-            timestamp: 'Yesterday',
-            unread: 0,
-            online: false,
-            avatar: 'EF',
-            lastSeen: 'Yesterday at 5:30 PM',
-            isTyping: false,
-            isPinned: false,
-            isMuted: false,
-            isBlocked: false
-        },
-        {
-            id: 7,
-            type: 'direct',
-            name: 'David Kim',
-            role: 'Student',
-            department: 'Mathematics',
-            email: 'david.kim@university.edu',
-            phone: '+1 (555) 890-1234',
-            lastMessage: 'See you in class tomorrow',
-            timestamp: 'Yesterday',
-            unread: 0,
-            online: true,
-            avatar: 'DK',
-            lastSeen: null,
-            isTyping: false,
-            isPinned: false,
-            isMuted: true,
-            isBlocked: false
-        },
-        {
-            id: 8,
-            type: 'direct',
-            name: 'Admin Office',
-            role: 'Admin',
-            department: 'Administration',
-            email: 'admin@university.edu',
-            phone: '+1 (555) 901-2345',
-            lastMessage: 'Your document request has been processed',
-            timestamp: '2 days ago',
-            unread: 1,
-            online: true,
-            avatar: 'AO',
-            lastSeen: null,
-            isTyping: false,
-            isPinned: true,
-            isMuted: false,
-            isBlocked: false
-        },
-        {
-            id: 101,
-            type: 'group',
-            name: 'CS Department - Faculty',
-            members: 12,
-            lastMessage: 'Meeting scheduled for next Monday',
-            timestamp: '30 min ago',
-            unread: 2,
-            avatar: 'CS',
-            isPinned: false,
-            isMuted: false
-        },
-        {
-            id: 102,
-            type: 'group',
-            name: 'CS Section A - 2024',
-            members: 45,
-            lastMessage: 'Assignment submission deadline extended',
-            timestamp: '1 hour ago',
-            unread: 5,
-            isSection: true,
-            avatar: 'SA',
-            isPinned: true,
-            isMuted: false
-        },
-        {
-            id: 103,
-            type: 'group',
-            name: 'Research Group - AI/ML',
-            members: 8,
-            lastMessage: 'New paper published in the journal',
-            timestamp: '2 hours ago',
-            unread: 0,
-            avatar: 'AI',
-            isPinned: false,
-            isMuted: false
-        },
-        {
-            id: 104,
-            type: 'group',
-            name: 'Project Team - DocuChain',
-            members: 5,
-            lastMessage: 'Sprint review tomorrow at 10 AM',
-            timestamp: '4 hours ago',
-            unread: 8,
-            avatar: 'DC',
-            isPinned: false,
-            isMuted: false
-        },
-        {
-            id: 105,
-            type: 'group',
-            name: 'Math Department Study Group',
-            members: 20,
-            lastMessage: 'Practice problems uploaded',
-            timestamp: 'Yesterday',
-            unread: 0,
-            avatar: 'MG',
-            isPinned: false,
-            isMuted: true
-        },
-        {
-            id: 201,
-            type: 'circular',
-            name: 'University Announcements',
-            members: 1250,
-            lastMessage: 'New examination schedule released',
-            timestamp: '1 hour ago',
-            unread: 1,
-            isCircular: true,
-            avatar: 'UA',
-            isPinned: false,
-            isMuted: false
-        },
-        {
-            id: 202,
-            type: 'circular',
-            name: 'Emergency Alerts',
-            members: 1250,
-            lastMessage: 'Campus will be closed on Monday',
-            timestamp: '3 days ago',
-            unread: 0,
-            isCircular: true,
-            avatar: 'EA',
-            isPinned: true,
-            isMuted: false
-        }
-    ]);
+    // Real data from API
+    const [conversations, setConversations] = useState([]);
+    const [messages, setMessages] = useState([]);
+    const [availableDocuments, setAvailableDocuments] = useState([]);
+    const [teamMembers, setTeamMembers] = useState([]);
 
-    const [availableDocuments] = useState([
-        {
-            id: 1,
-            name: 'Thesis_Chapter1.pdf',
-            type: 'PDF',
-            size: '2.5 MB',
-            hash: '0x1a2b3c4d...',
-            uploadDate: '2024-01-15'
-        },
-        {
-            id: 2,
-            name: 'Assignment_Report.docx',
-            type: 'DOCX',
-            size: '1.8 MB',
-            hash: '0x5e6f7g8h...',
-            uploadDate: '2024-01-10'
-        },
-        {
-            id: 3,
-            name: 'Research_Paper.pdf',
-            type: 'PDF',
-            size: '3.2 MB',
-            hash: '0x9i0j1k2l...',
-            uploadDate: '2024-01-08'
-        },
-        {
-            id: 4,
-            name: 'Project_Proposal.pdf',
-            type: 'PDF',
-            size: '1.2 MB',
-            hash: '0xm3n4o5p6...',
-            uploadDate: '2024-01-05'
-        },
-        {
-            id: 5,
-            name: 'Lab_Report.docx',
-            type: 'DOCX',
-            size: '900 KB',
-            hash: '0xq7r8s9t0...',
-            uploadDate: '2024-01-03'
-        }
-    ]);
+    // Get auth header
+    const getAuthHeader = useCallback(() => {
+        const token = localStorage.getItem('token');
+        return token ? { Authorization: `Bearer ${token}` } : {};
+    }, []);
 
-    const [teamMembers] = useState([
-        { id: 1, name: 'Dr. John Smith', role: 'Faculty', department: 'Computer Science' },
-        { id: 2, name: 'Prof. Sarah Wilson', role: 'Faculty', department: 'Mathematics' },
-        { id: 3, name: 'Dr. Mike Johnson', role: 'Faculty', department: 'Computer Science' },
-        { id: 4, name: 'Alice Brown', role: 'Student', department: 'Computer Science' },
-        { id: 5, name: 'Bob Davis', role: 'Student', department: 'Computer Science' }
-    ]);
-
-    const [messages, setMessages] = useState([
-        {
-            id: 1,
-            sender: 'Dr. John Smith',
-            content: 'I have reviewed your thesis document. Please check the verification status.',
-            timestamp: '10:30 AM',
-            isOwn: false,
-            hasDocument: true,
-            document: {
-                name: 'Thesis_Chapter1.pdf',
-                type: 'approved',
-                hash: '0x1a2b3c4d...',
-                size: '2.5 MB',
-                requestType: 'approval-response'
+    // Fetch conversations
+    const fetchConversations = useCallback(async () => {
+        try {
+            console.log('Fetching conversations...', getAuthHeader());
+            const response = await fetch(`${API_URL}/chat/conversations`, {
+                headers: getAuthHeader()
+            });
+            
+            console.log('Response status:', response.status);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Conversations data:', data);
+                setConversations(data.conversations || []);
+            } else {
+                console.error('Failed to fetch conversations:', response.status, await response.text());
             }
-        },
-        {
-            id: 2,
-            sender: 'You',
-            content: 'Thank you for the quick review. I can see it\'s been approved on the blockchain.',
-            timestamp: '10:32 AM',
-            isOwn: true,
-            status: 'read' // 'sent', 'delivered', 'read'
-        },
-        {
-            id: 3,
-            sender: 'You',
-            content: 'Requesting approval for my research paper',
-            timestamp: '10:35 AM',
-            isOwn: true,
-            status: 'delivered',
-            hasDocument: true,
-            document: {
-                name: 'Research_Paper.pdf',
-                type: 'approval-request',
-                hash: '0x9i0j1k2l...',
-                size: '3.2 MB',
-                requestType: 'approval-request',
-                approvalMembers: ['Dr. John Smith', 'Prof. Sarah Wilson'],
-                description: 'Please review my research paper on blockchain applications in education'
-            }
-        },
-        {
-            id: 4,
-            sender: 'You',
-            content: 'Let me know if you need any additional information.',
-            timestamp: '10:36 AM',
-            isOwn: true,
-            status: 'sent'
+        } catch (error) {
+            console.error('Error fetching conversations:', error);
+        } finally {
+            setLoading(false);
         }
-    ]);
+    }, [getAuthHeader]);
+
+    // Fetch messages for a conversation
+    const fetchMessages = useCallback(async (conversationId) => {
+        try {
+            const response = await fetch(`${API_URL}/chat/conversations/${conversationId}/messages`, {
+                headers: getAuthHeader()
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setMessages(data.messages || []);
+                if (data.messages && data.messages.length > 0) {
+                    lastMessageTimeRef.current = data.messages[data.messages.length - 1].createdAt;
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+        }
+    }, [getAuthHeader]);
+
+    // Poll for new messages (HTTP fallback when WebSocket not connected)
+    const pollMessages = useCallback(async () => {
+        if (!selectedChat) return;
+        
+        // Skip if WebSocket is connected
+        if (socketRef.current && socketRef.current.connected) return;
+        
+        try {
+            const params = lastMessageTimeRef.current 
+                ? `?since=${encodeURIComponent(lastMessageTimeRef.current)}` 
+                : '';
+            
+            const response = await fetch(
+                `${API_URL}/chat/conversations/${selectedChat}/poll${params}`,
+                { headers: getAuthHeader() }
+            );
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.messages && data.messages.length > 0) {
+                    setMessages(prev => [...prev, ...data.messages]);
+                    lastMessageTimeRef.current = data.messages[data.messages.length - 1].createdAt;
+                }
+            }
+        } catch (error) {
+            console.error('Error polling messages:', error);
+        }
+    }, [selectedChat, getAuthHeader]);
+
+    // Update online status
+    const updateOnlineStatus = useCallback(async (isOnline) => {
+        try {
+            await fetch(`${API_URL}/chat/status/${isOnline ? 'online' : 'offline'}`, {
+                method: 'POST',
+                headers: getAuthHeader()
+            });
+        } catch (error) {
+            console.error('Error updating online status:', error);
+        }
+    }, [getAuthHeader]);
+
+    // Search users
+    const searchUsers = useCallback(async (query) => {
+        if (query.length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        
+        setIsSearching(true);
+        try {
+            const response = await fetch(`${API_URL}/chat/users/search?q=${encodeURIComponent(query)}`, {
+                headers: getAuthHeader()
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setSearchResults(data.users || []);
+            }
+        } catch (error) {
+            console.error('Error searching users:', error);
+        } finally {
+            setIsSearching(false);
+        }
+    }, [getAuthHeader]);
+
+    // Fetch user's documents for sharing
+    const fetchDocuments = useCallback(async () => {
+        try {
+            const response = await fetch(`${API_URL}/documents`, {
+                headers: getAuthHeader()
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setAvailableDocuments(data.documents || []);
+            }
+        } catch (error) {
+            console.error('Error fetching documents:', error);
+        }
+    }, [getAuthHeader]);
+
+    // Initial data load (don't wait for WebSocket)
+    useEffect(() => {
+        if (currentUser) {
+            fetchConversations();
+            fetchDocuments();
+        } else {
+            // No user logged in, stop loading
+            setLoading(false);
+        }
+    }, [currentUser, fetchConversations, fetchDocuments]);
+
+    // Initialize Socket.IO connection (optional enhancement)
+    useEffect(() => {
+        if (!currentUser) return;
+        
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        // Create socket connection
+        try {
+            socketRef.current = io(SOCKET_URL, {
+                query: { token },
+                transports: ['polling', 'websocket'], // Try polling first
+                reconnection: true,
+                reconnectionAttempts: 3,
+                reconnectionDelay: 2000,
+                timeout: 5000
+            });
+            
+            const socket = socketRef.current;
+            
+            // Connection events
+            socket.on('connect', () => {
+                console.log('✅ Connected to chat server via WebSocket');
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('❌ Disconnected from chat server');
+            });
+            
+            socket.on('connect_error', (error) => {
+                console.warn('WebSocket connection failed, using HTTP fallback:', error.message);
+            });
+        
+        // New message received
+        socket.on('new_message', (message) => {
+            setMessages(prev => {
+                // Avoid duplicates
+                if (prev.find(m => m.id === message.id)) return prev;
+                return [...prev, message];
+            });
+            
+            // Update conversation list
+            setConversations(prev => prev.map(conv => {
+                if (conv.id === message.conversationId) {
+                    return {
+                        ...conv,
+                        lastMessage: message.content,
+                        lastMessageAt: message.createdAt,
+                        unreadCount: selectedChat === conv.id ? 0 : (conv.unreadCount || 0) + 1
+                    };
+                }
+                return conv;
+            }));
+        });
+        
+        // Message delivered status
+        socket.on('message_delivered', (data) => {
+            setMessages(prev => prev.map(msg => 
+                msg.id === data.messageId ? { ...msg, status: 'delivered' } : msg
+            ));
+        });
+        
+        // Message read status
+        socket.on('message_read', (data) => {
+            setMessages(prev => prev.map(msg => 
+                msg.id === data.messageId ? { ...msg, status: 'read' } : msg
+            ));
+        });
+        
+        // User typing indicator
+        socket.on('user_typing', (data) => {
+            if (data.isTyping) {
+                setTypingUsers(prev => ({ ...prev, [data.userId]: data.userName }));
+            } else {
+                setTypingUsers(prev => {
+                    const newState = { ...prev };
+                    delete newState[data.userId];
+                    return newState;
+                });
+            }
+        });
+        
+        // User online/offline status
+        socket.on('user_online', (data) => {
+            setOnlineUsers(prev => ({ ...prev, [data.userId]: { online: true, lastSeen: data.lastSeen } }));
+        });
+        
+        socket.on('user_offline', (data) => {
+            setOnlineUsers(prev => ({ ...prev, [data.userId]: { online: false, lastSeen: data.lastSeen } }));
+        });
+        
+        } catch (error) {
+            console.warn('Failed to initialize WebSocket:', error);
+        }
+        
+        // Cleanup on unmount
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+            }
+        };
+    }, [currentUser, fetchConversations, fetchDocuments, selectedChat]);
+
+    // Polling fallback ref
+    const pollIntervalRef = useRef(null);
+
+    // Load messages when conversation is selected
+    useEffect(() => {
+        if (selectedChat) {
+            fetchMessages(selectedChat);
+            
+            // Join the conversation room via WebSocket if connected
+            if (socketRef.current && socketRef.current.connected) {
+                socketRef.current.emit('join_conversation', { conversationId: selectedChat });
+            } else {
+                // Start HTTP polling as fallback
+                pollIntervalRef.current = setInterval(pollMessages, 5000);
+            }
+            
+            return () => {
+                // Leave the conversation room when deselecting
+                if (socketRef.current && socketRef.current.connected) {
+                    socketRef.current.emit('leave_conversation', { conversationId: selectedChat });
+                }
+                // Clear polling interval
+                if (pollIntervalRef.current) {
+                    clearInterval(pollIntervalRef.current);
+                }
+            };
+        }
+    }, [selectedChat, fetchMessages, pollMessages]);
+
+    // Mark messages as read when viewing
+    useEffect(() => {
+        if (selectedChat && socketRef.current && socketRef.current.connected && messages.length > 0) {
+            const unreadMessageIds = messages
+                .filter(m => m.senderId !== currentUser?.id && m.status !== 'read')
+                .map(m => m.id);
+            if (unreadMessageIds.length > 0) {
+                socketRef.current.emit('mark_read', { 
+                    conversationId: selectedChat, 
+                    messageIds: unreadMessageIds 
+                });
+            }
+        }
+    }, [selectedChat, messages, currentUser]);
+
+    // Debounce user search
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            if (userSearchQuery.length >= 2) {
+                searchUsers(userSearchQuery);
+            } else {
+                setSearchResults([]);
+            }
+        }, 300);
+        
+        return () => clearTimeout(timeoutId);
+    }, [userSearchQuery, searchUsers]);
 
     // Scroll to bottom when messages change
     useEffect(() => {
@@ -440,30 +426,23 @@ const ChatInterface = () => {
         setIsContextMenuOpen(!isContextMenuOpen);
     };
 
-    const handleMuteConversation = () => {
-        setConversations(conversations.map(c => 
-            c.id === selectedChat ? { ...c, isMuted: !c.isMuted } : c
-        ));
+    const handleMuteConversation = async () => {
+        const conv = conversations.find(c => c.id === selectedChat);
+        await updateConversationSettings('isMuted', !conv?.isMuted);
         setIsContextMenuOpen(false);
-        alert(`Conversation ${conversations.find(c => c.id === selectedChat)?.isMuted ? 'unmuted' : 'muted'}`);
     };
 
-    const handlePinConversation = () => {
-        setConversations(conversations.map(c => 
-            c.id === selectedChat ? { ...c, isPinned: !c.isPinned } : c
-        ));
+    const handlePinConversation = async () => {
+        const conv = conversations.find(c => c.id === selectedChat);
+        await updateConversationSettings('isPinned', !conv?.isPinned);
         setIsContextMenuOpen(false);
-        alert(`Conversation ${conversations.find(c => c.id === selectedChat)?.isPinned ? 'unpinned' : 'pinned'}`);
     };
 
-    const handleBlockUser = () => {
+    const handleBlockUser = async () => {
         const conv = conversations.find(c => c.id === selectedChat);
         if (conv && conv.type === 'direct') {
-            setConversations(conversations.map(c => 
-                c.id === selectedChat ? { ...c, isBlocked: !c.isBlocked } : c
-            ));
+            await updateConversationSettings('isBlocked', !conv?.isBlocked);
             setIsContextMenuOpen(false);
-            alert(`User ${conv.isBlocked ? 'unblocked' : 'blocked'}`);
         }
     };
 
@@ -505,39 +484,167 @@ const ChatInterface = () => {
         setIsMobileSidebarHidden(false);
     };
 
-    const sendMessage = () => {
+    // Start a new conversation with a user
+    const startConversation = async (user) => {
+        try {
+            const response = await fetch(`${API_URL}/chat/conversations`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    type: 'direct',
+                    userId: user.id
+                })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // Refresh conversations and select the new one
+                await fetchConversations();
+                setSelectedChat(data.conversation.id);
+                setIsUserSearchModalOpen(false);
+                setUserSearchQuery('');
+                setSearchResults([]);
+            }
+        } catch (error) {
+            console.error('Error starting conversation:', error);
+            alert('Failed to start conversation');
+        }
+    };
+
+    // Create a new group
+    const createGroup = async () => {
+        if (!newGroupName.trim()) {
+            alert('Please enter a group name');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`${API_URL}/chat/conversations`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    type: 'group',
+                    name: newGroupName,
+                    members: newGroupMembers.map(m => m.id)
+                })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                await fetchConversations();
+                setSelectedChat(data.conversation.id);
+                setIsCreateGroupModalOpen(false);
+                setNewGroupName('');
+                setNewGroupMembers([]);
+            }
+        } catch (error) {
+            console.error('Error creating group:', error);
+            alert('Failed to create group');
+        }
+    };
+
+    const sendMessage = async () => {
         const content = messageInput.trim();
-        if (!content) return;
+        if (!content || !selectedChat) return;
 
-        const newMessage = {
-            id: messages.length + 1,
-            sender: 'You',
-            content: content,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            isOwn: true,
-            status: 'sent' // Initial status
-        };
+        // Use WebSocket if connected
+        if (socketRef.current && socketRef.current.connected) {
+            socketRef.current.emit('send_message', {
+                conversationId: selectedChat,
+                content,
+                messageType: 'text'
+            });
+            setMessageInput('');
+            
+            // Stop typing indicator
+            if (socketRef.current) {
+                socketRef.current.emit('typing_stop', { conversationId: selectedChat });
+            }
+            return;
+        }
 
-        setMessages([...messages, newMessage]);
-        setMessageInput('');
+        // Fallback to HTTP
+        try {
+            const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}/messages`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    content,
+                    messageType: 'text'
+                })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setMessages(prev => [...prev, {
+                    ...data.message,
+                    isOwn: true,
+                    senderName: 'You'
+                }]);
+                setMessageInput('');
+                
+                // Update conversation in list
+                setConversations(prev => prev.map(c => 
+                    c.id === selectedChat 
+                        ? { ...c, lastMessage: content, lastMessageAt: new Date().toISOString() } 
+                        : c
+                ));
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            alert('Failed to send message');
+        }
+    };
 
-        // Simulate message delivery and read status
-        setTimeout(() => {
-            setMessages(prev => prev.map(m => 
-                m.id === newMessage.id ? { ...m, status: 'delivered' } : m
+    // Handle typing indicator
+    const handleMessageInputChange = (e) => {
+        setMessageInput(e.target.value);
+        
+        // Emit typing indicator
+        if (socketRef.current && selectedChat) {
+            socketRef.current.emit('typing_start', { conversationId: selectedChat });
+            
+            // Clear previous timeout
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            
+            // Stop typing after 2 seconds of inactivity
+            typingTimeoutRef.current = setTimeout(() => {
+                if (socketRef.current) {
+                    socketRef.current.emit('typing_stop', { conversationId: selectedChat });
+                }
+            }, 2000);
+        }
+    };
+
+    // Update conversation settings (mute, pin, etc.)
+    const updateConversationSettings = async (setting, value) => {
+        try {
+            await fetch(`${API_URL}/chat/conversations/${selectedChat}/settings`, {
+                method: 'PATCH',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ [setting]: value })
+            });
+            
+            setConversations(prev => prev.map(c => 
+                c.id === selectedChat ? { ...c, [setting]: value } : c
             ));
-        }, 1000);
-
-        setTimeout(() => {
-            setMessages(prev => prev.map(m => 
-                m.id === newMessage.id ? { ...m, status: 'read' } : m
-            ));
-        }, 3000);
-
-        // Update conversation
-        setConversations(conversations.map(c => 
-            c.id === selectedChat ? { ...c, lastMessage: content, timestamp: 'now' } : c
-        ));
+        } catch (error) {
+            console.error('Error updating settings:', error);
+        }
     };
 
     const openDocumentSelector = (action) => {
@@ -575,48 +682,51 @@ const ChatInterface = () => {
         );
     };
 
-    const sendDocumentRequest = () => {
-        if (selectedMembers.length === 0) {
-            alert('Please select at least one recipient.');
-            return;
-        }
-
+    const sendDocumentRequest = async () => {
         if (!selectedDocument) {
             alert('No document selected.');
             return;
         }
 
-        const selectedMemberNames = selectedMembers.map(id => 
-            teamMembers.find(m => m.id === id).name
-        );
+        if (!selectedChat) {
+            alert('Please select a conversation first.');
+            return;
+        }
 
-        const newMessage = {
-            id: messages.length + 1,
-            sender: 'You',
-            content: currentDocumentAction === 'share' ? 
-                `Shared document: ${selectedDocument.name}` : 
-                `Requesting approval for: ${selectedDocument.name}`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            isOwn: true,
-            hasDocument: true,
-            document: {
-                name: selectedDocument.name,
-                type: currentDocumentAction === 'share' ? 'shared' : 'approval-request',
-                hash: selectedDocument.hash,
-                size: selectedDocument.size,
-                requestType: currentDocumentAction,
-                approvalMembers: selectedMemberNames,
-                description: description
+        try {
+            const content = currentDocumentAction === 'share' 
+                ? `Shared document: ${selectedDocument.name || selectedDocument.title}`
+                : `Requesting approval for: ${selectedDocument.name || selectedDocument.title}`;
+
+            const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}/messages`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    content,
+                    messageType: currentDocumentAction === 'share' ? 'document_share' : 'approval_request',
+                    documentId: selectedDocument.id,
+                    documentName: selectedDocument.name || selectedDocument.title,
+                    documentHash: selectedDocument.ipfs_hash || selectedDocument.hash,
+                    documentSize: selectedDocument.size
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setMessages(prev => [...prev, {
+                    ...data.message,
+                    isOwn: true,
+                    senderName: 'You'
+                }]);
+                closeDocumentModal();
             }
-        };
-
-        setMessages([...messages, newMessage]);
-        closeDocumentModal();
-
-        // Update conversation
-        setConversations(conversations.map(c => 
-            c.id === selectedChat ? { ...c, lastMessage: newMessage.content, timestamp: 'now' } : c
-        ));
+        } catch (error) {
+            console.error('Error sending document:', error);
+            alert('Failed to send document');
+        }
     };
 
     const renderDocumentAttachment = (document, isOwn) => {
@@ -695,6 +805,47 @@ const ChatInterface = () => {
 
     const selectedConversation = conversations.find(c => c.id === selectedChat);
 
+    // Helper to format timestamp
+    const formatTimestamp = (timestamp) => {
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diff = now - date;
+        
+        if (diff < 60000) return 'now';
+        if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+        if (diff < 86400000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (diff < 172800000) return 'Yesterday';
+        return date.toLocaleDateString();
+    };
+
+    // Get user display name
+    const getUserDisplayName = () => {
+        if (!currentUser) return 'User';
+        return currentUser.firstName 
+            ? `${currentUser.firstName} ${currentUser.lastName || ''}`
+            : currentUser.name || currentUser.email || 'User';
+    };
+
+    // Format last seen
+    const formatLastSeen = (lastSeen) => {
+        if (!lastSeen) return '';
+        return formatTimestamp(lastSeen);
+    };
+
+    if (loading) {
+        return (
+            <div className={`chat-interface-wrapper theme-${theme}`}>
+                <div className="chat-container">
+                    <div className="loading-state">
+                        <i className="ri-loader-4-line spin"></i>
+                        <p>Loading conversations...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className={`chat-interface-wrapper theme-${theme}`}>
             <div className="chat-container">
@@ -716,10 +867,13 @@ const ChatInterface = () => {
                                 <i className="ri-user-line"></i>
                             </div>
                             <div className="user-details">
-                                <h3>{currentUser.name}</h3>
-                                <p>{currentUser.role} • {currentUser.department}</p>
+                                <h3>{getUserDisplayName()}</h3>
+                                <p>{currentUser?.role || 'User'}</p>
                             </div>
                         </div>
+                        <button className="new-chat-btn" onClick={() => setIsUserSearchModalOpen(true)} title="New Chat">
+                            <i className="ri-add-line"></i>
+                        </button>
                     </div>
 
                     {/* Search */}
@@ -759,7 +913,20 @@ const ChatInterface = () => {
 
                     {/* Conversations List */}
                     <div className="conversations-list">
-                        {filteredConversations.map(conv => (
+                        {filteredConversations.length === 0 ? (
+                            <div className="empty-conversations">
+                                <i className="ri-chat-3-line"></i>
+                                <p>No conversations yet</p>
+                                <span>Start a new chat to begin messaging</span>
+                            </div>
+                        ) : (
+                        filteredConversations.map(conv => {
+                            // Check if user is online via WebSocket state
+                            const isUserOnline = conv.type === 'direct' && conv.userId 
+                                ? (onlineUsers[conv.userId]?.online ?? conv.online)
+                                : conv.online;
+                            
+                            return (
                             <div 
                                 key={conv.id}
                                 className={`conversation-item ${selectedChat === conv.id ? 'active' : ''} ${conv.isPinned ? 'pinned' : ''}`}
@@ -770,7 +937,7 @@ const ChatInterface = () => {
                                         {conv.type === 'direct' ? (
                                             <div className="avatar-circle-sm">
                                                 {conv.avatar}
-                                                {conv.online && <div className="online-indicator-sm"></div>}
+                                                {isUserOnline && <div className="online-indicator-sm"></div>}
                                             </div>
                                         ) : (
                                             <div className="avatar-circle-sm group">
@@ -784,12 +951,12 @@ const ChatInterface = () => {
                                                 {conv.isPinned && <i className="ri-pushpin-fill pin-icon"></i>}
                                                 <div className="conversation-name">{conv.name}</div>
                                             </div>
-                                            <div className="conversation-time">{conv.timestamp}</div>
+                                            <div className="conversation-time">{formatTimestamp(conv.lastMessageAt)}</div>
                                         </div>
                                         <div className="conversation-footer">
                                             <div className="conversation-message">
                                                 {conv.isMuted && <i className="ri-notification-off-line muted-icon"></i>}
-                                                {conv.isTyping ? (
+                                                {typingUsers[conv.userId] ? (
                                                     <span className="typing-text">typing...</span>
                                                 ) : (
                                                     conv.lastMessage
@@ -797,20 +964,20 @@ const ChatInterface = () => {
                                             </div>
                                             {conv.unread > 0 && <div className="unread-badge">{conv.unread}</div>}
                                         </div>
-                                        {conv.type !== 'direct' && <div className="conversation-meta">{conv.members} members</div>}
+                                        {conv.type !== 'direct' && <div className="conversation-meta">{conv.memberCount || conv.members} members</div>}
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                        );
+                        })
+                        )}
                     </div>
 
-                    {/* Create Group Button (Admin only) */}
-                    {currentUser.role === 'Admin' && (
-                        <button className="create-group-btn" onClick={() => alert('Create Group functionality')}>
-                            <i className="ri-add-line"></i>
-                            Create Group
-                        </button>
-                    )}
+                    {/* Create Group Button */}
+                    <button className="create-group-btn" onClick={() => setIsCreateGroupModalOpen(true)}>
+                        <i className="ri-add-line"></i>
+                        Create Group
+                    </button>
                 </div>
 
                 {/* Chat Area */}
@@ -837,7 +1004,7 @@ const ChatInterface = () => {
                                             {selectedConversation?.type === 'direct' ? (
                                                 <div className="avatar-circle">
                                                     {selectedConversation?.avatar || <i className="ri-user-line"></i>}
-                                                    {selectedConversation?.online && <div className="online-indicator-chat"></div>}
+                                                    {(onlineUsers[selectedConversation?.userId]?.online ?? selectedConversation?.online) && <div className="online-indicator-chat"></div>}
                                                 </div>
                                             ) : (
                                                 <i className="ri-team-line"></i>
@@ -847,20 +1014,24 @@ const ChatInterface = () => {
                                             <h3>{selectedConversation?.name}</h3>
                                             <p className="chat-status">
                                                 {selectedConversation?.type === 'direct' ? (
-                                                    selectedConversation?.isTyping ? (
+                                                    typingUsers[selectedConversation?.userId] ? (
                                                         <span className="typing-indicator-text">
                                                             <span className="typing-dots">
                                                                 <span></span><span></span><span></span>
                                                             </span>
                                                             typing...
                                                         </span>
-                                                    ) : selectedConversation?.online ? (
+                                                    ) : (onlineUsers[selectedConversation?.userId]?.online ?? selectedConversation?.online) ? (
                                                         <span className="online-status">Online</span>
                                                     ) : (
-                                                        <span className="last-seen">Last seen {selectedConversation?.lastSeen}</span>
+                                                        <span className="last-seen">
+                                                            Last seen {formatLastSeen(
+                                                                onlineUsers[selectedConversation?.userId]?.lastSeen || selectedConversation?.lastSeen
+                                                            )}
+                                                        </span>
                                                     )
                                                 ) : (
-                                                    `${selectedConversation?.members} members`
+                                                    `${selectedConversation?.members || selectedConversation?.memberCount} members`
                                                 )}
                                             </p>
                                         </div>
@@ -873,10 +1044,46 @@ const ChatInterface = () => {
 
                             {/* Messages Container */}
                             <div className="messages-container" ref={messagesContainerRef}>
+                                {messages.map(msg => {
+                                    const isOwn = msg.senderId === currentUser?.id || msg.isOwn;
+                                    return (
+                                        <div key={msg.id} className={`message ${isOwn ? 'own' : 'other'}`}>
+                                            <div className={`message-bubble ${isOwn ? 'own' : 'other'}`}>
+                                                {!isOwn && <div className="message-sender">{msg.senderName || msg.sender}</div>}
+                                                <div className="message-content">{msg.content}</div>
+                                                {(msg.hasDocument || msg.document) && renderDocumentAttachment(msg.document, isOwn)}
+                                                <div className="message-footer">
+                                                    <div className="message-time">
+                                                        {msg.createdAt 
+                                                            ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                                            : msg.timestamp
+                                                        }
+                                                    </div>
+                                                    {isOwn && (
+                                                        <div className={`message-status status-${msg.status || 'sent'}`}>
+                                                            {(msg.status === 'sent' || !msg.status) && <i className="ri-check-line"></i>}
+                                                            {msg.status === 'delivered' && (
+                                                                <i className="ri-check-double-line"></i>
+                                                            )}
+                                                            {msg.status === 'read' && (
+                                                                <i className="ri-check-double-line read-tick"></i>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                
                                 {/* Typing Indicator */}
-                                {selectedConversation?.isTyping && (
+                                {Object.keys(typingUsers).length > 0 && (
                                     <div className="typing-indicator">
                                         <div className="typing-bubble">
+                                            <span className="typing-name">
+                                                {Object.values(typingUsers).join(', ')}
+                                            </span>
+                                            <span className="typing-text"> is typing</span>
                                             <div className="typing-dots">
                                                 <span></span>
                                                 <span></span>
@@ -885,35 +1092,6 @@ const ChatInterface = () => {
                                         </div>
                                     </div>
                                 )}
-                                
-                                {messages.map(msg => (
-                                    <div key={msg.id} className={`message ${msg.isOwn ? 'own' : 'other'}`}>
-                                        <div className={`message-bubble ${msg.isOwn ? 'own' : 'other'}`}>
-                                            {!msg.isOwn && <div className="message-sender">{msg.sender}</div>}
-                                            <div className="message-content">{msg.content}</div>
-                                            {msg.hasDocument && renderDocumentAttachment(msg.document, msg.isOwn)}
-                                            <div className="message-footer">
-                                                <div className="message-time">{msg.timestamp}</div>
-                                                {msg.isOwn && msg.status && (
-                                                    <div className={`message-status status-${msg.status}`}>
-                                                        {msg.status === 'sent' && <i className="ri-check-line"></i>}
-                                                        {msg.status === 'delivered' && (
-                                                            <>
-                                                                <i className="ri-check-line tick-1"></i>
-                                                                <i className="ri-check-line tick-2"></i>
-                                                            </>
-                                                        )}
-                                                        {msg.status === 'read' && (
-                                                            <>
-                                                                <i className="ri-check-double-line read-tick"></i>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
                             </div>
 
                             {/* Message Input */}
@@ -942,7 +1120,7 @@ const ChatInterface = () => {
                                         type="text" 
                                         placeholder="Type your message..."
                                         value={messageInput}
-                                        onChange={(e) => setMessageInput(e.target.value)}
+                                        onChange={handleMessageInputChange}
                                         onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                                     />
                                     <button className="send-btn" onClick={sendMessage}>
@@ -1084,7 +1262,7 @@ const ChatInterface = () => {
                             <h2>{selectedConversation.name}</h2>
                             <p className="profile-role">{selectedConversation.role} - {selectedConversation.department}</p>
                             {!selectedConversation.online && selectedConversation.lastSeen && (
-                                <p className="profile-last-seen">Last seen {selectedConversation.lastSeen}</p>
+                                <p className="profile-last-seen">Last seen {formatLastSeen(selectedConversation.lastSeen)}</p>
                             )}
                         </div>
 
@@ -1193,6 +1371,147 @@ const ChatInterface = () => {
                     <div className="context-menu-item" onClick={handleViewSharedDocuments}>
                         <i className="ri-folder-shared-line"></i>
                         <span>View Shared Documents</span>
+                    </div>
+                </div>
+            )}
+
+            {/* User Search Modal */}
+            {isUserSearchModalOpen && (
+                <div className="user-search-modal" onClick={() => setIsUserSearchModalOpen(false)}>
+                    <div className="user-search-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Start New Chat</h3>
+                            <button className="close-btn" onClick={() => setIsUserSearchModalOpen(false)}>&times;</button>
+                        </div>
+                        
+                        <div className="user-search-input-container">
+                            <i className="ri-search-line"></i>
+                            <input
+                                type="text"
+                                placeholder="Search by name, email, or phone..."
+                                value={userSearchQuery}
+                                onChange={(e) => setUserSearchQuery(e.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                        
+                        <div className="user-search-results">
+                            {isSearching && (
+                                <div className="search-loading">
+                                    <i className="ri-loader-4-line spin"></i>
+                                    <span>Searching...</span>
+                                </div>
+                            )}
+                            
+                            {!isSearching && userSearchQuery.length >= 2 && searchResults.length === 0 && (
+                                <div className="no-results">
+                                    <i className="ri-user-search-line"></i>
+                                    <p>No users found</p>
+                                </div>
+                            )}
+                            
+                            {!isSearching && userSearchQuery.length < 2 && (
+                                <div className="search-hint">
+                                    <i className="ri-information-line"></i>
+                                    <p>Type at least 2 characters to search</p>
+                                </div>
+                            )}
+                            
+                            {searchResults.map(user => (
+                                <div key={user.id} className="user-search-item" onClick={() => startConversation(user)}>
+                                    <div className="user-avatar-search">
+                                        {user.avatar}
+                                        {user.online && <div className="online-indicator-sm"></div>}
+                                    </div>
+                                    <div className="user-info-search">
+                                        <h4>{user.name}</h4>
+                                        <p>{user.role} • {user.department || 'No department'}</p>
+                                        <span className="user-email">{user.email}</span>
+                                    </div>
+                                    <button className="connect-btn">
+                                        <i className="ri-chat-1-line"></i>
+                                        Chat
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Group Modal */}
+            {isCreateGroupModalOpen && (
+                <div className="create-group-modal" onClick={() => setIsCreateGroupModalOpen(false)}>
+                    <div className="create-group-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Create New Group</h3>
+                            <button className="close-btn" onClick={() => setIsCreateGroupModalOpen(false)}>&times;</button>
+                        </div>
+                        
+                        <div className="group-form">
+                            <div className="form-group">
+                                <label>Group Name</label>
+                                <input
+                                    type="text"
+                                    placeholder="Enter group name..."
+                                    value={newGroupName}
+                                    onChange={(e) => setNewGroupName(e.target.value)}
+                                />
+                            </div>
+                            
+                            <div className="form-group">
+                                <label>Add Members</label>
+                                <div className="member-search-input">
+                                    <i className="ri-search-line"></i>
+                                    <input
+                                        type="text"
+                                        placeholder="Search users to add..."
+                                        value={userSearchQuery}
+                                        onChange={(e) => setUserSearchQuery(e.target.value)}
+                                    />
+                                </div>
+                                
+                                {newGroupMembers.length > 0 && (
+                                    <div className="selected-members">
+                                        {newGroupMembers.map(member => (
+                                            <div key={member.id} className="member-chip">
+                                                <span>{member.name}</span>
+                                                <button onClick={() => setNewGroupMembers(prev => prev.filter(m => m.id !== member.id))}>
+                                                    <i className="ri-close-line"></i>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                <div className="member-search-results">
+                                    {searchResults
+                                        .filter(user => !newGroupMembers.find(m => m.id === user.id))
+                                        .map(user => (
+                                            <div 
+                                                key={user.id} 
+                                                className="member-search-item"
+                                                onClick={() => setNewGroupMembers(prev => [...prev, user])}
+                                            >
+                                                <div className="user-avatar-search">
+                                                    {user.avatar}
+                                                </div>
+                                                <div className="user-info-search">
+                                                    <h4>{user.name}</h4>
+                                                    <p>{user.role}</p>
+                                                </div>
+                                                <i className="ri-add-line"></i>
+                                            </div>
+                                        ))
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="modal-actions">
+                            <button className="btn-secondary" onClick={() => setIsCreateGroupModalOpen(false)}>Cancel</button>
+                            <button className="btn-primary" onClick={createGroup}>Create Group</button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -36,8 +36,11 @@ def create_app(config_name=None):
         }
     })
     
-    # Initialize SocketIO
-    socketio.init_app(app, cors_allowed_origins=app.config['CORS_ORIGINS'])
+    # Initialize SocketIO with threading mode (compatible with Python 3.13)
+    socketio.init_app(app, cors_allowed_origins="*", async_mode='threading')
+    
+    # Import WebSocket events (must be after socketio init)
+    from app import websocket_events
     
     # Global OPTIONS handler - handle ALL preflight requests BEFORE any other processing
     @app.before_request
@@ -52,7 +55,7 @@ def create_app(config_name=None):
             return response
     
     # Import models to ensure they are registered with SQLAlchemy
-    from app.models import user, document, institution, folder, recent_activity, approval, document_template
+    from app.models import user, document, institution, folder, recent_activity, approval, document_template, chat
     
     # Register blueprints
     from app.routes import auth, documents, users, approvals, chat, circulars, institutions, folders, shares, recent, document_generation
