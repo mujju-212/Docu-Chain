@@ -329,6 +329,27 @@ def approve_document(request_id):
         
         db.session.commit()
         
+        # Send chat message to requester about approval status
+        try:
+            from app.routes.chat import create_approval_status_message
+            status_type = 'signed' if is_digital_signature else 'approved'
+            create_approval_status_message(
+                sender_id=current_user_id,
+                recipient_id=approval_request.requester_id,
+                approval_request={'id': str(approval_request.id)},
+                document={
+                    'id': str(approval_request.document_id) if approval_request.document_id else None,
+                    'name': approval_request.document_name,
+                    'ipfs_hash': approval_request.document_ipfs_hash or approval_request.stamped_document_ipfs_hash,
+                    'size': approval_request.document_file_size
+                },
+                status=status_type,
+                comment=data.get('reason', '')
+            )
+            logger.info(f"Sent approval status chat message to requester")
+        except Exception as chat_error:
+            logger.warning(f"Could not send approval status chat message: {chat_error}")
+        
         # Update folder references
         try:
             # Update approver's folder (move to Approved)
@@ -384,6 +405,26 @@ def reject_document(request_id):
         approval_request.completed_at = datetime.utcnow()
         
         db.session.commit()
+        
+        # Send chat message to requester about rejection
+        try:
+            from app.routes.chat import create_approval_status_message
+            create_approval_status_message(
+                sender_id=current_user_id,
+                recipient_id=approval_request.requester_id,
+                approval_request={'id': str(approval_request.id)},
+                document={
+                    'id': str(approval_request.document_id) if approval_request.document_id else None,
+                    'name': approval_request.document_name,
+                    'ipfs_hash': approval_request.document_ipfs_hash,
+                    'size': approval_request.document_file_size
+                },
+                status='rejected',
+                comment=data.get('reason', '')
+            )
+            logger.info(f"Sent rejection status chat message to requester")
+        except Exception as chat_error:
+            logger.warning(f"Could not send rejection status chat message: {chat_error}")
         
         # Update folder references when rejected
         try:

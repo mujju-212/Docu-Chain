@@ -36,8 +36,16 @@ def create_app(config_name=None):
         }
     })
     
-    # Initialize SocketIO with threading mode (compatible with Python 3.13)
-    socketio.init_app(app, cors_allowed_origins="*", async_mode='threading')
+    # Initialize SocketIO with polling support (more reliable for development)
+    socketio.init_app(
+        app, 
+        cors_allowed_origins="*", 
+        async_mode='threading',
+        ping_timeout=60,
+        ping_interval=25,
+        logger=False,
+        engineio_logger=False
+    )
     
     # Import WebSocket events (must be after socketio init)
     from app import websocket_events

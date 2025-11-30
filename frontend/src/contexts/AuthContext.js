@@ -70,6 +70,9 @@ export const AuthProvider = ({ children }) => {
         // Store token
         localStorage.setItem('token', token)
         
+        // Store complete user object for ChatInterface
+        localStorage.setItem('user', JSON.stringify(user))
+        
         // Store user info for easy access
         localStorage.setItem('userId', user.id)
         localStorage.setItem('userEmail', user.email)
@@ -127,6 +130,9 @@ export const AuthProvider = ({ children }) => {
         // Store token
         localStorage.setItem('token', token)
         
+        // Store complete user object for ChatInterface
+        localStorage.setItem('user', JSON.stringify(user))
+        
         // Store user info
         localStorage.setItem('userId', user.id)
         localStorage.setItem('userEmail', user.email)
@@ -157,6 +163,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       // Clear local storage
       localStorage.removeItem('token')
+      localStorage.removeItem('user')
       localStorage.removeItem('userId')
       localStorage.removeItem('userEmail')
       localStorage.removeItem('userRole')

@@ -183,6 +183,10 @@ class Message(db.Model):
             'senderName': f"{self.sender.first_name} {self.sender.last_name}" if self.sender else None,
             'content': self.content,
             'messageType': self.message_type,
+            'documentId': str(self.document_id) if self.document_id else None,
+            'documentName': self.document_name,
+            'documentHash': self.document_hash,
+            'documentSize': self.document_size,
             'hasDocument': bool(self.document_id or self.document_name),
             'document': {
                 'id': str(self.document_id) if self.document_id else None,

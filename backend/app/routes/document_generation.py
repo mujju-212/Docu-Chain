@@ -480,6 +480,44 @@ def submit_document(doc_id):
         
         db.session.commit()
         
+        # Send chat messages to all recipients about the approval request
+        try:
+            from app.routes.chat import create_approval_request_message, create_digital_signature_request_message
+            for recipient_id in recipient_ids:
+                if approval_type == 'DIGITAL_SIGNATURE':
+                    create_digital_signature_request_message(
+                        sender_id=current_user_id,
+                        recipient_id=recipient_id,
+                        approval_request={
+                            'id': str(approval_request.id),
+                            'requestId': approval_request.request_id
+                        },
+                        document={
+                            'id': str(approval_request.document_id) if approval_request.document_id else None,
+                            'name': approval_request.document_name,
+                            'ipfs_hash': approval_request.document_ipfs_hash,
+                            'size': approval_request.document_file_size
+                        }
+                    )
+                else:
+                    create_approval_request_message(
+                        sender_id=current_user_id,
+                        recipient_id=recipient_id,
+                        approval_request={
+                            'id': str(approval_request.id),
+                            'requestId': approval_request.request_id
+                        },
+                        document={
+                            'id': str(approval_request.document_id) if approval_request.document_id else None,
+                            'name': approval_request.document_name,
+                            'ipfs_hash': approval_request.document_ipfs_hash,
+                            'size': approval_request.document_file_size
+                        }
+                    )
+            logger.info(f"Sent chat messages to {len(recipient_ids)} recipients for document generation approval")
+        except Exception as chat_error:
+            logger.warning(f"Could not send chat messages for document generation: {chat_error}")
+        
         return jsonify({
             'success': True,
             'data': {

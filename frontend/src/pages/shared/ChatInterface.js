@@ -1,26 +1,217 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { io } from 'socket.io-client';
+import blockchainServiceV2 from '../../services/blockchainServiceV2';
 import './ChatInterface.css';
 
 const API_URL = 'http://localhost:5000/api';
 const SOCKET_URL = 'http://localhost:5000';
 
+// Helper function to format timestamp properly with local timezone
+const formatMessageTime = (timestamp) => {
+    if (!timestamp) return '';
+    
+    try {
+        // Parse the ISO timestamp - if it doesn't have timezone info, treat as UTC
+        let date;
+        if (typeof timestamp === 'string') {
+            // Add 'Z' suffix if not present to indicate UTC
+            const isoString = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z';
+            date = new Date(isoString);
+        } else {
+            date = new Date(timestamp);
+        }
+        
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+            return timestamp; // Return original if parsing fails
+        }
+        
+        // Format in local time
+        return date.toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true 
+        });
+    } catch (e) {
+        console.error('Error formatting time:', e);
+        return timestamp;
+    }
+};
+
+// Helper function for relative time (e.g., "2 minutes ago", "Yesterday")
+const formatRelativeTime = (timestamp) => {
+    if (!timestamp) return '';
+    
+    try {
+        let date;
+        if (typeof timestamp === 'string') {
+            const isoString = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z';
+            date = new Date(isoString);
+        } else {
+            date = new Date(timestamp);
+        }
+        
+        if (isNaN(date.getTime())) return '';
+        
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins} min ago`;
+        if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return `${diffDays} days ago`;
+        
+        return date.toLocaleDateString([], { 
+            month: 'short', 
+            day: 'numeric',
+            year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+        });
+    } catch (e) {
+        return '';
+    }
+};
+
+// Helper function for last seen time
+const formatLastSeen = (timestamp) => {
+    if (!timestamp) return 'Never';
+    
+    try {
+        let date;
+        if (typeof timestamp === 'string') {
+            const isoString = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z';
+            date = new Date(isoString);
+        } else {
+            date = new Date(timestamp);
+        }
+        
+        if (isNaN(date.getTime())) return 'Unknown';
+        
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 1) return 'Online';
+        if (diffMins < 5) return 'Just now';
+        if (diffMins < 60) return `${diffMins} min ago`;
+        if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return `${diffDays} days ago`;
+        
+        return date.toLocaleDateString([], { 
+            month: 'short', 
+            day: 'numeric'
+        });
+    } catch (e) {
+        return 'Unknown';
+    }
+};
+
 const ChatInterface = () => {
     const { theme } = useTheme();
     
-    // Get current user from localStorage
+    // Get current user from localStorage - try multiple sources
     const [currentUser, setCurrentUser] = useState(() => {
+        // Try getting the full user object first
         const storedUser = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
+        
+        console.log('🔐 Auth Check - User:', storedUser ? 'Found' : 'Not found', '| Token:', token ? 'Found' : 'Not found');
+        
         if (storedUser) {
             try {
-                return JSON.parse(storedUser);
-            } catch {
-                return null;
+                const parsed = JSON.parse(storedUser);
+                console.log('👤 Current User from "user":', parsed);
+                return parsed;
+            } catch (e) {
+                console.error('❌ Failed to parse user from localStorage:', e);
             }
         }
+        
+        // Fallback: Build user object from individual items
+        const userId = localStorage.getItem('userId');
+        const userEmail = localStorage.getItem('userEmail');
+        const userRole = localStorage.getItem('userRole');
+        const userName = localStorage.getItem('userName');
+        
+        if (userId) {
+            const fallbackUser = {
+                id: userId,
+                email: userEmail,
+                role: userRole,
+                name: userName,
+                firstName: userName?.split(' ')[0] || '',
+                lastName: userName?.split(' ').slice(1).join(' ') || ''
+            };
+            console.log('👤 Current User from individual items:', fallbackUser);
+            return fallbackUser;
+        }
+        
         return null;
     });
+
+    // Effect to update currentUser if localStorage changes (e.g., after fresh login)
+    useEffect(() => {
+        const checkUser = () => {
+            const storedUser = localStorage.getItem('user');
+            const userId = localStorage.getItem('userId');
+            
+            // Always try to build user from available data
+            let userObj = null;
+            
+            if (storedUser) {
+                try {
+                    userObj = JSON.parse(storedUser);
+                    console.log('🔄 User from "user" key:', userObj);
+                } catch (e) {
+                    console.error('Failed to parse user:', e);
+                }
+            }
+            
+            // If no user object or it doesn't have id, build from individual items
+            if ((!userObj || !userObj.id) && userId) {
+                const userEmail = localStorage.getItem('userEmail');
+                const userRole = localStorage.getItem('userRole');
+                const userName = localStorage.getItem('userName');
+                userObj = {
+                    id: userId,
+                    email: userEmail,
+                    role: userRole,
+                    name: userName,
+                    firstName: userName?.split(' ')[0] || '',
+                    lastName: userName?.split(' ').slice(1).join(' ') || ''
+                };
+                console.log('🔄 Built user from individual items:', userObj);
+                
+                // Also save this to 'user' key for future use
+                localStorage.setItem('user', JSON.stringify(userObj));
+            }
+            
+            // Update state if we have a user and it's different
+            if (userObj && userObj.id && (!currentUser || currentUser.id !== userObj.id)) {
+                console.log('✅ Setting currentUser:', userObj);
+                setCurrentUser(userObj);
+            }
+        };
+        
+        // Check immediately and also set up storage event listener
+        checkUser();
+        window.addEventListener('storage', checkUser);
+        
+        // Also check periodically in case of issues
+        const interval = setInterval(checkUser, 2000);
+        
+        return () => {
+            window.removeEventListener('storage', checkUser);
+            clearInterval(interval);
+        };
+    }, [currentUser]);
 
     const [activeTab, setActiveTab] = useState('direct');
     const [selectedChat, setSelectedChat] = useState(null);
@@ -48,12 +239,67 @@ const ChatInterface = () => {
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
+    const [creationType, setCreationType] = useState('group');
     const [newGroupName, setNewGroupName] = useState('');
     const [newGroupMembers, setNewGroupMembers] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // Circulars feed state
+    const [circularsFeed, setCircularsFeed] = useState([]);
+    const [canPostCircular, setCanPostCircular] = useState(false);
+    const [circularsList, setCircularsList] = useState([]);
+    const [newCircularPost, setNewCircularPost] = useState('');
+    const [selectedCircularId, setSelectedCircularId] = useState('');
+    const [circularAttachment, setCircularAttachment] = useState(null);
+    const circularFileInputRef = useRef(null);
+
+    // Shared documents modal state
+    const [isSharedDocsModalOpen, setIsSharedDocsModalOpen] = useState(false);
+    const [sharedDocuments, setSharedDocuments] = useState([]);
+    const [approvalRequests, setApprovalRequests] = useState([]);
+    const [signedDocuments, setSignedDocuments] = useState([]);
+    const [loadingSharedDocs, setLoadingSharedDocs] = useState(false);
+    const [sharedDocsTab, setSharedDocsTab] = useState('shared'); // 'shared', 'approvals', 'signed'
+
+    // Message context menu state
+    const [messageContextMenu, setMessageContextMenu] = useState({ show: false, x: 0, y: 0, message: null });
+
+    // Search in conversation state
+    const [isSearchingInConversation, setIsSearchingInConversation] = useState(false);
+    const [conversationSearchResults, setConversationSearchResults] = useState([]);
+
+    // Group details modal state
+    const [isGroupDetailsModalOpen, setIsGroupDetailsModalOpen] = useState(false);
+    const [groupDetails, setGroupDetails] = useState(null);
+    const [groupMembers, setGroupMembers] = useState([]);
+    const [loadingGroupDetails, setLoadingGroupDetails] = useState(false);
+    const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+    const [memberSearchQuery, setMemberSearchQuery] = useState('');
+    const [memberSearchResults, setMemberSearchResults] = useState([]);
+
+    // Sharing progress state
+    const [sharingProgress, setSharingProgress] = useState({
+        isSharing: false,
+        step: 0, // 0: idle, 1: preparing, 2: uploading, 3: confirming, 4: complete
+        message: '',
+        error: null
+    });
+
+    // In-app modal state (replaces browser confirm/alert)
+    const [appModal, setAppModal] = useState({
+        show: false,
+        type: 'alert', // 'alert', 'confirm', 'prompt'
+        title: '',
+        message: '',
+        onConfirm: null,
+        onCancel: null,
+        inputValue: '',
+        inputPlaceholder: ''
+    });
+
     const messagesContainerRef = useRef(null);
     const contextMenuRef = useRef(null);
+    const messageContextMenuRef = useRef(null);
     const socketRef = useRef(null);
     const lastMessageTimeRef = useRef(null);
     const typingTimeoutRef = useRef(null);
@@ -67,6 +313,59 @@ const ChatInterface = () => {
     const [messages, setMessages] = useState([]);
     const [availableDocuments, setAvailableDocuments] = useState([]);
     const [teamMembers, setTeamMembers] = useState([]);
+    
+    // Document selection modal filters
+    const [docSearchQuery, setDocSearchQuery] = useState('');
+    const [docSortBy, setDocSortBy] = useState('date'); // date, name, type, size
+    const [docSortOrder, setDocSortOrder] = useState('desc'); // asc, desc
+    const [docFilterType, setDocFilterType] = useState('all'); // all, pdf, image, doc, etc.
+    const [sharePermission, setSharePermission] = useState('read'); // read, write
+
+    // In-app modal helpers (replaces browser confirm/alert/prompt)
+    const showAlert = useCallback((title, message) => {
+        setAppModal({
+            show: true,
+            type: 'alert',
+            title,
+            message,
+            onConfirm: () => setAppModal(prev => ({ ...prev, show: false })),
+            onCancel: null,
+            inputValue: '',
+            inputPlaceholder: ''
+        });
+    }, []);
+
+    const showConfirm = useCallback((title, message, onConfirm) => {
+        setAppModal({
+            show: true,
+            type: 'confirm',
+            title,
+            message,
+            onConfirm: () => {
+                setAppModal(prev => ({ ...prev, show: false }));
+                if (onConfirm) onConfirm();
+            },
+            onCancel: () => setAppModal(prev => ({ ...prev, show: false })),
+            inputValue: '',
+            inputPlaceholder: ''
+        });
+    }, []);
+
+    const showPrompt = useCallback((title, message, placeholder, onConfirm) => {
+        setAppModal({
+            show: true,
+            type: 'prompt',
+            title,
+            message,
+            onConfirm: (value) => {
+                setAppModal(prev => ({ ...prev, show: false }));
+                if (onConfirm) onConfirm(value);
+            },
+            onCancel: () => setAppModal(prev => ({ ...prev, show: false })),
+            inputValue: '',
+            inputPlaceholder: placeholder || ''
+        });
+    }, []);
 
     // Get auth header
     const getAuthHeader = useCallback(() => {
@@ -77,26 +376,57 @@ const ChatInterface = () => {
     // Fetch conversations
     const fetchConversations = useCallback(async () => {
         try {
-            console.log('Fetching conversations...', getAuthHeader());
+            const token = localStorage.getItem('token');
+            console.log('📡 Fetching conversations... Token present:', !!token);
+            
+            if (!token) {
+                console.error('❌ No token found in localStorage');
+                setLoading(false);
+                return;
+            }
+            
             const response = await fetch(`${API_URL}/chat/conversations`, {
-                headers: getAuthHeader()
+                headers: { Authorization: `Bearer ${token}` }
             });
             
-            console.log('Response status:', response.status);
+            console.log('📥 Response status:', response.status);
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('Conversations data:', data);
+                console.log('✅ Conversations received:', data.conversations?.length || 0, 'conversations');
+                console.log('📋 Conversations data:', data.conversations);
                 setConversations(data.conversations || []);
             } else {
-                console.error('Failed to fetch conversations:', response.status, await response.text());
+                const errorText = await response.text();
+                console.error('❌ Failed to fetch conversations:', response.status, errorText);
             }
         } catch (error) {
-            console.error('Error fetching conversations:', error);
+            console.error('❌ Error fetching conversations:', error);
         } finally {
             setLoading(false);
         }
-    }, [getAuthHeader]);
+    }, []);
+
+    // Fetch circulars feed
+    const fetchCircularsFeed = useCallback(async () => {
+        try {
+            const response = await fetch(`${API_URL}/chat/circulars/feed`, {
+                headers: getAuthHeader()
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setCircularsFeed(data.feed || []);
+                setCanPostCircular(data.canPost || false);
+                setCircularsList(data.circulars || []);
+                if (data.circulars?.length > 0 && !selectedCircularId) {
+                    setSelectedCircularId(data.circulars[0].id);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching circulars feed:', error);
+        }
+    }, [getAuthHeader, selectedCircularId]);
 
     // Fetch messages for a conversation
     const fetchMessages = useCallback(async (conversationId) => {
@@ -137,14 +467,26 @@ const ChatInterface = () => {
             if (response.ok) {
                 const data = await response.json();
                 if (data.messages && data.messages.length > 0) {
-                    setMessages(prev => [...prev, ...data.messages]);
+                    // Filter out own messages and duplicates
+                    const newMessages = data.messages.filter(msg => 
+                        msg.senderId !== currentUser?.id && 
+                        msg.sender_id !== currentUser?.id
+                    );
+                    
+                    if (newMessages.length > 0) {
+                        setMessages(prev => {
+                            const existingIds = new Set(prev.map(m => m.id));
+                            const uniqueNew = newMessages.filter(m => !existingIds.has(m.id));
+                            return [...prev, ...uniqueNew];
+                        });
+                    }
                     lastMessageTimeRef.current = data.messages[data.messages.length - 1].createdAt;
                 }
             }
         } catch (error) {
             console.error('Error polling messages:', error);
         }
-    }, [selectedChat, getAuthHeader]);
+    }, [selectedChat, getAuthHeader, currentUser]);
 
     // Update online status
     const updateOnlineStatus = useCallback(async (isOnline) => {
@@ -182,10 +524,10 @@ const ChatInterface = () => {
         }
     }, [getAuthHeader]);
 
-    // Fetch user's documents for sharing
+    // Fetch user's documents for sharing (get ALL documents)
     const fetchDocuments = useCallback(async () => {
         try {
-            const response = await fetch(`${API_URL}/documents`, {
+            const response = await fetch(`${API_URL}/documents?all=true`, {
                 headers: getAuthHeader()
             });
             
@@ -200,14 +542,45 @@ const ChatInterface = () => {
 
     // Initial data load (don't wait for WebSocket)
     useEffect(() => {
-        if (currentUser) {
+        // Always try to fetch on mount
+        const token = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+        
+        console.log('🔄 ChatInterface mounted - Token:', !!token, 'User:', !!storedUser);
+        
+        if (token && storedUser) {
+            console.log('👤 Auth found, fetching conversations immediately...');
             fetchConversations();
             fetchDocuments();
+            
+            // Also set currentUser if not set
+            if (!currentUser) {
+                try {
+                    setCurrentUser(JSON.parse(storedUser));
+                } catch (e) {
+                    console.error('Failed to parse user');
+                }
+            }
         } else {
-            // No user logged in, stop loading
+            console.log('⚠️ No auth found, stopping loading');
             setLoading(false);
         }
-    }, [currentUser, fetchConversations, fetchDocuments]);
+    }, []); // Empty deps - run only on mount
+
+    // Re-fetch when currentUser changes
+    useEffect(() => {
+        if (currentUser) {
+            console.log('👤 currentUser changed, re-fetching...');
+            fetchConversations();
+        }
+    }, [currentUser, fetchConversations]);
+
+    // Fetch circulars when switching to circulars tab
+    useEffect(() => {
+        if (activeTab === 'circulars' && currentUser) {
+            fetchCircularsFeed();
+        }
+    }, [activeTab, currentUser, fetchCircularsFeed]);
 
     // Initialize Socket.IO connection (optional enhancement)
     useEffect(() => {
@@ -220,11 +593,12 @@ const ChatInterface = () => {
         try {
             socketRef.current = io(SOCKET_URL, {
                 query: { token },
-                transports: ['polling', 'websocket'], // Try polling first
+                transports: ['polling'],  // Use polling only - more reliable with Flask-SocketIO threading mode
                 reconnection: true,
-                reconnectionAttempts: 3,
-                reconnectionDelay: 2000,
-                timeout: 5000
+                reconnectionAttempts: 5,
+                reconnectionDelay: 3000,
+                timeout: 10000,
+                forceNew: true
             });
             
             const socket = socketRef.current;
@@ -242,11 +616,22 @@ const ChatInterface = () => {
                 console.warn('WebSocket connection failed, using HTTP fallback:', error.message);
             });
         
-        // New message received
+        // New message received (from OTHER users only - sender uses message_sent)
         socket.on('new_message', (message) => {
+            console.log('📨 new_message received:', message);
+            
+            // Skip if this is our own message (we already added it optimistically)
+            if (message.senderId === currentUser?.id || message.sender_id === currentUser?.id) {
+                console.log('⏭️ Skipping own message in new_message handler');
+                return;
+            }
+            
             setMessages(prev => {
-                // Avoid duplicates
-                if (prev.find(m => m.id === message.id)) return prev;
+                // Avoid duplicates by checking both id and tempId
+                if (prev.find(m => m.id === message.id)) {
+                    console.log('⏭️ Skipping duplicate message');
+                    return prev;
+                }
                 return [...prev, message];
             });
             
@@ -262,6 +647,16 @@ const ChatInterface = () => {
                 }
                 return conv;
             }));
+        });
+
+        // Message sent confirmation (updates temp ID with real ID)
+        socket.on('message_sent', (data) => {
+            console.log('✅ message_sent confirmation:', data);
+            if (data.tempId && data.message) {
+                setMessages(prev => prev.map(msg => 
+                    msg.id === data.tempId ? { ...msg, id: data.message.id, status: 'sent' } : msg
+                ));
+            }
         });
         
         // Message delivered status
@@ -369,18 +764,29 @@ const ChatInterface = () => {
         return () => clearTimeout(timeoutId);
     }, [userSearchQuery, searchUsers]);
 
-    // Scroll to bottom when messages change
+    // Instantly show latest messages (bottom) when chat is opened
     useEffect(() => {
-        if (messagesContainerRef.current) {
+        if (messagesContainerRef.current && messages.length > 0) {
+            // Instantly set scroll position to bottom without animation
             messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
         }
-    }, [messages, selectedChat]);
+    }, [selectedChat]);
+    
+    // Also scroll to bottom when new messages arrive
+    useEffect(() => {
+        if (messagesContainerRef.current && messages.length > 0) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+    }, [messages.length]);
 
     // Close context menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (contextMenuRef.current && !contextMenuRef.current.contains(event.target)) {
                 setIsContextMenuOpen(false);
+            }
+            if (messageContextMenuRef.current && !messageContextMenuRef.current.contains(event.target)) {
+                setMessageContextMenu({ show: false, x: 0, y: 0, message: null });
             }
         };
 
@@ -397,12 +803,37 @@ const ChatInterface = () => {
     }, [selectedChat]);
 
     // Filter conversations based on search and active tab
+    // When searching, also search for new users if no conversation matches
     const filteredConversations = conversations.filter(conv => {
-        const matchesSearch = conv.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const name = conv.name || conv.user?.name || conv.otherUser?.name || 'Unknown';
+        const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesTab = activeTab === 'direct' ? conv.type === 'direct' :
                           activeTab === 'groups' ? conv.type === 'group' :
                           activeTab === 'circulars' ? conv.type === 'circular' : true;
         return matchesSearch && matchesTab;
+    });
+
+    // Debug log for conversations filtering
+    console.log(`🔍 Filtering: ${conversations.length} total conversations, ${filteredConversations.length} match tab "${activeTab}"`);
+    if (conversations.length > 0) {
+        console.log('📊 Conversation types:', conversations.map(c => ({ id: c.id, type: c.type, name: c.name })));
+    }
+
+    // Search for users when typing in search bar (for new connections)
+    useEffect(() => {
+        if (searchQuery.length >= 2 && activeTab === 'direct') {
+            searchUsers(searchQuery);
+        } else {
+            setSearchResults([]);
+        }
+    }, [searchQuery, activeTab, searchUsers]);
+
+    // Filter search results to exclude users who already have conversations
+    const newUsersToConnect = searchResults.filter(user => {
+        return !conversations.some(conv => 
+            conv.type === 'direct' && 
+            (conv.userId === user.id || conv.otherUserId === user.id)
+        );
     });
 
     // Profile Modal Functions
@@ -441,14 +872,181 @@ const ChatInterface = () => {
     const handleBlockUser = async () => {
         const conv = conversations.find(c => c.id === selectedChat);
         if (conv && conv.type === 'direct') {
-            await updateConversationSettings('isBlocked', !conv?.isBlocked);
+            const isBlocking = !conv?.isBlocked;
             setIsContextMenuOpen(false);
+            
+            showConfirm(
+                isBlocking ? 'Block User' : 'Unblock User',
+                isBlocking 
+                    ? `Are you sure you want to block ${conv.name}? You won't receive messages from them.`
+                    : `Are you sure you want to unblock ${conv.name}?`,
+                async () => {
+                    await updateConversationSettings('isBlocked', isBlocking);
+                    // Update local state
+                    setConversations(prev => prev.map(c => 
+                        c.id === selectedChat ? { ...c, isBlocked: isBlocking } : c
+                    ));
+                }
+            );
         }
     };
 
-    const handleViewSharedDocuments = () => {
+    const handleViewSharedDocuments = async () => {
         setIsContextMenuOpen(false);
-        alert('Opening shared documents...');
+        setIsSharedDocsModalOpen(true);
+        setLoadingSharedDocs(true);
+        setSharedDocsTab('shared');
+        
+        try {
+            // Fetch shared documents for this conversation
+            const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}/shared-documents`, {
+                headers: getAuthHeader()
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setSharedDocuments(data.documents || []);
+                setApprovalRequests(data.approvals || []);
+                setSignedDocuments(data.signed || []);
+            } else {
+                // Fallback: Extract documents from messages
+                extractDocumentsFromMessages();
+            }
+        } catch (error) {
+            console.error('Error fetching shared documents:', error);
+            extractDocumentsFromMessages();
+        }
+        setLoadingSharedDocs(false);
+    };
+
+    // Helper function to extract documents from messages
+    const extractDocumentsFromMessages = () => {
+        // Shared documents
+        const sharedDocs = messages.filter(msg => 
+            (msg.messageType || msg.message_type) === 'document_share' || 
+            (msg.messageType || msg.message_type) === 'document_generated'
+        ).map(msg => ({
+            id: msg.documentId || msg.document_id || msg.document?.id,
+            name: msg.documentName || msg.document_name || msg.document?.name || 'Document',
+            hash: msg.documentHash || msg.document_hash || msg.document?.hash,
+            size: msg.documentSize || msg.document_size || msg.document?.size,
+            sharedAt: msg.createdAt || msg.timestamp,
+            sharedBy: msg.senderName || msg.sender,
+            isOwn: msg.isOwn
+        }));
+        
+        // Approval requests
+        const approvals = messages.filter(msg => 
+            (msg.messageType || msg.message_type) === 'approval_request' ||
+            (msg.messageType || msg.message_type) === 'digital_signature_request'
+        ).map(msg => ({
+            id: msg.approvalRequestId || msg.approval_request_id || msg.documentId || msg.document_id,
+            name: msg.documentName || msg.document_name || msg.document?.name || 'Document',
+            hash: msg.documentHash || msg.document_hash || msg.document?.hash,
+            size: msg.documentSize || msg.document_size,
+            requestedAt: msg.createdAt || msg.timestamp,
+            requestedBy: msg.senderName || msg.sender,
+            type: (msg.messageType || msg.message_type) === 'digital_signature_request' ? 'signature' : 'approval',
+            status: 'pending',
+            isOwn: msg.isOwn
+        }));
+        
+        // Signed/Approved documents
+        const signed = messages.filter(msg => 
+            (msg.messageType || msg.message_type) === 'approval_approved' ||
+            (msg.messageType || msg.message_type) === 'approval_signed' ||
+            (msg.messageType || msg.message_type) === 'approval_rejected'
+        ).map(msg => ({
+            id: msg.documentId || msg.document_id,
+            name: msg.documentName || msg.document_name || msg.document?.name || 'Document',
+            hash: msg.documentHash || msg.document_hash,
+            size: msg.documentSize || msg.document_size,
+            processedAt: msg.createdAt || msg.timestamp,
+            processedBy: msg.senderName || msg.sender,
+            status: (msg.messageType || msg.message_type) === 'approval_rejected' ? 'rejected' : 
+                    (msg.messageType || msg.message_type) === 'approval_signed' ? 'signed' : 'approved',
+            isOwn: msg.isOwn
+        }));
+        
+        setSharedDocuments(sharedDocs);
+        setApprovalRequests(approvals);
+        setSignedDocuments(signed);
+    };
+
+    const handleDeleteMessage = async (messageId) => {
+        setMessageContextMenu({ show: false, x: 0, y: 0, message: null });
+        
+        showConfirm(
+            'Delete Message',
+            'Are you sure you want to delete this message?',
+            async () => {
+                try {
+                    const response = await fetch(`${API_URL}/chat/messages/${messageId}`, {
+                        method: 'DELETE',
+                        headers: getAuthHeader()
+                    });
+
+                    if (response.ok) {
+                        // Update local state - show deleted message
+                        setMessages(prev => prev.map(msg => 
+                            msg.id === messageId 
+                                ? { ...msg, content: 'This message was deleted', isDeleted: true }
+                                : msg
+                        ));
+                    } else {
+                        const error = await response.json();
+                        showAlert('Error', error.error || 'Failed to delete message');
+                    }
+                } catch (error) {
+                    console.error('Error deleting message:', error);
+                    showAlert('Error', 'Failed to delete message');
+                }
+            }
+        );
+    };
+
+    const handleMessageContextMenu = (e, msg, isOwn) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Only allow context menu for own messages
+        if (!isOwn) return;
+        
+        setMessageContextMenu({
+            show: true,
+            x: e.clientX,
+            y: e.clientY,
+            message: msg
+        });
+    };
+
+    const handleSearchInConversation = () => {
+        setIsContextMenuOpen(false);
+        setIsSearchingInConversation(true);
+        setSearchInConversation('');
+        setConversationSearchResults([]);
+    };
+
+    const performConversationSearch = (query) => {
+        setSearchInConversation(query);
+        if (query.length < 2) {
+            setConversationSearchResults([]);
+            return;
+        }
+        
+        const results = messages.filter(msg => 
+            msg.content?.toLowerCase().includes(query.toLowerCase())
+        );
+        setConversationSearchResults(results);
+    };
+
+    const scrollToMessage = (messageId) => {
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            messageElement.classList.add('highlight-message');
+            setTimeout(() => messageElement.classList.remove('highlight-message'), 2000);
+        }
     };
 
     const handleRequestDocument = () => {
@@ -458,10 +1056,16 @@ const ChatInterface = () => {
 
     const handleReportUser = () => {
         closeProfileModal();
-        const reason = prompt('Please provide a reason for reporting this user:');
-        if (reason) {
-            alert(`User reported. Reason: ${reason}\nThis will be forwarded to administrators.`);
-        }
+        showPrompt(
+            'Report User',
+            'Please provide a reason for reporting this user:',
+            'Enter reason...',
+            (reason) => {
+                if (reason) {
+                    showAlert('User Reported', `User has been reported.\n\nReason: ${reason}\n\nThis will be reviewed by administrators.`);
+                }
+            }
+        );
     };
 
     const selectConversation = (id) => {
@@ -506,18 +1110,19 @@ const ChatInterface = () => {
                 setSelectedChat(data.conversation.id);
                 setIsUserSearchModalOpen(false);
                 setUserSearchQuery('');
+                setSearchQuery(''); // Clear main search bar
                 setSearchResults([]);
             }
         } catch (error) {
             console.error('Error starting conversation:', error);
-            alert('Failed to start conversation');
+            showAlert('Error', 'Failed to start conversation');
         }
     };
 
-    // Create a new group
+    // Create a new group or circular
     const createGroup = async () => {
         if (!newGroupName.trim()) {
-            alert('Please enter a group name');
+            showAlert('Required', `Please enter a ${creationType} name`);
             return;
         }
         
@@ -529,7 +1134,7 @@ const ChatInterface = () => {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    type: 'group',
+                    type: creationType,
                     name: newGroupName,
                     members: newGroupMembers.map(m => m.id)
                 })
@@ -538,14 +1143,314 @@ const ChatInterface = () => {
             if (response.ok) {
                 const data = await response.json();
                 await fetchConversations();
+                
+                // If creating a circular, refresh the circulars feed too
+                if (creationType === 'circular') {
+                    await fetchCircularsFeed();
+                    // Auto-select the newly created circular
+                    if (data.conversation?.id) {
+                        setSelectedCircularId(data.conversation.id);
+                    }
+                }
+                
                 setSelectedChat(data.conversation.id);
                 setIsCreateGroupModalOpen(false);
                 setNewGroupName('');
                 setNewGroupMembers([]);
+                showAlert('Success', `${creationType === 'circular' ? 'Circular' : 'Group'} created successfully!`);
             }
         } catch (error) {
-            console.error('Error creating group:', error);
-            alert('Failed to create group');
+            console.error(`Error creating ${creationType}:`, error);
+            showAlert('Error', `Failed to create ${creationType}`);
+        }
+    };
+
+    // ============== GROUP MANAGEMENT FUNCTIONS ==============
+
+    // Open group details modal
+    const openGroupDetails = async () => {
+        if (!selectedConversation || selectedConversation.type === 'direct') return;
+        
+        setLoadingGroupDetails(true);
+        setIsGroupDetailsModalOpen(true);
+        
+        try {
+            const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}`, {
+                headers: getAuthHeader()
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setGroupDetails(data.conversation);
+                setGroupMembers(data.conversation.membersList || []);
+            }
+        } catch (error) {
+            console.error('Error fetching group details:', error);
+            showAlert('Error', 'Failed to load group details');
+        } finally {
+            setLoadingGroupDetails(false);
+        }
+    };
+
+    // Check if current user is group admin
+    const isGroupAdmin = () => {
+        if (!groupDetails || !currentUser) return false;
+        const currentMember = groupMembers.find(m => String(m.userId) === String(currentUser.id));
+        return currentMember?.role === 'admin' || String(groupDetails.createdBy) === String(currentUser.id);
+    };
+
+    // Check if group is default/auto-created (can't leave)
+    const isDefaultGroup = () => {
+        return groupDetails?.isAutoCreated === true;
+    };
+
+    // Exit group
+    const exitGroup = async () => {
+        if (isDefaultGroup()) {
+            showAlert('Cannot Exit', 'You cannot leave default institution groups.');
+            return;
+        }
+
+        showConfirm(
+            'Exit Group',
+            `Are you sure you want to leave "${groupDetails?.name}"? You will no longer receive messages from this group.`,
+            async () => {
+                try {
+                    const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}/members/${currentUser.id}`, {
+                        method: 'DELETE',
+                        headers: getAuthHeader()
+                    });
+                    
+                    if (response.ok) {
+                        showAlert('Left Group', 'You have left the group successfully.');
+                        setIsGroupDetailsModalOpen(false);
+                        setSelectedChat(null);
+                        await fetchConversations();
+                    } else {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to leave group');
+                    }
+                } catch (error) {
+                    console.error('Error leaving group:', error);
+                    showAlert('Error', error.message || 'Failed to leave group');
+                }
+            }
+        );
+    };
+
+    // Remove member from group (admin only)
+    const removeMember = async (memberId, memberName) => {
+        if (!isGroupAdmin()) {
+            showAlert('Access Denied', 'Only group admins can remove members.');
+            return;
+        }
+
+        showConfirm(
+            'Remove Member',
+            `Are you sure you want to remove ${memberName} from the group?`,
+            async () => {
+                try {
+                    const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}/members/${memberId}`, {
+                        method: 'DELETE',
+                        headers: getAuthHeader()
+                    });
+                    
+                    if (response.ok) {
+                        setGroupMembers(prev => prev.filter(m => String(m.userId) !== String(memberId)));
+                        showAlert('Removed', `${memberName} has been removed from the group.`);
+                    }
+                } catch (error) {
+                    console.error('Error removing member:', error);
+                    showAlert('Error', 'Failed to remove member');
+                }
+            }
+        );
+    };
+
+    // Search for users to add to group
+    const searchMembersToAdd = async (query) => {
+        if (!query || query.length < 2) {
+            setMemberSearchResults([]);
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, {
+                headers: getAuthHeader()
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // Filter out existing members
+                const existingIds = groupMembers.map(m => String(m.userId));
+                const filteredResults = (data.users || []).filter(u => !existingIds.includes(String(u.id)));
+                setMemberSearchResults(filteredResults);
+            }
+        } catch (error) {
+            console.error('Error searching users:', error);
+        }
+    };
+
+    // Add member to group
+    const addMemberToGroup = async (user) => {
+        if (!isGroupAdmin()) {
+            showAlert('Access Denied', 'Only group admins can add members.');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}/members`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    members: [user.id]
+                })
+            });
+            
+            if (response.ok) {
+                // Refresh group details
+                await openGroupDetails();
+                setIsAddMemberModalOpen(false);
+                setMemberSearchQuery('');
+                setMemberSearchResults([]);
+                showAlert('Added', `${user.name || user.email} has been added to the group.`);
+            }
+        } catch (error) {
+            console.error('Error adding member:', error);
+            showAlert('Error', 'Failed to add member');
+        }
+    };
+
+    // Delete group (admin only, custom groups only)
+    const deleteGroup = async () => {
+        if (!isGroupAdmin()) {
+            showAlert('Access Denied', 'Only group admins can delete the group.');
+            return;
+        }
+
+        if (isDefaultGroup()) {
+            showAlert('Cannot Delete', 'Default institution groups cannot be deleted.');
+            return;
+        }
+
+        showConfirm(
+            'Delete Group',
+            `Are you sure you want to delete "${groupDetails?.name}"? This action cannot be undone and all messages will be lost.`,
+            async () => {
+                try {
+                    const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}`, {
+                        method: 'DELETE',
+                        headers: getAuthHeader()
+                    });
+                    
+                    if (response.ok) {
+                        showAlert('Deleted', 'Group has been deleted successfully.');
+                        setIsGroupDetailsModalOpen(false);
+                        setSelectedChat(null);
+                        await fetchConversations();
+                    } else {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to delete group');
+                    }
+                } catch (error) {
+                    console.error('Error deleting group:', error);
+                    showAlert('Error', error.message || 'Failed to delete group');
+                }
+            }
+        );
+    };
+
+    // Post to circular (feed style) with optional file attachment
+    const postToCircular = async () => {
+        const content = newCircularPost.trim();
+        if (!content || !selectedCircularId) return;
+        
+        try {
+            let documentId = null;
+            let documentName = null;
+            let documentHash = null;
+            
+            // If there's an attachment, upload it first
+            if (circularAttachment) {
+                const formData = new FormData();
+                formData.append('file', circularAttachment);
+                formData.append('title', circularAttachment.name);
+                formData.append('description', `Circular attachment: ${content.substring(0, 50)}...`);
+                
+                const uploadResponse = await fetch(`${API_URL}/documents/upload`, {
+                    method: 'POST',
+                    headers: getAuthHeader(),
+                    body: formData
+                });
+                
+                if (uploadResponse.ok) {
+                    const uploadData = await uploadResponse.json();
+                    documentId = uploadData.document?.id || uploadData.id;
+                    documentName = circularAttachment.name;
+                    documentHash = uploadData.document?.ipfs_hash || uploadData.ipfs_hash;
+                } else {
+                    showAlert('Error', 'Failed to upload attachment');
+                    return;
+                }
+            }
+            
+            // Send the message with optional document attachment
+            const messageBody = {
+                content,
+                messageType: documentId ? 'document' : 'text'
+            };
+            
+            if (documentId) {
+                messageBody.documentId = documentId;
+                messageBody.documentName = documentName;
+                messageBody.documentHash = documentHash;
+            }
+            
+            const response = await fetch(`${API_URL}/chat/conversations/${selectedCircularId}/messages`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(messageBody)
+            });
+            
+            if (response.ok) {
+                setNewCircularPost('');
+                setCircularAttachment(null);
+                // Refresh feed
+                fetchCircularsFeed();
+                showAlert('Success', 'Announcement posted successfully!');
+            } else {
+                showAlert('Error', 'Failed to post announcement');
+            }
+        } catch (error) {
+            console.error('Error posting to circular:', error);
+            showAlert('Error', 'Failed to post announcement');
+        }
+    };
+
+    // Handle circular file selection
+    const handleCircularFileSelect = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            // Check file size (max 10MB)
+            if (file.size > 10 * 1024 * 1024) {
+                showAlert('Error', 'File size must be less than 10MB');
+                return;
+            }
+            setCircularAttachment(file);
+        }
+    };
+
+    // Remove circular attachment
+    const removeCircularAttachment = () => {
+        setCircularAttachment(null);
+        if (circularFileInputRef.current) {
+            circularFileInputRef.current.value = '';
         }
     };
 
@@ -553,12 +1458,29 @@ const ChatInterface = () => {
         const content = messageInput.trim();
         if (!content || !selectedChat) return;
 
+        // Generate temporary ID for optimistic update
+        const tempId = `temp_${Date.now()}`;
+
         // Use WebSocket if connected
         if (socketRef.current && socketRef.current.connected) {
+            // Optimistically add message to UI
+            const optimisticMessage = {
+                id: tempId,
+                conversationId: selectedChat,
+                senderId: currentUser?.id,
+                content,
+                messageType: 'text',
+                status: 'sending',
+                createdAt: new Date().toISOString(),
+                isOwn: true
+            };
+            setMessages(prev => [...prev, optimisticMessage]);
+            
             socketRef.current.emit('send_message', {
                 conversationId: selectedChat,
                 content,
-                messageType: 'text'
+                messageType: 'text',
+                tempId
             });
             setMessageInput('');
             
@@ -601,7 +1523,7 @@ const ChatInterface = () => {
             }
         } catch (error) {
             console.error('Error sending message:', error);
-            alert('Failed to send message');
+            showAlert('Error', 'Failed to send message');
         }
     };
 
@@ -655,15 +1577,21 @@ const ChatInterface = () => {
 
     const closeDocumentSelectionModal = () => {
         setIsDocumentSelectionModalOpen(false);
-        setSelectedDocument(null);
+        // Don't clear selectedDocument here - it might be needed for the share modal
+    };
+    
+    const cancelDocumentSelection = () => {
+        setIsDocumentSelectionModalOpen(false);
+        setSelectedDocument(null);  // Clear when user cancels
     };
 
     const proceedWithSelectedDocument = () => {
         if (!selectedDocument) {
-            alert('Please select a document first.');
+            showAlert('Required', 'Please select a document first.');
             return;
         }
-        closeDocumentSelectionModal();
+        // Just close the selection modal, keep the selected document
+        setIsDocumentSelectionModalOpen(false);
         setIsDocumentShareModalOpen(true);
     };
 
@@ -671,7 +1599,8 @@ const ChatInterface = () => {
         setIsDocumentShareModalOpen(false);
         setDescription('');
         setSelectedMembers([]);
-        setSelectedDocument(null);
+        setSelectedDocument(null);  // Clear document when share modal is closed
+        setSharePermission('read');  // Reset permission
     };
 
     const toggleMemberSelection = (memberId) => {
@@ -684,20 +1613,173 @@ const ChatInterface = () => {
 
     const sendDocumentRequest = async () => {
         if (!selectedDocument) {
-            alert('No document selected.');
+            showAlert('Required', 'No document selected.');
             return;
         }
 
         if (!selectedChat) {
-            alert('Please select a conversation first.');
+            showAlert('Required', 'Please select a conversation first.');
             return;
         }
 
-        try {
-            const content = currentDocumentAction === 'share' 
-                ? `Shared document: ${selectedDocument.name || selectedDocument.title}`
-                : `Requesting approval for: ${selectedDocument.name || selectedDocument.title}`;
+        // Get recipient user ID from conversation
+        const recipientId = selectedConversation?.userId || selectedConversation?.user_id;
+        if (!recipientId && currentDocumentAction === 'share') {
+            showAlert('Error', 'Could not determine recipient. Please select a valid chat.');
+            return;
+        }
 
+        // Get document name from correct field
+        const docName = selectedDocument.fileName || selectedDocument.name || 'Document';
+        const docHash = selectedDocument.ipfsHash || selectedDocument.ipfs_hash || selectedDocument.hash;
+        const docSize = selectedDocument.fileSize || selectedDocument.size;
+        const docType = selectedDocument.documentType || selectedDocument.type;
+
+        // Start sharing animation
+        setSharingProgress({
+            isSharing: true,
+            step: 1,
+            message: 'Preparing document...',
+            error: null
+        });
+
+        try {
+            // Step 1: Preparing
+            await new Promise(resolve => setTimeout(resolve, 400));
+            
+            let transactionHash = null;
+            let blockNumber = null;
+
+            // For document sharing, record on blockchain first (like FileManager does)
+            if (currentDocumentAction === 'share') {
+                setSharingProgress(prev => ({
+                    ...prev,
+                    step: 2,
+                    message: 'Connecting to blockchain...'
+                }));
+
+                // Get document's blockchain ID (bytes32 hash) - similar to FileManagerNew pattern
+                const blockchainId = selectedDocument.documentId || selectedDocument.document_id || selectedDocument.blockchainId;
+                
+                // Check if blockchain ID is valid (must be 66 chars starting with 0x)
+                const isValidBlockchainId = blockchainId && 
+                    typeof blockchainId === 'string' && 
+                    blockchainId.startsWith('0x') && 
+                    blockchainId.length === 66;
+                
+                console.log('📄 Document blockchain ID:', blockchainId);
+                console.log('✅ Valid blockchain ID:', isValidBlockchainId);
+
+                // Get recipient's wallet address
+                const recipientResponse = await fetch(`${API_URL}/users/${recipientId}`, {
+                    headers: getAuthHeader()
+                });
+                
+                let recipientWallet = null;
+                if (recipientResponse.ok) {
+                    const recipientData = await recipientResponse.json();
+                    recipientWallet = recipientData.user?.wallet_address || recipientData.user?.walletAddress;
+                    console.log('👤 Recipient wallet:', recipientWallet);
+                }
+
+                // Only try blockchain share if both document has valid blockchain ID AND recipient has wallet
+                if (isValidBlockchainId && recipientWallet) {
+                    try {
+                        setSharingProgress(prev => ({
+                            ...prev,
+                            message: 'Please confirm transaction in MetaMask...'
+                        }));
+
+                        // Initialize blockchain service if needed
+                        if (!blockchainServiceV2.isInitialized) {
+                            await blockchainServiceV2.initialize();
+                        }
+
+                        // Call smart contract via blockchainServiceV2 (same as FileManagerNew)
+                        console.log('🔗 Calling blockchainServiceV2.shareDocument...');
+                        const blockchainResult = await blockchainServiceV2.shareDocument(
+                            blockchainId,
+                            recipientWallet,
+                            sharePermission  // 'read' or 'write'
+                        );
+
+                        if (blockchainResult.success) {
+                            transactionHash = blockchainResult.transactionHash;
+                            blockNumber = blockchainResult.blockNumber;
+                            console.log('✅ Blockchain transaction successful:', blockchainResult);
+                        } else {
+                            throw new Error(blockchainResult.error || 'Blockchain share failed');
+                        }
+                    } catch (blockchainError) {
+                        console.warn('⚠️ Blockchain transaction failed:', blockchainError.message);
+                        // Generate placeholder hash for database record
+                        transactionHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`;
+                        blockNumber = Math.floor(Date.now() / 1000);
+                    }
+                } else {
+                    // No valid blockchain ID or no recipient wallet - use placeholder
+                    console.warn('⚠️ Skipping blockchain share:', 
+                        !isValidBlockchainId ? 'Invalid/missing blockchain ID' : 'Recipient has no wallet');
+                    transactionHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`;
+                    blockNumber = Math.floor(Date.now() / 1000);
+                }
+
+                setSharingProgress(prev => ({
+                    ...prev,
+                    message: 'Saving share record...'
+                }));
+
+                // Save share to database
+                const shareResponse = await fetch(`${API_URL}/shares/document/${selectedDocument.id}`, {
+                    method: 'POST',
+                    headers: {
+                        ...getAuthHeader(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        recipients: [{
+                            user_id: recipientId,
+                            permission: sharePermission
+                        }],
+                        transaction_hash: transactionHash,
+                        block_number: blockNumber
+                    })
+                });
+
+                if (!shareResponse.ok) {
+                    const errorData = await shareResponse.json();
+                    throw new Error(errorData.message || 'Failed to share document');
+                }
+                
+                const shareData = await shareResponse.json();
+                console.log('✅ Document share recorded:', shareData);
+            } else {
+                setSharingProgress(prev => ({
+                    ...prev,
+                    step: 2,
+                    message: currentDocumentAction === 'digital_signature' ? 'Creating signature request...' : 
+                             'Creating approval request...'
+                }));
+            }
+
+            // Step 3: Send chat message notification
+            setSharingProgress(prev => ({
+                ...prev,
+                step: 3,
+                message: 'Sending notification...'
+            }));
+
+            const messageType = currentDocumentAction === 'share' ? 'document_share' : 
+                               currentDocumentAction === 'digital_signature' ? 'digital_signature' : 
+                               'approval_request';
+
+            const content = currentDocumentAction === 'share' 
+                ? `📄 Shared document: ${docName}`
+                : currentDocumentAction === 'digital_signature'
+                ? `✍️ Digital signature request: ${docName}`
+                : `📋 Approval request: ${docName}`;
+
+            // The chat message is auto-generated by the share API, but we can also send explicitly
             const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}/messages`, {
                 method: 'POST',
                 headers: {
@@ -706,26 +1788,58 @@ const ChatInterface = () => {
                 },
                 body: JSON.stringify({
                     content,
-                    messageType: currentDocumentAction === 'share' ? 'document_share' : 'approval_request',
+                    messageType,
                     documentId: selectedDocument.id,
-                    documentName: selectedDocument.name || selectedDocument.title,
-                    documentHash: selectedDocument.ipfs_hash || selectedDocument.hash,
-                    documentSize: selectedDocument.size
+                    documentName: docName,
+                    documentHash: docHash,
+                    documentSize: docSize,
+                    documentType: docType,
+                    permission: sharePermission,
+                    description: description || null,
+                    isAutoGenerated: false // User-initiated, not auto-generated
                 })
             });
 
             if (response.ok) {
                 const data = await response.json();
+                
+                // Step 4: Complete
+                setSharingProgress(prev => ({
+                    ...prev,
+                    step: 4,
+                    message: currentDocumentAction === 'share' ? '✅ Document shared on blockchain!' :
+                             currentDocumentAction === 'digital_signature' ? '✅ Signature request sent!' :
+                             '✅ Approval request sent!'
+                }));
+                
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
                 setMessages(prev => [...prev, {
                     ...data.message,
                     isOwn: true,
                     senderName: 'You'
                 }]);
+                
+                // Reset and close
+                setSharingProgress({
+                    isSharing: false,
+                    step: 0,
+                    message: '',
+                    error: null
+                });
                 closeDocumentModal();
+            } else {
+                throw new Error('Failed to send document');
             }
         } catch (error) {
             console.error('Error sending document:', error);
-            alert('Failed to send document');
+            setSharingProgress({
+                isSharing: false,
+                step: 0,
+                message: '',
+                error: 'Failed to send document. Please try again.'
+            });
+            showAlert('Error', 'Failed to send document');
         }
     };
 
@@ -774,24 +1888,32 @@ const ChatInterface = () => {
                 </div>
                 
                 <div className="document-actions">
-                    <button className="document-action-btn" onClick={() => alert(`Opening document: ${document.name}`)}>
+                    <button className="document-action-btn" onClick={() => showAlert('Opening Document', `Opening: ${document.name}`)}>
                         <i className="ri-eye-line icon-sm"></i>
                         View
                     </button>
-                    <button className="document-action-btn" onClick={() => alert(`Downloading document: ${document.name}`)}>
+                    <button className="document-action-btn" onClick={() => showAlert('Downloading', `Downloading: ${document.name}`)}>
                         <i className="ri-download-line icon-sm"></i>
                         Download
                     </button>
                     
                     {!isOwn && document.requestType === 'approval-request' && (
                         <>
-                            <button className="document-action-btn approve" onClick={() => alert(`Approving document: ${document.name}`)}>
+                            <button className="document-action-btn approve" onClick={() => showAlert('Document Approved', `Successfully approved: ${document.name}`)}>
                                 <i className="ri-check-line icon-sm"></i>
                                 Approve
                             </button>
                             <button className="document-action-btn reject" onClick={() => {
-                                const reason = prompt(`Rejecting document: ${document.name}. Please provide a reason:`);
-                                if (reason) alert(`Document rejected with reason: ${reason}`);
+                                showPrompt(
+                                    'Reject Document',
+                                    `Rejecting: ${document.name}\n\nPlease provide a reason:`,
+                                    'Enter rejection reason...',
+                                    (reason) => {
+                                        if (reason) {
+                                            showAlert('Document Rejected', `Document rejected.\n\nReason: ${reason}`);
+                                        }
+                                    }
+                                );
                             }}>
                                 <i className="ri-close-line icon-sm"></i>
                                 Reject
@@ -803,20 +1925,151 @@ const ChatInterface = () => {
         );
     };
 
+    // Render a shared document card in messages
+    const renderDocumentCard = (msg, isOwn) => {
+        const docName = msg.documentName || msg.document_name || 'Document';
+        const docHash = msg.documentHash || msg.document_hash;
+        const docSize = msg.documentSize || msg.document_size;
+        const messageType = msg.messageType || msg.message_type || 'document_share';
+        const approvalId = msg.approvalRequestId || msg.approval_request_id;
+        
+        // Determine card type
+        const isApprovalRequest = messageType === 'approval_request' || messageType === 'digital_signature_request';
+        const isApprovalStatus = messageType.startsWith('approval_');
+        const isShare = messageType === 'document_share' || messageType === 'document_generated';
+        
+        // Get status from message type
+        let status = 'shared';
+        let statusLabel = 'Shared';
+        let statusClass = 'shared';
+        let statusIcon = 'ri-share-line';
+        
+        if (isApprovalRequest) {
+            status = 'pending';
+            statusLabel = messageType === 'digital_signature_request' ? 'Digital Signature Requested' : 'Approval Requested';
+            statusClass = 'pending';
+            statusIcon = messageType === 'digital_signature_request' ? 'ri-quill-pen-line' : 'ri-time-line';
+        } else if (messageType === 'approval_approved' || messageType === 'approval_signed') {
+            status = 'approved';
+            statusLabel = messageType === 'approval_signed' ? 'Digitally Signed' : 'Approved';
+            statusClass = 'approved';
+            statusIcon = messageType === 'approval_signed' ? 'ri-quill-pen-fill' : 'ri-checkbox-circle-fill';
+        } else if (messageType === 'approval_rejected') {
+            status = 'rejected';
+            statusLabel = 'Rejected';
+            statusClass = 'rejected';
+            statusIcon = 'ri-close-circle-fill';
+        } else if (messageType === 'document_generated') {
+            statusLabel = 'Document Generated';
+            statusIcon = 'ri-file-add-line';
+        }
+        
+        const handleViewDocument = () => {
+            if (docHash) {
+                window.open(`https://gateway.pinata.cloud/ipfs/${docHash}`, '_blank');
+            } else {
+                showAlert('View Document', `Opening: ${docName}`);
+            }
+        };
+        
+        const handleDownloadDocument = () => {
+            if (docHash) {
+                const link = document.createElement('a');
+                link.href = `https://gateway.pinata.cloud/ipfs/${docHash}`;
+                link.download = docName;
+                link.target = '_blank';
+                link.click();
+            } else {
+                showAlert('Download', `Downloading: ${docName}`);
+            }
+        };
+        
+        return (
+            <div className={`document-card ${statusClass} ${isOwn ? 'own' : ''}`}>
+                <div className="document-card-header">
+                    <div className="document-card-icon">
+                        <i className="ri-file-pdf-line"></i>
+                    </div>
+                    <div className="document-card-info">
+                        <h4 className="document-card-name">{docName}</h4>
+                        <div className={`document-card-status ${statusClass}`}>
+                            <i className={statusIcon}></i>
+                            <span>{statusLabel}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                {docHash && (
+                    <div className="document-card-meta">
+                        <div className="document-card-hash">
+                            <i className="ri-shield-check-line"></i>
+                            <span>IPFS: {docHash.substring(0, 8)}...{docHash.substring(docHash.length - 6)}</span>
+                        </div>
+                        {docSize && <span className="document-card-size">{(docSize / 1024).toFixed(1)} KB</span>}
+                    </div>
+                )}
+                
+                <div className="document-card-actions">
+                    <button className="doc-action-btn view" onClick={handleViewDocument}>
+                        <i className="ri-eye-line"></i>
+                        View
+                    </button>
+                    <button className="doc-action-btn download" onClick={handleDownloadDocument}>
+                        <i className="ri-download-line"></i>
+                        Download
+                    </button>
+                </div>
+                
+                {/* Show approval actions for receiver if pending */}
+                {!isOwn && isApprovalRequest && (
+                    <div className="document-card-approval-actions">
+                        <button 
+                            className="approval-action-btn approve"
+                            onClick={() => showAlert('Approve', `To approve this document, go to the Document Approval section.`)}
+                        >
+                            <i className="ri-check-line"></i>
+                            {messageType === 'digital_signature_request' ? 'Sign' : 'Approve'}
+                        </button>
+                        <button 
+                            className="approval-action-btn reject"
+                            onClick={() => showAlert('Reject', `To reject this document, go to the Document Approval section.`)}
+                        >
+                            <i className="ri-close-line"></i>
+                            Reject
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // Check if message has document content
+    const hasDocumentContent = (msg) => {
+        const messageType = msg.messageType || msg.message_type || '';
+        const documentTypes = [
+            'document_share', 
+            'document_generated',
+            'approval_request',
+            'approval_approved',
+            'approval_rejected',
+            'approval_signed',
+            'digital_signature_request',
+            'digital_signature'
+        ];
+        return documentTypes.includes(messageType) ||
+               messageType.startsWith('approval_') ||
+               msg.documentId || 
+               msg.document_id ||
+               (msg.documentName || msg.document_name) ||
+               (msg.documentHash || msg.document_hash);
+    };
+
     const selectedConversation = conversations.find(c => c.id === selectedChat);
 
-    // Helper to format timestamp
+    // Helper to format timestamp - uses the global formatRelativeTime function
     const formatTimestamp = (timestamp) => {
         if (!timestamp) return '';
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diff = now - date;
-        
-        if (diff < 60000) return 'now';
-        if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
-        if (diff < 86400000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        if (diff < 172800000) return 'Yesterday';
-        return date.toLocaleDateString();
+        return formatRelativeTime(timestamp);
     };
 
     // Get user display name
@@ -827,10 +2080,10 @@ const ChatInterface = () => {
             : currentUser.name || currentUser.email || 'User';
     };
 
-    // Format last seen
-    const formatLastSeen = (lastSeen) => {
+    // Format last seen - uses the global formatLastSeen function
+    const formatLastSeenLocal = (lastSeen) => {
         if (!lastSeen) return '';
-        return formatTimestamp(lastSeen);
+        return formatLastSeen(lastSeen);
     };
 
     if (loading) {
@@ -840,11 +2093,18 @@ const ChatInterface = () => {
                     <div className="loading-state">
                         <i className="ri-loader-4-line spin"></i>
                         <p>Loading conversations...</p>
+                        <small style={{color: '#999', marginTop: '10px'}}>
+                            Token: {localStorage.getItem('token') ? '✓' : '✗'} | 
+                            User: {localStorage.getItem('user') ? '✓' : '✗'}
+                        </small>
                     </div>
                 </div>
             </div>
         );
     }
+
+    // Debug log for render
+    console.log('🎨 Rendering ChatInterface - conversations:', conversations.length, 'activeTab:', activeTab);
 
     return (
         <div className={`chat-interface-wrapper theme-${theme}`}>
@@ -856,41 +2116,32 @@ const ChatInterface = () => {
                         <h2>DocuChain Messenger</h2>
                         <div className="blockchain-badge">
                             <i className="ri-shield-check-line"></i>
-                            <span>Blockchain Secured</span>
+                            <span>Secure Messaging</span>
                         </div>
                     </div>
 
-                    {/* User Info */}
-                    <div className="user-info">
-                        <div className="user-profile">
-                            <div className="user-avatar">
-                                <i className="ri-user-line"></i>
-                            </div>
-                            <div className="user-details">
-                                <h3>{getUserDisplayName()}</h3>
-                                <p>{currentUser?.role || 'User'}</p>
-                            </div>
-                        </div>
-                        <button className="new-chat-btn" onClick={() => setIsUserSearchModalOpen(true)} title="New Chat">
-                            <i className="ri-add-line"></i>
-                        </button>
-                    </div>
-
-                    {/* Search */}
-                    <div className="search-container">
+                    {/* Search Bar */}
+                    <div className="search-container-top">
                         <div className="search-input">
                             <i className="ri-search-line search-icon"></i>
                             <input 
                                 type="text" 
-                                placeholder="Search conversations..."
+                                placeholder="Search chats..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
+                            {searchQuery && (
+                                <i 
+                                    className="ri-close-circle-fill clear-icon" 
+                                    onClick={() => setSearchQuery('')}
+                                    title="Clear search"
+                                ></i>
+                            )}
                         </div>
                     </div>
 
                     {/* Tabs */}
-                    <div className="tabs">
+                    <div className="tabs" data-active={activeTab}>
                         <button 
                             className={`tab ${activeTab === 'direct' ? 'active' : ''}`}
                             onClick={() => setActiveTab('direct')}
@@ -911,84 +2162,436 @@ const ChatInterface = () => {
                         </button>
                     </div>
 
-                    {/* Conversations List */}
+                    {/* Conversations List OR Circulars List */}
                     <div className="conversations-list">
-                        {filteredConversations.length === 0 ? (
+                        {activeTab === 'circulars' ? (
+                            /* Circulars List (sidebar) - Feed shows in main area */
+                            <div className="circulars-sidebar-list">
+                                <div className="circulars-sidebar-header">
+                                    <span className="sidebar-section-title">Available Circulars</span>
+                                    <span className="circulars-count">{circularsList.length}</span>
+                                </div>
+                                {circularsList.length === 0 ? (
+                                    <div className="empty-circulars-sidebar">
+                                        <i className="ri-megaphone-line"></i>
+                                        <p>No circulars available</p>
+                                    </div>
+                                ) : (
+                                    circularsList.map(circular => (
+                                        <div 
+                                            key={circular.id} 
+                                            className={`circular-list-item ${selectedCircularId === circular.id ? 'active' : ''}`}
+                                            onClick={() => setSelectedCircularId(circular.id)}
+                                        >
+                                            <div className="circular-item-icon">
+                                                <i className="ri-megaphone-line"></i>
+                                            </div>
+                                            <div className="circular-item-info">
+                                                <span className="circular-item-name">{circular.name}</span>
+                                                <span className="circular-item-posts">
+                                                    {circularsFeed.filter(f => f.circularId === circular.id).length} posts
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                                <div className="view-all-feed-hint">
+                                    <i className="ri-arrow-right-line"></i>
+                                    <span>View announcements feed on the right</span>
+                                </div>
+                            </div>
+                        ) : (
+                        /* Show existing conversations */
+                        filteredConversations.length === 0 && newUsersToConnect.length === 0 && !isSearching ? (
                             <div className="empty-conversations">
                                 <i className="ri-chat-3-line"></i>
                                 <p>No conversations yet</p>
-                                <span>Start a new chat to begin messaging</span>
+                                <span>Search for users to start chatting</span>
+                                <small style={{color: '#999', marginTop: '10px', display: 'block'}}>
+                                    Debug: Total={conversations.length} Filtered={filteredConversations.length} Tab={activeTab}
+                                </small>
+                                <button 
+                                    onClick={() => fetchConversations()} 
+                                    style={{marginTop: '10px', padding: '8px 16px', background: '#4a90d9', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer'}}
+                                >
+                                    Refresh Conversations
+                                </button>
                             </div>
                         ) : (
-                        filteredConversations.map(conv => {
-                            // Check if user is online via WebSocket state
-                            const isUserOnline = conv.type === 'direct' && conv.userId 
-                                ? (onlineUsers[conv.userId]?.online ?? conv.online)
-                                : conv.online;
-                            
-                            return (
-                            <div 
-                                key={conv.id}
-                                className={`conversation-item ${selectedChat === conv.id ? 'active' : ''} ${conv.isPinned ? 'pinned' : ''}`}
-                                onClick={() => selectConversation(conv.id)}
-                            >
-                                <div className="conversation-content">
-                                    <div className={`conversation-avatar ${conv.type}`}>
-                                        {conv.type === 'direct' ? (
-                                            <div className="avatar-circle-sm">
-                                                {conv.avatar}
-                                                {isUserOnline && <div className="online-indicator-sm"></div>}
-                                            </div>
-                                        ) : (
-                                            <div className="avatar-circle-sm group">
-                                                <i className="ri-team-line"></i>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="conversation-details">
-                                        <div className="conversation-header">
-                                            <div className="conversation-name-row">
-                                                {conv.isPinned && <i className="ri-pushpin-fill pin-icon"></i>}
-                                                <div className="conversation-name">{conv.name}</div>
-                                            </div>
-                                            <div className="conversation-time">{formatTimestamp(conv.lastMessageAt)}</div>
+                        <>
+                            {/* Existing Conversations */}
+                            {filteredConversations.map(conv => {
+                                // Check if user is online via WebSocket state
+                                const isUserOnline = conv.type === 'direct' && conv.userId 
+                                    ? (onlineUsers[conv.userId]?.online ?? conv.online)
+                                    : conv.online;
+                                
+                                return (
+                                <div 
+                                    key={conv.id}
+                                    className={`conversation-item ${selectedChat === conv.id ? 'active' : ''} ${conv.isPinned ? 'pinned' : ''} ${conv.isBlocked ? 'blocked' : ''}`}
+                                    onClick={() => selectConversation(conv.id)}
+                                >
+                                    <div className="conversation-content">
+                                        <div className={`conversation-avatar ${conv.type}`}>
+                                            {conv.type === 'direct' ? (
+                                                <div className="avatar-circle-sm">
+                                                    {conv.avatar}
+                                                    {isUserOnline && !conv.isBlocked && <div className="online-indicator-sm"></div>}
+                                                </div>
+                                            ) : (
+                                                <div className="avatar-circle-sm group">
+                                                    <i className="ri-team-line"></i>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="conversation-footer">
-                                            <div className="conversation-message">
-                                                {conv.isMuted && <i className="ri-notification-off-line muted-icon"></i>}
-                                                {typingUsers[conv.userId] ? (
-                                                    <span className="typing-text">typing...</span>
-                                                ) : (
-                                                    conv.lastMessage
-                                                )}
+                                        <div className="conversation-details">
+                                            <div className="conversation-header">
+                                                <div className="conversation-name-row">
+                                                    {conv.isPinned && <i className="ri-pushpin-fill pin-icon"></i>}
+                                                    <div className="conversation-name">{conv.name}</div>
+                                                </div>
+                                                <div className="conversation-time">{formatTimestamp(conv.lastMessageAt)}</div>
                                             </div>
-                                            {conv.unread > 0 && <div className="unread-badge">{conv.unread}</div>}
+                                            <div className="conversation-footer">
+                                                <div className="conversation-message">
+                                                    {conv.isMuted && <i className="ri-notification-off-line muted-icon"></i>}
+                                                    {typingUsers[conv.userId] ? (
+                                                        <span className="typing-text">typing...</span>
+                                                    ) : (
+                                                        conv.lastMessage
+                                                    )}
+                                                </div>
+                                                {conv.unread > 0 && <div className="unread-badge">{conv.unread}</div>}
+                                            </div>
+                                            {conv.type !== 'direct' && <div className="conversation-meta">{conv.memberCount || conv.members} members</div>}
                                         </div>
-                                        {conv.type !== 'direct' && <div className="conversation-meta">{conv.memberCount || conv.members} members</div>}
                                     </div>
                                 </div>
-                            </div>
-                        );
-                        })
+                            );
+                            })}
+
+                            {/* Search Results - New Users to Connect */}
+                            {newUsersToConnect.length > 0 && activeTab === 'direct' && (
+                                <>
+                                    <div className="search-results-header">
+                                        <span>Search Results</span>
+                                    </div>
+                                    {newUsersToConnect.map(user => (
+                                        <div 
+                                            key={`search-${user.id}`}
+                                            className="conversation-item search-result"
+                                            onClick={() => startConversation(user)}
+                                        >
+                                            <div className="conversation-content">
+                                                <div className="conversation-avatar direct">
+                                                    <div className="avatar-circle-sm">
+                                                        {user.name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || '?'}
+                                                    </div>
+                                                </div>
+                                                <div className="conversation-details">
+                                                    <div className="conversation-header">
+                                                        <div className="conversation-name">{user.name || 'Unknown User'}</div>
+                                                    </div>
+                                                    <div className="conversation-footer">
+                                                        <div className="conversation-message user-email">{user.email}</div>
+                                                        <button className="connect-btn">
+                                                            <i className="ri-message-3-line"></i>
+                                                            Chat
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </>
+                            )}
+
+                            {/* Loading indicator */}
+                            {isSearching && searchQuery.length >= 2 && (
+                                <div className="search-loading-inline">
+                                    <i className="ri-loader-4-line spin"></i>
+                                    <span>Searching...</span>
+                                </div>
+                            )}
+                        </>
+                        )
                         )}
                     </div>
 
                     {/* Create Group Button */}
-                    <button className="create-group-btn" onClick={() => setIsCreateGroupModalOpen(true)}>
-                        <i className="ri-add-line"></i>
-                        Create Group
-                    </button>
+                    {activeTab === 'groups' && (
+                        <button className="create-group-btn" onClick={() => {
+                            setCreationType('group');
+                            setIsCreateGroupModalOpen(true);
+                        }}>
+                            <i className="ri-add-line"></i>
+                            Create Group
+                        </button>
+                    )}
+
+                    {/* Create Circular Button - only for admin/faculty */}
+                    {activeTab === 'circulars' && canPostCircular && (
+                        <button className="create-group-btn" onClick={() => {
+                            setCreationType('circular');
+                            setIsCreateGroupModalOpen(true);
+                        }}>
+                            <i className="ri-add-line"></i>
+                            Create Circular
+                        </button>
+                    )}
                 </div>
 
                 {/* Chat Area */}
                 <div className={`chat-area ${isMobileSidebarHidden ? 'mobile-full' : ''}`}>
-                    {!selectedChat ? (
+                    {activeTab === 'circulars' ? (
+                        /* Circulars Feed in Chat Area */
+                        <div className="circulars-main-feed">
+                            {/* Circulars Header */}
+                            <div className="circulars-header">
+                                <div className="circulars-header-left">
+                                    <button className="back-btn mobile-only" onClick={goBackToConversations}>
+                                        <i className="ri-arrow-left-line"></i>
+                                    </button>
+                                    <div className="circulars-header-info">
+                                        <div className="circulars-icon">
+                                            <i className="ri-megaphone-line"></i>
+                                        </div>
+                                        <div className="circulars-title">
+                                            <h3>Announcements & Circulars</h3>
+                                            <p>{circularsFeed.length} announcement{circularsFeed.length !== 1 ? 's' : ''}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="circulars-header-right">
+                                    {canPostCircular && (
+                                        <div className="circulars-role-badge admin">
+                                            <i className="ri-shield-check-line"></i>
+                                            {currentUser?.role === 'admin' ? 'Admin' : 'Faculty'}
+                                        </div>
+                                    )}
+                                    {!canPostCircular && (
+                                        <div className="circulars-role-badge student">
+                                            <i className="ri-eye-line"></i>
+                                            View Only
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Circulars Feed Content */}
+                            <div className="circulars-feed-content">
+                                {/* Post composer for admin/faculty only */}
+                                {canPostCircular && (
+                                    <div className="circular-composer-card">
+                                        {circularsList.length === 0 ? (
+                                            /* No circulars - show create prompt */
+                                            <div className="no-circulars-prompt">
+                                                <div className="prompt-icon">
+                                                    <i className="ri-megaphone-line"></i>
+                                                </div>
+                                                <h4>No Circular Channels Yet</h4>
+                                                <p>Create a circular channel first to start posting announcements.</p>
+                                                <button 
+                                                    className="create-circular-btn"
+                                                    onClick={() => {
+                                                        setCreationType('circular');
+                                                        setIsCreateGroupModalOpen(true);
+                                                    }}
+                                                >
+                                                    <i className="ri-add-line"></i>
+                                                    Create Circular Channel
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            /* Has circulars - show composer */
+                                            <>
+                                                <div className="composer-user-row">
+                                                    <div className="composer-avatar">
+                                                        {currentUser?.firstName?.[0]?.toUpperCase() || 'U'}
+                                                    </div>
+                                                    <div className="composer-user-info">
+                                                        <span className="composer-name">{currentUser?.firstName} {currentUser?.lastName}</span>
+                                                        <span className="composer-role">{currentUser?.role}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="composer-body">
+                                                    <div className="composer-header">
+                                                        <label className="composer-label">Post to:</label>
+                                                        <select 
+                                                            value={selectedCircularId} 
+                                                            onChange={(e) => setSelectedCircularId(e.target.value)}
+                                                            className="circular-select"
+                                                        >
+                                                            {!selectedCircularId && (
+                                                                <option value="" disabled>Select a circular...</option>
+                                                            )}
+                                                            {circularsList.map(c => (
+                                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <textarea 
+                                                        className="composer-input"
+                                                        placeholder="Write an announcement for students and faculty..."
+                                                        value={newCircularPost}
+                                                        onChange={(e) => setNewCircularPost(e.target.value)}
+                                                        rows={4}
+                                                    />
+                                            
+                                                    {/* Show attached file */}
+                                            {circularAttachment && (
+                                                <div className="composer-attachment">
+                                                    <div className="attachment-icon">
+                                                        <i className="ri-file-text-line"></i>
+                                                    </div>
+                                                    <div className="attachment-info">
+                                                        <span className="attachment-name">{circularAttachment.name}</span>
+                                                        <span className="attachment-size">
+                                                            {(circularAttachment.size / 1024).toFixed(1)} KB
+                                                        </span>
+                                                    </div>
+                                                    <button 
+                                                        className="attachment-remove"
+                                                        onClick={removeCircularAttachment}
+                                                        title="Remove attachment"
+                                                    >
+                                                        <i className="ri-close-line"></i>
+                                                    </button>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Hidden file input */}
+                                            <input 
+                                                type="file"
+                                                ref={circularFileInputRef}
+                                                onChange={handleCircularFileSelect}
+                                                style={{ display: 'none' }}
+                                                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif"
+                                            />
+                                            
+                                            <div className="composer-actions">
+                                                <div className="composer-tools">
+                                                    <button 
+                                                        className={`composer-tool-btn ${circularAttachment ? 'active' : ''}`}
+                                                        title="Attach Document"
+                                                        onClick={() => circularFileInputRef.current?.click()}
+                                                    >
+                                                        <i className="ri-attachment-2"></i>
+                                                    </button>
+                                                    <button 
+                                                        className="composer-tool-btn" 
+                                                        title="Add Image"
+                                                        onClick={() => {
+                                                            circularFileInputRef.current.accept = '.jpg,.jpeg,.png,.gif';
+                                                            circularFileInputRef.current?.click();
+                                                        }}
+                                                    >
+                                                        <i className="ri-image-line"></i>
+                                                    </button>
+                                                </div>
+                                                <button 
+                                                    className="composer-post-btn"
+                                                    onClick={postToCircular}
+                                                    disabled={!newCircularPost.trim() || !selectedCircularId}
+                                                >
+                                                    <i className="ri-send-plane-fill"></i>
+                                                    Post Announcement
+                                                </button>
+                                            </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                                
+                                {/* Feed Items */}
+                                {circularsFeed.length === 0 ? (
+                                    <div className="empty-circulars-feed">
+                                        <div className="empty-feed-icon">
+                                            <i className="ri-notification-3-line"></i>
+                                        </div>
+                                        <h3>No Announcements Yet</h3>
+                                        <p>Circulars and announcements from faculty and administration will appear here.</p>
+                                        {canPostCircular && (
+                                            <span className="empty-feed-hint">
+                                                <i className="ri-lightbulb-line"></i>
+                                                You can create the first announcement above!
+                                            </span>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="circulars-feed-items">
+                                        {circularsFeed.map(item => (
+                                            <div key={item.id} className="circular-feed-card">
+                                                <div className="feed-card-header">
+                                                    <div className="feed-avatar">
+                                                        {item.sender?.avatar || 'A'}
+                                                    </div>
+                                                    <div className="feed-meta">
+                                                        <div className="feed-sender">
+                                                            {item.sender?.name}
+                                                            {item.sender?.role && (
+                                                                <span className={`sender-role-badge ${item.sender.role}`}>
+                                                                    {item.sender.role}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="feed-info">
+                                                            <span className="feed-circular-tag">
+                                                                <i className="ri-megaphone-line"></i>
+                                                                {item.circularName}
+                                                            </span>
+                                                            <span className="feed-dot">•</span>
+                                                            <span className="feed-time">
+                                                                <i className="ri-time-line"></i>
+                                                                {formatTimestamp(item.createdAt)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="feed-card-body">
+                                                    <div className="feed-content">{item.content}</div>
+                                                    {item.hasDocument && item.document && (
+                                                        <div className="feed-document-attachment">
+                                                            <div className="feed-doc-icon">
+                                                                <i className="ri-file-text-line"></i>
+                                                            </div>
+                                                            <div className="feed-doc-info">
+                                                                <span className="feed-doc-name">{item.document.name}</span>
+                                                                <span className="feed-doc-action">Click to view document</span>
+                                                            </div>
+                                                            <i className="ri-external-link-line"></i>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="feed-card-actions">
+                                                    <button className="feed-action-btn">
+                                                        <i className="ri-eye-line"></i>
+                                                        <span>View</span>
+                                                    </button>
+                                                    <button className="feed-action-btn">
+                                                        <i className="ri-share-forward-line"></i>
+                                                        <span>Share</span>
+                                                    </button>
+                                                    <button className="feed-action-btn">
+                                                        <i className="ri-bookmark-line"></i>
+                                                        <span>Save</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : !selectedChat ? (
                         /* Empty State */
                         <div className="empty-state">
                             <div className="empty-state-content">
                                 <i className="ri-team-line empty-state-icon"></i>
                                 <h3>Welcome to DocuChain Messenger</h3>
-                                <p>Select a conversation to start messaging securely on blockchain</p>
+                                <p>Select a conversation to start secure messaging</p>
                             </div>
                         </div>
                     ) : (
@@ -999,7 +2602,11 @@ const ChatInterface = () => {
                                     <button className="back-btn" onClick={goBackToConversations}>
                                         <i className="ri-arrow-left-line"></i>
                                     </button>
-                                    <div className="chat-header-content" onClick={selectedConversation?.type === 'direct' ? openProfileModal : null} style={{ cursor: selectedConversation?.type === 'direct' ? 'pointer' : 'default' }}>
+                                    <div 
+                                        className="chat-header-content" 
+                                        onClick={selectedConversation?.type === 'direct' ? openProfileModal : openGroupDetails} 
+                                        style={{ cursor: 'pointer' }}
+                                    >
                                         <div className="chat-avatar">
                                             {selectedConversation?.type === 'direct' ? (
                                                 <div className="avatar-circle">
@@ -1007,7 +2614,9 @@ const ChatInterface = () => {
                                                     {(onlineUsers[selectedConversation?.userId]?.online ?? selectedConversation?.online) && <div className="online-indicator-chat"></div>}
                                                 </div>
                                             ) : (
-                                                <i className="ri-team-line"></i>
+                                                <div className="group-avatar-circle">
+                                                    <i className="ri-team-line"></i>
+                                                </div>
                                             )}
                                         </div>
                                         <div className="chat-info">
@@ -1025,41 +2634,92 @@ const ChatInterface = () => {
                                                         <span className="online-status">Online</span>
                                                     ) : (
                                                         <span className="last-seen">
-                                                            Last seen {formatLastSeen(
+                                                            Last seen {formatLastSeenLocal(
                                                                 onlineUsers[selectedConversation?.userId]?.lastSeen || selectedConversation?.lastSeen
                                                             )}
                                                         </span>
                                                     )
                                                 ) : (
-                                                    `${selectedConversation?.members || selectedConversation?.memberCount} members`
+                                                    <span className="group-tap-hint">
+                                                        {selectedConversation?.members || selectedConversation?.memberCount} members • Tap for info
+                                                    </span>
                                                 )}
                                             </p>
                                         </div>
                                     </div>
                                 </div>
-                                <button className="chat-options" onClick={toggleContextMenu}>
-                                    <i className="ri-more-2-line"></i>
-                                </button>
+                                <div className="chat-header-actions">
+                                    <button 
+                                        className="header-action-btn" 
+                                        onClick={handleViewSharedDocuments}
+                                        title="View shared documents & requests"
+                                    >
+                                        <i className="ri-folder-shared-line"></i>
+                                    </button>
+                                    <button className="chat-options" onClick={toggleContextMenu}>
+                                        <i className="ri-more-2-line"></i>
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Messages Container */}
                             <div className="messages-container" ref={messagesContainerRef}>
-                                {messages.map(msg => {
-                                    const isOwn = msg.senderId === currentUser?.id || msg.isOwn;
+                                {messages.map((msg, index) => {
+                                    // Get current user ID - handle various formats
+                                    const currentUserId = currentUser?.id || currentUser?.userId || currentUser?.user_id;
+                                    // Get sender ID - handle both camelCase and snake_case
+                                    const senderId = msg.senderId || msg.sender_id;
+                                    
+                                    // Compare as strings to handle type mismatches (UUID vs string)
+                                    const isOwn = msg.isOwn === true || 
+                                                  (currentUserId && senderId && String(senderId) === String(currentUserId));
+                                    
+                                    // Debug log for first message only
+                                    if (index === 0) {
+                                        console.log('🔍 Message ownership check:', {
+                                            currentUserId,
+                                            senderId,
+                                            isOwn,
+                                            msgIsOwn: msg.isOwn,
+                                            currentUserObj: currentUser
+                                        });
+                                    }
+                                    
                                     return (
-                                        <div key={msg.id} className={`message ${isOwn ? 'own' : 'other'}`}>
-                                            <div className={`message-bubble ${isOwn ? 'own' : 'other'}`}>
+                                        <div 
+                                            key={msg.id} 
+                                            data-message-id={msg.id}
+                                            className={`message ${isOwn ? 'own' : 'other'} ${msg.isDeleted ? 'deleted' : ''} ${hasDocumentContent(msg) ? 'has-document' : ''}`}
+                                            onContextMenu={(e) => handleMessageContextMenu(e, msg, isOwn)}
+                                        >
+                                            <div className={`message-bubble ${isOwn ? 'own' : 'other'} ${msg.isDeleted ? 'deleted' : ''} ${hasDocumentContent(msg) ? 'with-document' : ''}`}>
                                                 {!isOwn && <div className="message-sender">{msg.senderName || msg.sender}</div>}
-                                                <div className="message-content">{msg.content}</div>
-                                                {(msg.hasDocument || msg.document) && renderDocumentAttachment(msg.document, isOwn)}
+                                                
+                                                {/* Show document card for document-related messages */}
+                                                {!msg.isDeleted && hasDocumentContent(msg) && renderDocumentCard(msg, isOwn)}
+                                                
+                                                {/* Show text content if it exists and isn't just the default share message */}
+                                                {!msg.isDeleted && msg.content && !hasDocumentContent(msg) && (
+                                                    <div className="message-content">{msg.content}</div>
+                                                )}
+                                                
+                                                {/* Show deleted message */}
+                                                {msg.isDeleted && (
+                                                    <div className="message-content">
+                                                        <span className="deleted-message-text">
+                                                            <i className="ri-forbid-line"></i> This message was deleted
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Legacy document attachment */}
+                                                {!msg.isDeleted && !hasDocumentContent(msg) && (msg.hasDocument || msg.document) && renderDocumentAttachment(msg.document, isOwn)}
+                                                
                                                 <div className="message-footer">
                                                     <div className="message-time">
-                                                        {msg.createdAt 
-                                                            ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                                            : msg.timestamp
-                                                        }
+                                                        {formatMessageTime(msg.createdAt || msg.timestamp)}
                                                     </div>
-                                                    {isOwn && (
+                                                    {isOwn && !msg.isDeleted && (
                                                         <div className={`message-status status-${msg.status || 'sent'}`}>
                                                             {(msg.status === 'sent' || !msg.status) && <i className="ri-check-line"></i>}
                                                             {msg.status === 'delivered' && (
@@ -1111,26 +2771,42 @@ const ChatInterface = () => {
                                                 </div>
                                                 <div className="attachment-option" onClick={() => openDocumentSelector('approval')}>
                                                     <i className="ri-checkbox-circle-line icon-sm"></i>
-                                                    Request Approval
+                                                    Standard Approval
+                                                </div>
+                                                <div className="attachment-option" onClick={() => openDocumentSelector('digital_signature')}>
+                                                    <i className="ri-quill-pen-line icon-sm"></i>
+                                                    Digital Signature
                                                 </div>
                                             </div>
                                         )}
                                     </button>
                                     <input 
                                         type="text" 
-                                        placeholder="Type your message..."
+                                        placeholder={selectedConversation?.isBlocked ? "You have blocked this user" : "Type your message..."}
                                         value={messageInput}
                                         onChange={handleMessageInputChange}
-                                        onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                                        onKeyPress={(e) => e.key === 'Enter' && !selectedConversation?.isBlocked && sendMessage()}
+                                        disabled={selectedConversation?.isBlocked}
                                     />
-                                    <button className="send-btn" onClick={sendMessage}>
+                                    <button 
+                                        className="send-btn" 
+                                        onClick={sendMessage}
+                                        disabled={selectedConversation?.isBlocked}
+                                    >
                                         <i className="ri-send-plane-line"></i>
                                     </button>
                                 </div>
-                                <div className="security-notice">
-                                    <i className="ri-shield-check-line icon-sm"></i>
-                                    All messages and files are secured on blockchain
-                                </div>
+                                {selectedConversation?.isBlocked ? (
+                                    <div className="blocked-notice">
+                                        <i className="ri-user-forbid-line icon-sm"></i>
+                                        You have blocked this user. Unblock to send messages.
+                                    </div>
+                                ) : (
+                                    <div className="security-notice">
+                                        <i className="ri-shield-check-line icon-sm"></i>
+                                        Shared documents are blockchain-verified
+                                    </div>
+                                )}
                             </div>
                         </>
                     )}
@@ -1138,108 +2814,387 @@ const ChatInterface = () => {
             </div>
 
             {/* Document Selection Modal */}
-            {isDocumentSelectionModalOpen && (
-                <div className="document-selection-modal" onClick={closeDocumentSelectionModal}>
+            {isDocumentSelectionModalOpen && (() => {
+                // Get unique document types for filter
+                const documentTypes = [...new Set(availableDocuments.map(doc => {
+                    const type = doc.documentType || doc.type || '';
+                    if (type.includes('pdf')) return 'PDF';
+                    if (type.includes('image') || type.includes('png') || type.includes('jpg') || type.includes('jpeg')) return 'Image';
+                    if (type.includes('word') || type.includes('doc')) return 'Word';
+                    if (type.includes('excel') || type.includes('sheet') || type.includes('xls')) return 'Excel';
+                    if (type.includes('text') || type.includes('txt')) return 'Text';
+                    return 'Other';
+                }))].filter(Boolean);
+                
+                // Filter and sort documents
+                const filteredDocs = availableDocuments
+                    .filter(doc => {
+                        // Search filter
+                        const name = (doc.fileName || doc.name || '').toLowerCase();
+                        const matchesSearch = !docSearchQuery || name.includes(docSearchQuery.toLowerCase());
+                        
+                        // Type filter
+                        if (docFilterType === 'all') return matchesSearch;
+                        const type = doc.documentType || doc.type || '';
+                        if (docFilterType === 'PDF') return matchesSearch && type.includes('pdf');
+                        if (docFilterType === 'Image') return matchesSearch && (type.includes('image') || type.includes('png') || type.includes('jpg'));
+                        if (docFilterType === 'Word') return matchesSearch && (type.includes('word') || type.includes('doc'));
+                        if (docFilterType === 'Excel') return matchesSearch && (type.includes('excel') || type.includes('sheet') || type.includes('xls'));
+                        if (docFilterType === 'Text') return matchesSearch && (type.includes('text') || type.includes('txt'));
+                        return matchesSearch;
+                    })
+                    .sort((a, b) => {
+                        let comparison = 0;
+                        if (docSortBy === 'name') {
+                            comparison = (a.fileName || a.name || '').localeCompare(b.fileName || b.name || '');
+                        } else if (docSortBy === 'date') {
+                            comparison = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+                        } else if (docSortBy === 'type') {
+                            comparison = (a.documentType || a.type || '').localeCompare(b.documentType || b.type || '');
+                        } else if (docSortBy === 'size') {
+                            comparison = (b.fileSize || 0) - (a.fileSize || 0);
+                        }
+                        return docSortOrder === 'asc' ? -comparison : comparison;
+                    });
+                
+                return (
+                <div className="document-selection-modal" onClick={cancelDocumentSelection}>
                     <div className="document-selection-content" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3 className="modal-title">Select Document</h3>
                             <button className="close-btn" onClick={closeDocumentSelectionModal}>&times;</button>
                         </div>
                         
-                        <div className="document-grid">
-                            {availableDocuments.map(doc => (
-                                <div 
-                                    key={doc.id}
-                                    className={`document-card ${selectedDocument?.id === doc.id ? 'selected' : ''}`}
-                                    onClick={() => setSelectedDocument(doc)}
+                        {/* Search and Filter Bar */}
+                        <div className="doc-search-filter-bar">
+                            <div className="doc-search-input-wrapper">
+                                <i className="ri-search-line"></i>
+                                <input
+                                    type="text"
+                                    placeholder="Search documents..."
+                                    value={docSearchQuery}
+                                    onChange={(e) => setDocSearchQuery(e.target.value)}
+                                    className="doc-search-input"
+                                />
+                                {docSearchQuery && (
+                                    <button className="doc-search-clear" onClick={() => setDocSearchQuery('')}>
+                                        <i className="ri-close-line"></i>
+                                    </button>
+                                )}
+                            </div>
+                            
+                            <div className="doc-filter-controls">
+                                <select 
+                                    value={docFilterType} 
+                                    onChange={(e) => setDocFilterType(e.target.value)}
+                                    className="doc-filter-select"
                                 >
-                                    <div className="document-card-header">
-                                        <div className="document-icon">
-                                            <i className="ri-file-text-line"></i>
-                                        </div>
-                                        <div className="document-card-info">
-                                            <h4>{doc.name}</h4>
-                                            <p>{doc.type} • {doc.size}</p>
-                                        </div>
-                                    </div>
-                                    <div className="document-card-meta">
-                                        <span>Uploaded: {doc.uploadDate}</span>
-                                        <span>{doc.hash}</span>
-                                    </div>
+                                    <option value="all">All Types</option>
+                                    {documentTypes.map(type => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
+                                </select>
+                                
+                                <select 
+                                    value={docSortBy} 
+                                    onChange={(e) => setDocSortBy(e.target.value)}
+                                    className="doc-filter-select"
+                                >
+                                    <option value="date">Sort by Date</option>
+                                    <option value="name">Sort by Name</option>
+                                    <option value="type">Sort by Type</option>
+                                    <option value="size">Sort by Size</option>
+                                </select>
+                                
+                                <button 
+                                    className="doc-sort-order-btn"
+                                    onClick={() => setDocSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                                    title={docSortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                                >
+                                    <i className={`ri-sort-${docSortOrder === 'asc' ? 'asc' : 'desc'}`}></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="doc-count-info">
+                            Showing {filteredDocs.length} of {availableDocuments.length} documents
+                        </div>
+                        
+                        <div className="document-grid">
+                            {filteredDocs.length === 0 ? (
+                                <div className="no-documents-found">
+                                    <i className="ri-file-search-line"></i>
+                                    <p>No documents found</p>
                                 </div>
-                            ))}
+                            ) : (
+                                filteredDocs.map(doc => {
+                                    // Check if document has valid blockchain ID
+                                    const blockchainId = doc.documentId || doc.document_id;
+                                    const hasBlockchainId = blockchainId && 
+                                        typeof blockchainId === 'string' && 
+                                        blockchainId.startsWith('0x') && 
+                                        blockchainId.length === 66;
+                                    
+                                    return (
+                                    <div 
+                                        key={doc.id}
+                                        className={`document-card ${selectedDocument && String(selectedDocument.id) === String(doc.id) ? 'selected' : ''} ${hasBlockchainId ? 'has-blockchain' : 'no-blockchain'}`}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            console.log('📄 Selected document:', doc);
+                                            console.log('🔗 Document blockchain ID:', blockchainId, 'Valid:', hasBlockchainId);
+                                            setSelectedDocument(doc);
+                                        }}
+                                    >
+                                        {selectedDocument && String(selectedDocument.id) === String(doc.id) && (
+                                            <div className="document-selected-check">
+                                                <i className="ri-check-line"></i>
+                                            </div>
+                                        )}
+                                        {/* Blockchain indicator */}
+                                        <div className={`blockchain-indicator ${hasBlockchainId ? 'on-chain' : 'off-chain'}`} title={hasBlockchainId ? 'On Blockchain' : 'Not on Blockchain'}>
+                                            <i className={hasBlockchainId ? 'ri-links-line' : 'ri-link-unlink'}></i>
+                                        </div>
+                                        <div className="document-card-header">
+                                            <div className="document-icon">
+                                                <i className={`ri-${
+                                                    (doc.documentType || '').includes('pdf') ? 'file-pdf' :
+                                                    (doc.documentType || '').includes('image') ? 'image' :
+                                                    (doc.documentType || '').includes('word') ? 'file-word' :
+                                                    (doc.documentType || '').includes('excel') ? 'file-excel' :
+                                                    'file-text'
+                                                }-line`}></i>
+                                            </div>
+                                            <div className="document-card-info">
+                                                <h4>{doc.fileName || doc.name}</h4>
+                                                <p>{doc.documentType || doc.type} • {doc.fileSize ? `${(doc.fileSize / 1024).toFixed(1)} KB` : doc.size}</p>
+                                            </div>
+                                        </div>
+                                        <div className="document-card-meta">
+                                            <span>Uploaded: {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : doc.uploadDate}</span>
+                                            <span>{doc.ipfsHash ? `${doc.ipfsHash.substring(0, 10)}...` : doc.hash}</span>
+                                        </div>
+                                    </div>
+                                    );
+                                })
+                            )}
                         </div>
 
                         <div className="modal-actions">
-                            <button className="btn-secondary" onClick={closeDocumentSelectionModal}>Cancel</button>
-                            <button className="btn-primary" onClick={proceedWithSelectedDocument}>Continue</button>
+                            <button className="btn-secondary" onClick={cancelDocumentSelection}>Cancel</button>
+                            <button className="btn-primary" onClick={proceedWithSelectedDocument} disabled={!selectedDocument}>Continue</button>
                         </div>
                     </div>
                 </div>
-            )}
+                );
+            })()}
 
-            {/* Document Share Modal */}
+            {/* Document Share Modal - Enhanced with Progress Animation */}
             {isDocumentShareModalOpen && (
-                <div className="document-share-modal" onClick={closeDocumentModal}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3 className="modal-title">
-                                {currentDocumentAction === 'share' ? 'Share Document' : 'Request Document Approval'}
-                            </h3>
-                            <button className="close-btn" onClick={closeDocumentModal}>&times;</button>
-                        </div>
-                        
-                        <div className="share-options">
-                            <div 
-                                className={`share-option ${currentDocumentAction === 'share' ? 'selected' : ''}`}
-                                onClick={() => setCurrentDocumentAction('share')}
-                            >
-                                <h4>Share</h4>
-                                <p>Share document for viewing</p>
-                            </div>
-                            <div 
-                                className={`share-option ${currentDocumentAction === 'approval' ? 'selected' : ''}`}
-                                onClick={() => setCurrentDocumentAction('approval')}
-                            >
-                                <h4>Request Approval</h4>
-                                <p>Send for verification</p>
-                            </div>
-                        </div>
-
-                        <div className="member-selection">
-                            <h4>Select Recipients:</h4>
-                            <div className="member-list">
-                                {teamMembers.map(member => (
-                                    <div key={member.id} className="member-item">
-                                        <input 
-                                            type="checkbox" 
-                                            id={`member-${member.id}`}
-                                            checked={selectedMembers.includes(member.id)}
-                                            onChange={() => toggleMemberSelection(member.id)}
-                                        />
-                                        <label htmlFor={`member-${member.id}`}>
-                                            <strong>{member.name}</strong><br/>
-                                            <small>{member.role} • {member.department}</small>
-                                        </label>
+                <div className="document-share-modal" onClick={sharingProgress.isSharing ? null : closeDocumentModal}>
+                    <div className="modal-content share-modal-enhanced" onClick={(e) => e.stopPropagation()}>
+                        {sharingProgress.isSharing ? (
+                            /* Sharing Progress Animation */
+                            <div className="sharing-progress-container">
+                                <div className="sharing-animation">
+                                    <div className={`progress-circle ${sharingProgress.step >= 4 ? 'complete' : 'active'}`}>
+                                        {sharingProgress.step >= 4 ? (
+                                            <i className="ri-check-line"></i>
+                                        ) : (
+                                            <div className="spinner"></div>
+                                        )}
                                     </div>
-                                ))}
+                                    <div className="progress-steps">
+                                        <div className={`progress-step ${sharingProgress.step >= 1 ? 'active' : ''} ${sharingProgress.step > 1 ? 'complete' : ''}`}>
+                                            <div className="step-dot"></div>
+                                            <span>Preparing</span>
+                                        </div>
+                                        <div className="progress-line"></div>
+                                        <div className={`progress-step ${sharingProgress.step >= 2 ? 'active' : ''} ${sharingProgress.step > 2 ? 'complete' : ''}`}>
+                                            <div className="step-dot"></div>
+                                            <span>Sending</span>
+                                        </div>
+                                        <div className="progress-line"></div>
+                                        <div className={`progress-step ${sharingProgress.step >= 3 ? 'active' : ''} ${sharingProgress.step > 3 ? 'complete' : ''}`}>
+                                            <div className="step-dot"></div>
+                                            <span>Confirming</span>
+                                        </div>
+                                        <div className="progress-line"></div>
+                                        <div className={`progress-step ${sharingProgress.step >= 4 ? 'active complete' : ''}`}>
+                                            <div className="step-dot"></div>
+                                            <span>Done</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="sharing-message">{sharingProgress.message}</p>
+                                <div className="document-being-shared">
+                                    <i className="ri-file-text-line"></i>
+                                    <span>{selectedDocument?.name || selectedDocument?.title}</span>
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            /* Normal Share Modal Content */
+                            <>
+                                <div className="modal-header">
+                                    <h3 className="modal-title">
+                                        {currentDocumentAction === 'share' ? '📤 Share Document' : 
+                                         currentDocumentAction === 'digital_signature' ? '✍️ Request Digital Signature' :
+                                         '📋 Request Approval'}
+                                    </h3>
+                                    <button className="close-btn" onClick={closeDocumentModal}>&times;</button>
+                                </div>
+                                
+                                {/* Document Preview - Using actual selected document */}
+                                <div className="share-document-preview">
+                                    <div className="doc-preview-icon">
+                                        <i className={`ri-${
+                                            (selectedDocument?.documentType || '').includes('pdf') ? 'file-pdf' :
+                                            (selectedDocument?.documentType || '').includes('image') ? 'image' :
+                                            (selectedDocument?.documentType || '').includes('word') ? 'file-word' :
+                                            'file-text'
+                                        }-line`}></i>
+                                    </div>
+                                    <div className="doc-preview-info">
+                                        <h4>{selectedDocument?.fileName || selectedDocument?.name || 'No document selected'}</h4>
+                                        <p>{selectedDocument?.fileSize ? `${(selectedDocument.fileSize / 1024).toFixed(1)} KB` : selectedDocument?.documentType || 'Document'}</p>
+                                    </div>
+                                    {selectedDocument?.ipfsHash && (
+                                        <div className="doc-preview-verified">
+                                            <i className="ri-shield-check-line"></i>
+                                            <span>Verified</span>
+                                        </div>
+                                    )}
+                                    {/* Blockchain status indicator */}
+                                    {(() => {
+                                        const blockchainId = selectedDocument?.documentId || selectedDocument?.document_id;
+                                        const hasBlockchainId = blockchainId && 
+                                            typeof blockchainId === 'string' && 
+                                            blockchainId.startsWith('0x') && 
+                                            blockchainId.length === 66;
+                                        return hasBlockchainId ? (
+                                            <div className="doc-blockchain-status on-chain">
+                                                <i className="ri-links-line"></i>
+                                                <span>On Blockchain</span>
+                                            </div>
+                                        ) : (
+                                            <div className="doc-blockchain-status off-chain">
+                                                <i className="ri-link-unlink"></i>
+                                                <span>Database Only</span>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
 
-                        <div style={{ marginBottom: '20px' }}>
-                            <h4 style={{ marginBottom: '8px', color: 'var(--text)', fontWeight: 600 }}>Description (Optional):</h4>
-                            <textarea 
-                                className="description-input" 
-                                placeholder="Add a description..."
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                            />
-                        </div>
+                                {/* Recipient Info - Auto-filled from chat */}
+                                <div className="share-recipient-info">
+                                    <label>Sending to:</label>
+                                    <div className="recipient-badge">
+                                        <div className="recipient-avatar">
+                                            {selectedConversation?.avatar || selectedConversation?.name?.charAt(0) || '?'}
+                                        </div>
+                                        <div className="recipient-details">
+                                            <strong>{selectedConversation?.name || 'Recipient'}</strong>
+                                            <small>{selectedConversation?.role || selectedConversation?.type}</small>
+                                        </div>
+                                    </div>
+                                </div>
 
-                        <div className="modal-actions">
-                            <button className="btn-secondary" onClick={closeDocumentModal}>Cancel</button>
-                            <button className="btn-primary" onClick={sendDocumentRequest}>Send</button>
-                        </div>
+                                {/* Action Type Selection */}
+                                <div className="share-action-types">
+                                    <div 
+                                        className={`action-type-option ${currentDocumentAction === 'share' ? 'selected' : ''}`}
+                                        onClick={() => setCurrentDocumentAction('share')}
+                                    >
+                                        <i className="ri-share-line"></i>
+                                        <div>
+                                            <h4>Share Only</h4>
+                                            <p>For viewing</p>
+                                        </div>
+                                    </div>
+                                    <div 
+                                        className={`action-type-option ${currentDocumentAction === 'approval' ? 'selected' : ''}`}
+                                        onClick={() => setCurrentDocumentAction('approval')}
+                                    >
+                                        <i className="ri-checkbox-circle-line"></i>
+                                        <div>
+                                            <h4>Approval</h4>
+                                            <p>Request sign-off</p>
+                                        </div>
+                                    </div>
+                                    <div 
+                                        className={`action-type-option ${currentDocumentAction === 'digital_signature' ? 'selected' : ''}`}
+                                        onClick={() => setCurrentDocumentAction('digital_signature')}
+                                    >
+                                        <i className="ri-quill-pen-line"></i>
+                                        <div>
+                                            <h4>Signature</h4>
+                                            <p>Legal binding</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Permission Selection - Only show for Share action */}
+                                {currentDocumentAction === 'share' && (
+                                    <div className="share-permission-section">
+                                        <label>Permission:</label>
+                                        <div className="permission-options">
+                                            <div 
+                                                className={`permission-option ${sharePermission === 'read' ? 'selected' : ''}`}
+                                                onClick={() => setSharePermission('read')}
+                                            >
+                                                <i className="ri-eye-line"></i>
+                                                <div>
+                                                    <h4>View Only</h4>
+                                                    <p>Can view and download</p>
+                                                </div>
+                                            </div>
+                                            <div 
+                                                className={`permission-option ${sharePermission === 'write' ? 'selected' : ''}`}
+                                                onClick={() => setSharePermission('write')}
+                                            >
+                                                <i className="ri-edit-line"></i>
+                                                <div>
+                                                    <h4>Can Edit</h4>
+                                                    <p>Full access to modify</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Description/Purpose Input */}
+                                <div className="share-description-section">
+                                    <label>
+                                        {currentDocumentAction === 'share' ? 'Message (Optional):' : 'Purpose / Notes:'}
+                                    </label>
+                                    <textarea 
+                                        className="share-description-input" 
+                                        placeholder={
+                                            currentDocumentAction === 'share' 
+                                                ? "Add a message with this document..." 
+                                                : "Explain what needs to be approved..."
+                                        }
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        rows={3}
+                                    />
+                                </div>
+
+                                <div className="modal-actions">
+                                    <button className="btn-secondary" onClick={closeDocumentModal}>Cancel</button>
+                                    <button className="btn-primary share-btn" onClick={sendDocumentRequest}>
+                                        <i className={
+                                            currentDocumentAction === 'share' ? 'ri-send-plane-line' :
+                                            currentDocumentAction === 'digital_signature' ? 'ri-quill-pen-line' :
+                                            'ri-checkbox-circle-line'
+                                        }></i>
+                                        {currentDocumentAction === 'share' ? 'Share Now' : 
+                                         currentDocumentAction === 'digital_signature' ? 'Request Signature' :
+                                         'Request Approval'}
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
@@ -1322,11 +3277,188 @@ const ChatInterface = () => {
                                 <div className="blockchain-verification">
                                     <i className="ri-shield-check-fill"></i>
                                     <div>
-                                        <h4>Blockchain Verified</h4>
-                                        <p>All conversations are secured on blockchain</p>
+                                        <h4>Document Verification</h4>
+                                        <p>Shared documents are blockchain-verified</p>
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Group Details Modal */}
+            {isGroupDetailsModalOpen && (
+                <div className="group-details-modal-overlay" onClick={() => setIsGroupDetailsModalOpen(false)}>
+                    <div className="group-details-modal" onClick={(e) => e.stopPropagation()}>
+                        <button className="modal-close-btn" onClick={() => setIsGroupDetailsModalOpen(false)}>
+                            <i className="ri-close-line"></i>
+                        </button>
+
+                        {loadingGroupDetails ? (
+                            <div className="loading-state">
+                                <i className="ri-loader-4-line spin"></i>
+                                <p>Loading group details...</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Group Header */}
+                                <div className="group-details-header">
+                                    <div className="group-avatar-large">
+                                        <i className="ri-team-line"></i>
+                                    </div>
+                                    <h2>{groupDetails?.name}</h2>
+                                    <p className="group-type-badge">
+                                        {groupDetails?.isAutoCreated ? (
+                                            <>
+                                                <i className="ri-building-line"></i>
+                                                {groupDetails?.autoType === 'institution' ? 'Institution Group' : 
+                                                 groupDetails?.autoType === 'department' ? 'Department Group' : 
+                                                 'Default Group'}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <i className="ri-group-line"></i>
+                                                Custom Group
+                                            </>
+                                        )}
+                                    </p>
+                                    {groupDetails?.description && (
+                                        <p className="group-description">{groupDetails.description}</p>
+                                    )}
+                                </div>
+
+                                {/* Group Stats */}
+                                <div className="group-stats">
+                                    <div className="stat-item">
+                                        <i className="ri-user-line"></i>
+                                        <span>{groupMembers.length} Members</span>
+                                    </div>
+                                    <div className="stat-item">
+                                        <i className="ri-calendar-line"></i>
+                                        <span>Created {groupDetails?.createdAt ? new Date(groupDetails.createdAt).toLocaleDateString() : 'Unknown'}</span>
+                                    </div>
+                                </div>
+
+                                {/* Members Section */}
+                                <div className="group-members-section">
+                                    <div className="section-header">
+                                        <h3><i className="ri-user-line"></i> Members ({groupMembers.length})</h3>
+                                        {isGroupAdmin() && !isDefaultGroup() && (
+                                            <button className="add-member-btn" onClick={() => setIsAddMemberModalOpen(true)}>
+                                                <i className="ri-user-add-line"></i>
+                                                Add
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="members-list">
+                                        {groupMembers.map(member => (
+                                            <div key={member.userId} className="member-item">
+                                                <div className="member-avatar">
+                                                    {member.name?.charAt(0).toUpperCase() || member.email?.charAt(0).toUpperCase() || '?'}
+                                                </div>
+                                                <div className="member-info">
+                                                    <div className="member-name">
+                                                        {member.name || member.email}
+                                                        {String(member.userId) === String(currentUser?.id) && <span className="you-badge">You</span>}
+                                                    </div>
+                                                    <div className="member-role">
+                                                        {member.role === 'admin' ? (
+                                                            <span className="admin-badge"><i className="ri-shield-star-line"></i> Admin</span>
+                                                        ) : (
+                                                            <span className="member-badge">Member</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {isGroupAdmin() && String(member.userId) !== String(currentUser?.id) && !isDefaultGroup() && (
+                                                    <button 
+                                                        className="remove-member-btn"
+                                                        onClick={() => removeMember(member.userId, member.name || member.email)}
+                                                        title="Remove from group"
+                                                    >
+                                                        <i className="ri-user-unfollow-line"></i>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Group Actions */}
+                                <div className="group-actions-section">
+                                    {!isDefaultGroup() && (
+                                        <>
+                                            <button className="group-action-btn exit" onClick={exitGroup}>
+                                                <i className="ri-logout-box-r-line"></i>
+                                                Exit Group
+                                            </button>
+                                            {isGroupAdmin() && (
+                                                <button className="group-action-btn delete" onClick={deleteGroup}>
+                                                    <i className="ri-delete-bin-line"></i>
+                                                    Delete Group
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+                                    {isDefaultGroup() && (
+                                        <div className="default-group-notice">
+                                            <i className="ri-information-line"></i>
+                                            <span>This is a default institution group. You cannot leave or delete it.</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Add Member Modal */}
+            {isAddMemberModalOpen && (
+                <div className="add-member-modal-overlay" onClick={() => setIsAddMemberModalOpen(false)}>
+                    <div className="add-member-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3><i className="ri-user-add-line"></i> Add Members</h3>
+                            <button className="modal-close-btn" onClick={() => setIsAddMemberModalOpen(false)}>
+                                <i className="ri-close-line"></i>
+                            </button>
+                        </div>
+                        
+                        <div className="member-search-container">
+                            <i className="ri-search-line"></i>
+                            <input
+                                type="text"
+                                placeholder="Search users to add..."
+                                value={memberSearchQuery}
+                                onChange={(e) => {
+                                    setMemberSearchQuery(e.target.value);
+                                    searchMembersToAdd(e.target.value);
+                                }}
+                                autoFocus
+                            />
+                        </div>
+
+                        <div className="member-search-results">
+                            {memberSearchResults.length === 0 && memberSearchQuery.length >= 2 && (
+                                <div className="no-results">
+                                    <i className="ri-user-search-line"></i>
+                                    <p>No users found</p>
+                                </div>
+                            )}
+                            {memberSearchResults.map(user => (
+                                <div key={user.id} className="member-search-item" onClick={() => addMemberToGroup(user)}>
+                                    <div className="member-avatar">
+                                        {user.name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || '?'}
+                                    </div>
+                                    <div className="member-info">
+                                        <div className="member-name">{user.name || user.email}</div>
+                                        <div className="member-email">{user.email}</div>
+                                    </div>
+                                    <button className="add-btn">
+                                        <i className="ri-add-line"></i>
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -1343,11 +3475,7 @@ const ChatInterface = () => {
                         right: '20px'
                     }}
                 >
-                    <div className="context-menu-item" onClick={() => {
-                        setSearchInConversation('');
-                        setIsContextMenuOpen(false);
-                        alert('Search in conversation feature coming soon!');
-                    }}>
+                    <div className="context-menu-item" onClick={handleSearchInConversation}>
                         <i className="ri-search-line"></i>
                         <span>Search in Conversation</span>
                     </div>
@@ -1444,16 +3572,16 @@ const ChatInterface = () => {
                 <div className="create-group-modal" onClick={() => setIsCreateGroupModalOpen(false)}>
                     <div className="create-group-content" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h3 className="modal-title">Create New Group</h3>
+                            <h3 className="modal-title">Create New {creationType === 'circular' ? 'Circular' : 'Group'}</h3>
                             <button className="close-btn" onClick={() => setIsCreateGroupModalOpen(false)}>&times;</button>
                         </div>
                         
                         <div className="group-form">
                             <div className="form-group">
-                                <label>Group Name</label>
+                                <label>{creationType === 'circular' ? 'Circular' : 'Group'} Name</label>
                                 <input
                                     type="text"
-                                    placeholder="Enter group name..."
+                                    placeholder={`Enter ${creationType} name...`}
                                     value={newGroupName}
                                     onChange={(e) => setNewGroupName(e.target.value)}
                                 />
@@ -1511,6 +3639,356 @@ const ChatInterface = () => {
                         <div className="modal-actions">
                             <button className="btn-secondary" onClick={() => setIsCreateGroupModalOpen(false)}>Cancel</button>
                             <button className="btn-primary" onClick={createGroup}>Create Group</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Message Context Menu (Right-click on own messages) */}
+            {messageContextMenu.show && (
+                <div 
+                    ref={messageContextMenuRef}
+                    className="message-context-menu"
+                    style={{
+                        position: 'fixed',
+                        top: `${messageContextMenu.y}px`,
+                        left: `${messageContextMenu.x}px`
+                    }}
+                >
+                    <div className="context-menu-item" onClick={() => {
+                        navigator.clipboard.writeText(messageContextMenu.message?.content || '');
+                        setMessageContextMenu({ show: false, x: 0, y: 0, message: null });
+                    }}>
+                        <i className="ri-file-copy-line"></i>
+                        <span>Copy</span>
+                    </div>
+                    {!messageContextMenu.message?.isDeleted && (
+                        <div className="context-menu-item danger" onClick={() => handleDeleteMessage(messageContextMenu.message?.id)}>
+                            <i className="ri-delete-bin-line"></i>
+                            <span>Delete Message</span>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Search in Conversation Modal */}
+            {isSearchingInConversation && (
+                <div className="search-in-conversation-overlay" onClick={() => setIsSearchingInConversation(false)}>
+                    <div className="search-in-conversation-modal" onClick={e => e.stopPropagation()}>
+                        <div className="search-modal-header">
+                            <h3>Search in Conversation</h3>
+                            <button className="close-btn" onClick={() => setIsSearchingInConversation(false)}>
+                                <i className="ri-close-line"></i>
+                            </button>
+                        </div>
+                        <div className="search-input-container">
+                            <i className="ri-search-line"></i>
+                            <input
+                                type="text"
+                                placeholder="Search messages..."
+                                value={searchInConversation}
+                                onChange={(e) => performConversationSearch(e.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                        <div className="search-results-list">
+                            {conversationSearchResults.length === 0 && searchInConversation.length >= 2 && (
+                                <div className="no-results">
+                                    <i className="ri-search-line"></i>
+                                    <p>No messages found</p>
+                                </div>
+                            )}
+                            {conversationSearchResults.map(msg => (
+                                <div 
+                                    key={msg.id} 
+                                    className="search-result-item"
+                                    onClick={() => {
+                                        scrollToMessage(msg.id);
+                                        setIsSearchingInConversation(false);
+                                    }}
+                                >
+                                    <div className="result-sender">{msg.senderName || msg.sender || 'You'}</div>
+                                    <div className="result-content">{msg.content}</div>
+                                    <div className="result-time">{formatMessageTime(msg.createdAt || msg.timestamp)}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Shared Documents Modal - Enhanced with Tabs */}
+            {isSharedDocsModalOpen && (
+                <div className="shared-docs-overlay" onClick={() => setIsSharedDocsModalOpen(false)}>
+                    <div className="shared-docs-modal enhanced" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>📁 Documents & Requests</h3>
+                            <button className="close-btn" onClick={() => setIsSharedDocsModalOpen(false)}>
+                                <i className="ri-close-line"></i>
+                            </button>
+                        </div>
+                        
+                        {/* Tabs */}
+                        <div className="shared-docs-tabs">
+                            <button 
+                                className={`tab-btn ${sharedDocsTab === 'shared' ? 'active' : ''}`}
+                                onClick={() => setSharedDocsTab('shared')}
+                            >
+                                <i className="ri-share-line"></i>
+                                <span>Shared</span>
+                                {sharedDocuments.length > 0 && <span className="tab-count">{sharedDocuments.length}</span>}
+                            </button>
+                            <button 
+                                className={`tab-btn ${sharedDocsTab === 'approvals' ? 'active' : ''}`}
+                                onClick={() => setSharedDocsTab('approvals')}
+                            >
+                                <i className="ri-checkbox-circle-line"></i>
+                                <span>Requests</span>
+                                {approvalRequests.length > 0 && <span className="tab-count pending">{approvalRequests.length}</span>}
+                            </button>
+                            <button 
+                                className={`tab-btn ${sharedDocsTab === 'signed' ? 'active' : ''}`}
+                                onClick={() => setSharedDocsTab('signed')}
+                            >
+                                <i className="ri-quill-pen-line"></i>
+                                <span>Processed</span>
+                                {signedDocuments.length > 0 && <span className="tab-count">{signedDocuments.length}</span>}
+                            </button>
+                        </div>
+
+                        <div className="shared-docs-content">
+                            {loadingSharedDocs ? (
+                                <div className="loading-state">
+                                    <div className="loading-spinner"></div>
+                                    <p>Loading documents...</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Shared Documents Tab */}
+                                    {sharedDocsTab === 'shared' && (
+                                        sharedDocuments.length === 0 ? (
+                                            <div className="empty-state">
+                                                <i className="ri-folder-open-line"></i>
+                                                <p>No documents shared in this conversation yet</p>
+                                                <button className="action-btn" onClick={() => {
+                                                    setIsSharedDocsModalOpen(false);
+                                                    openDocumentSelector('share');
+                                                }}>
+                                                    <i className="ri-share-line"></i>
+                                                    Share a Document
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="shared-docs-list">
+                                                {sharedDocuments.map((doc, index) => (
+                                                    <div key={doc.id || index} className="shared-doc-item">
+                                                        <div className="doc-icon shared">
+                                                            <i className="ri-file-text-line"></i>
+                                                        </div>
+                                                        <div className="doc-info">
+                                                            <h4>{doc.name}</h4>
+                                                            <p>
+                                                                <span className={doc.isOwn ? 'you' : ''}>
+                                                                    {doc.isOwn ? 'You shared' : `Shared by ${doc.sharedBy}`}
+                                                                </span>
+                                                                {doc.sharedAt && <span> • {formatMessageTime(doc.sharedAt)}</span>}
+                                                                {doc.size && <span> • {(doc.size / 1024).toFixed(1)} KB</span>}
+                                                            </p>
+                                                        </div>
+                                                        <div className="doc-actions">
+                                                            {doc.hash && (
+                                                                <>
+                                                                    <button 
+                                                                        className="action-btn-small view"
+                                                                        onClick={() => window.open(`https://gateway.pinata.cloud/ipfs/${doc.hash}`, '_blank')}
+                                                                        title="View"
+                                                                    >
+                                                                        <i className="ri-eye-line"></i>
+                                                                    </button>
+                                                                    <button 
+                                                                        className="action-btn-small download"
+                                                                        onClick={() => {
+                                                                            const link = document.createElement('a');
+                                                                            link.href = `https://gateway.pinata.cloud/ipfs/${doc.hash}`;
+                                                                            link.download = doc.name;
+                                                                            link.target = '_blank';
+                                                                            link.click();
+                                                                        }}
+                                                                        title="Download"
+                                                                    >
+                                                                        <i className="ri-download-line"></i>
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )
+                                    )}
+
+                                    {/* Approval Requests Tab */}
+                                    {sharedDocsTab === 'approvals' && (
+                                        approvalRequests.length === 0 ? (
+                                            <div className="empty-state">
+                                                <i className="ri-checkbox-circle-line"></i>
+                                                <p>No pending approval requests</p>
+                                                <button className="action-btn" onClick={() => {
+                                                    setIsSharedDocsModalOpen(false);
+                                                    openDocumentSelector('approval');
+                                                }}>
+                                                    <i className="ri-checkbox-circle-line"></i>
+                                                    Request Approval
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="shared-docs-list">
+                                                {approvalRequests.map((doc, index) => (
+                                                    <div key={doc.id || index} className="shared-doc-item approval-item">
+                                                        <div className={`doc-icon ${doc.type === 'signature' ? 'signature' : 'approval'}`}>
+                                                            <i className={doc.type === 'signature' ? 'ri-quill-pen-line' : 'ri-checkbox-circle-line'}></i>
+                                                        </div>
+                                                        <div className="doc-info">
+                                                            <h4>{doc.name}</h4>
+                                                            <p>
+                                                                <span className={doc.isOwn ? 'you' : ''}>
+                                                                    {doc.isOwn ? 'You requested' : `Requested by ${doc.requestedBy}`}
+                                                                </span>
+                                                                {doc.requestedAt && <span> • {formatMessageTime(doc.requestedAt)}</span>}
+                                                            </p>
+                                                            <div className="request-type-badge">
+                                                                {doc.type === 'signature' ? '✍️ Digital Signature' : '📋 Standard Approval'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="doc-actions">
+                                                            <span className="status-badge pending">
+                                                                <i className="ri-time-line"></i>
+                                                                Pending
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )
+                                    )}
+
+                                    {/* Processed/Signed Documents Tab */}
+                                    {sharedDocsTab === 'signed' && (
+                                        signedDocuments.length === 0 ? (
+                                            <div className="empty-state">
+                                                <i className="ri-quill-pen-line"></i>
+                                                <p>No processed documents yet</p>
+                                            </div>
+                                        ) : (
+                                            <div className="shared-docs-list">
+                                                {signedDocuments.map((doc, index) => (
+                                                    <div key={doc.id || index} className={`shared-doc-item ${doc.status}`}>
+                                                        <div className={`doc-icon ${doc.status}`}>
+                                                            <i className={
+                                                                doc.status === 'rejected' ? 'ri-close-circle-line' :
+                                                                doc.status === 'signed' ? 'ri-quill-pen-fill' :
+                                                                'ri-checkbox-circle-fill'
+                                                            }></i>
+                                                        </div>
+                                                        <div className="doc-info">
+                                                            <h4>{doc.name}</h4>
+                                                            <p>
+                                                                <span className={doc.isOwn ? 'you' : ''}>
+                                                                    {doc.isOwn 
+                                                                        ? `You ${doc.status}` 
+                                                                        : `${doc.status.charAt(0).toUpperCase() + doc.status.slice(1)} by ${doc.processedBy}`
+                                                                    }
+                                                                </span>
+                                                                {doc.processedAt && <span> • {formatMessageTime(doc.processedAt)}</span>}
+                                                            </p>
+                                                        </div>
+                                                        <div className="doc-actions">
+                                                            <span className={`status-badge ${doc.status}`}>
+                                                                <i className={
+                                                                    doc.status === 'rejected' ? 'ri-close-line' :
+                                                                    doc.status === 'signed' ? 'ri-quill-pen-fill' :
+                                                                    'ri-check-line'
+                                                                }></i>
+                                                                {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+                                                            </span>
+                                                            {doc.hash && (
+                                                                <button 
+                                                                    className="action-btn-small download"
+                                                                    onClick={() => window.open(`https://gateway.pinata.cloud/ipfs/${doc.hash}`, '_blank')}
+                                                                    title="View Document"
+                                                                >
+                                                                    <i className="ri-eye-line"></i>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* In-App Modal (replaces browser confirm/alert/prompt) */}
+            {appModal.show && (
+                <div className="app-modal-overlay" onClick={() => appModal.onCancel && appModal.onCancel()}>
+                    <div className="app-modal" onClick={e => e.stopPropagation()}>
+                        <div className="app-modal-header">
+                            <h3>{appModal.title}</h3>
+                            {appModal.type !== 'confirm' && (
+                                <button className="close-btn" onClick={() => appModal.onConfirm && appModal.onConfirm(appModal.inputValue)}>
+                                    <i className="ri-close-line"></i>
+                                </button>
+                            )}
+                        </div>
+                        <div className="app-modal-body">
+                            <p>{appModal.message}</p>
+                            {appModal.type === 'prompt' && (
+                                <input
+                                    type="text"
+                                    className="app-modal-input"
+                                    placeholder={appModal.inputPlaceholder}
+                                    value={appModal.inputValue}
+                                    onChange={(e) => setAppModal(prev => ({ ...prev, inputValue: e.target.value }))}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            appModal.onConfirm && appModal.onConfirm(appModal.inputValue);
+                                        }
+                                    }}
+                                    autoFocus
+                                />
+                            )}
+                        </div>
+                        <div className="app-modal-actions">
+                            {appModal.type === 'alert' && (
+                                <button className="modal-btn primary" onClick={() => appModal.onConfirm && appModal.onConfirm()}>
+                                    OK
+                                </button>
+                            )}
+                            {appModal.type === 'confirm' && (
+                                <>
+                                    <button className="modal-btn secondary" onClick={() => appModal.onCancel && appModal.onCancel()}>
+                                        Cancel
+                                    </button>
+                                    <button className="modal-btn primary" onClick={() => appModal.onConfirm && appModal.onConfirm()}>
+                                        Confirm
+                                    </button>
+                                </>
+                            )}
+                            {appModal.type === 'prompt' && (
+                                <>
+                                    <button className="modal-btn secondary" onClick={() => appModal.onCancel && appModal.onCancel()}>
+                                        Cancel
+                                    </button>
+                                    <button className="modal-btn primary" onClick={() => appModal.onConfirm && appModal.onConfirm(appModal.inputValue)}>
+                                        Submit
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

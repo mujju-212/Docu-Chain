@@ -15,11 +15,16 @@ from flask import current_app
 connected_users = {}
 
 def get_user_from_token(token):
-    """Decode JWT token and get user"""
+    """Decode JWT token and get user - compatible with Flask-JWT-Extended"""
     try:
-        data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-        return User.query.get(data['user_id'])
-    except:
+        # Flask-JWT-Extended uses 'sub' field for identity, not 'user_id'
+        data = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+        user_id = data.get('sub')  # Flask-JWT-Extended stores identity in 'sub'
+        if user_id:
+            return User.query.get(user_id)
+        return None
+    except Exception as e:
+        print(f"Token decode error: {e}")
         return None
 
 
@@ -170,11 +175,17 @@ def handle_send_message(data):
     
     db.session.commit()
     
-    # Broadcast message to all in conversation
+    # Broadcast message to all in conversation EXCEPT the sender
     message_data = message.to_dict()
     message_data['senderName'] = f"{user.first_name} {user.last_name}"
     
-    emit('new_message', message_data, room=f"conversation_{conversation_id}")
+    emit('new_message', message_data, room=f"conversation_{conversation_id}", include_self=False)
+    
+    # Send confirmation to sender with message ID
+    emit('message_sent', {
+        'tempId': data.get('tempId'),
+        'message': message_data
+    })
     
     # Update delivery status after a short delay
     emit('message_delivered', {
