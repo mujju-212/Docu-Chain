@@ -584,6 +584,11 @@ def send_message(conversation_id):
         document_name=data.get('documentName'),
         document_hash=data.get('documentHash'),
         document_size=data.get('documentSize'),
+        # Blockchain sharing info
+        share_permission=data.get('permission'),
+        transaction_hash=data.get('transactionHash'),
+        block_number=data.get('blockNumber'),
+        blockchain_document_id=data.get('blockchainDocumentId'),
         approval_request_id=data.get('approvalRequestId')
     )
     db.session.add(message)
@@ -971,8 +976,8 @@ def create_auto_groups_for_user(user):
 
 # ============== AUTO MESSAGES ==============
 
-def create_document_share_message(sender_id, recipient_id, document, message_content=None):
-    """Create an auto-generated message when a document is shared"""
+def create_document_share_message(sender_id, recipient_id, document, message_content=None, permission=None, transaction_hash=None, block_number=None, blockchain_document_id=None):
+    """Create an auto-generated message when a document is shared (with blockchain info)"""
     # Find or create direct conversation
     conversation = Conversation.query.filter(
         Conversation.type == 'direct',
@@ -997,15 +1002,25 @@ def create_document_share_message(sender_id, recipient_id, document, message_con
         db.session.add(ConversationMember(conversation_id=conversation.id, user_id=sender_id))
         db.session.add(ConversationMember(conversation_id=conversation.id, user_id=recipient_id))
     
+    # Build message content with permission info
+    permission_label = "Edit" if permission == 'write' else "View"
+    default_content = f"📄 Shared document: {document.get('name', 'Document')} ({permission_label} access)"
+    
     message = Message(
         conversation_id=conversation.id,
         sender_id=sender_id,
-        content=message_content or f"Shared document: {document.get('name', 'Document')}",
+        content=message_content or default_content,
         message_type='document_share',
         document_id=document.get('id'),
         document_name=document.get('name'),
         document_hash=document.get('ipfs_hash'),
         document_size=document.get('size'),
+        document_type=document.get('type'),
+        # Blockchain sharing info
+        share_permission=permission,
+        transaction_hash=transaction_hash,
+        block_number=block_number,
+        blockchain_document_id=blockchain_document_id,
         is_auto_generated=True,
         auto_message_type='document_shared'
     )
@@ -1014,6 +1029,7 @@ def create_document_share_message(sender_id, recipient_id, document, message_con
     conversation.last_message_at = datetime.utcnow()
     db.session.commit()
     
+    print(f"✅ Created blockchain share message: tx={transaction_hash}, permission={permission}")
     return message
 
 
@@ -1046,10 +1062,11 @@ def create_approval_request_message(sender_id, recipient_id, approval_request, d
         sender_id=sender_id,
         content=f"Requested approval for: {document.get('name', 'Document')}",
         message_type='approval_request',
-        document_id=document.get('id'),
+        document_id=document.get('id') if document.get('id') and not str(document.get('id')).startswith('0x') else None,
         document_name=document.get('name'),
         document_hash=document.get('ipfs_hash'),
         document_size=document.get('size'),
+        blockchain_document_id=document.get('blockchain_document_id'),  # Store blockchain bytes32 ID separately
         approval_request_id=approval_request.get('id'),
         is_auto_generated=True,
         auto_message_type='approval_requested'
@@ -1091,10 +1108,11 @@ def create_digital_signature_request_message(sender_id, recipient_id, approval_r
         sender_id=sender_id,
         content=f"Requested digital signature for: {document.get('name', 'Document')}",
         message_type='digital_signature_request',
-        document_id=document.get('id'),
+        document_id=document.get('id') if document.get('id') and not str(document.get('id')).startswith('0x') else None,
         document_name=document.get('name'),
         document_hash=document.get('ipfs_hash'),
         document_size=document.get('size'),
+        blockchain_document_id=document.get('blockchain_document_id'),  # Store blockchain bytes32 ID separately
         approval_request_id=approval_request.get('id'),
         is_auto_generated=True,
         auto_message_type='digital_signature_requested'
@@ -1136,10 +1154,11 @@ def create_document_generated_message(sender_id, recipient_id, document, generat
         sender_id=sender_id,
         content=f"Generated document for you: {generated_doc_name}",
         message_type='document_generated',
-        document_id=document.get('id'),
+        document_id=document.get('id') if document.get('id') and not str(document.get('id')).startswith('0x') else None,
         document_name=document.get('name') or generated_doc_name,
         document_hash=document.get('ipfs_hash'),
         document_size=document.get('size'),
+        blockchain_document_id=document.get('blockchain_document_id'),  # Store blockchain bytes32 ID if available
         is_auto_generated=True,
         auto_message_type='document_generated'
     )
@@ -1190,10 +1209,11 @@ def create_approval_status_message(sender_id, recipient_id, approval_request, do
         sender_id=sender_id,
         content=content,
         message_type=f'approval_{status.lower()}',
-        document_id=document.get('id'),
+        document_id=document.get('id') if document.get('id') and not str(document.get('id')).startswith('0x') else None,
         document_name=document.get('name'),
         document_hash=document.get('ipfs_hash'),
         document_size=document.get('size'),
+        blockchain_document_id=document.get('blockchain_document_id'),  # Store blockchain bytes32 ID separately
         approval_request_id=approval_request.get('id'),
         is_auto_generated=True,
         auto_message_type=f'approval_{status.lower()}'

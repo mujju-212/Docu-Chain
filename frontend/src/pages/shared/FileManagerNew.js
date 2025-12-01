@@ -1486,7 +1486,7 @@ const FileManager = () => {
           
           // Check if document exists on blockchain
           let documentExistsOnBlockchain = false;
-          if (docId && isWalletConnected()) {
+          if (docId && isWalletConnectedGlobal) {
             try {
               console.log('🔍 Checking if document exists on blockchain...');
               const docInfo = await blockchainServiceV2.getDocument(docId);
@@ -1510,11 +1510,15 @@ const FileManager = () => {
               ipfsResult.ipfsHash        // New IPFS hash
             );
             if (!blockchainResult.success) {
-              throw new Error(blockchainResult.error || 'Blockchain update failed');
+              // Parse blockchain error for user-friendly message
+              const errorMsg = blockchainServiceV2.parseBlockchainError 
+                ? blockchainServiceV2.parseBlockchainError(new Error(blockchainResult.error || 'Blockchain update failed'))
+                : (blockchainResult.error || 'Blockchain update failed');
+              throw new Error(errorMsg);
             }
             console.log('✅ Blockchain updated successfully');
             blockchainUpdated = true;
-          } else if (isWalletConnected()) {
+          } else if (isWalletConnectedGlobal) {
             // Document doesn't exist on blockchain - register it as new document
             console.log('⛓️ Document not on blockchain, registering as new...');
             setTxCurrentStep(2);
@@ -1613,7 +1617,11 @@ const FileManager = () => {
         } catch (error) {
           console.error('❌ Error updating file:', error);
           setTxLoading(false);
-          showNotification('error', 'Update Failed', error.message || 'Failed to update file');
+          // Parse blockchain error for user-friendly message
+          const errorMsg = blockchainServiceV2.parseBlockchainError 
+            ? blockchainServiceV2.parseBlockchainError(error)
+            : (error.message || 'Failed to update file');
+          showNotification('error', 'Update Failed', errorMsg);
         }
       };
       
@@ -1903,7 +1911,11 @@ const FileManager = () => {
       }, 1500);
     } catch (error) {
       console.error('💥 Upload error:', error);
-      showNotification('error', 'Upload Failed', error.message);
+      // Parse blockchain error for user-friendly message
+      const errorMsg = blockchainServiceV2.parseBlockchainError 
+        ? blockchainServiceV2.parseBlockchainError(error)
+        : (error.message || 'Failed to upload file');
+      showNotification('error', 'Upload Failed', errorMsg);
       setTxLoading(false);
     } finally {
       setIsProgressModalOpen(false);
@@ -2275,14 +2287,26 @@ const FileManager = () => {
       
       setIsLoadingBlockchain(true);
       
-      // V2 contract: accessType must be "read" or "write" string
+      // STEP 1: Verify document exists on blockchain before attempting share
+      console.log('  🔍 Verifying document exists on blockchain...');
+      const documentExists = await blockchainServiceV2.documentExists(documentId);
+      
+      if (!documentExists) {
+        console.error('  ❌ Document does not exist on blockchain');
+        return {
+          success: false,
+          error: 'This document is not registered on the blockchain. The document may have been uploaded before blockchain integration was enabled. Please re-upload the document to register it on blockchain.'
+        };
+      }
+      
+      console.log('  ✅ Document verified on blockchain');
+      
+      // STEP 2: Call smart contract to share
       console.log('  Calling blockchainServiceV2.shareDocument...');
       const result = await blockchainServiceV2.shareDocument(documentId, userAddress, accessType);
       console.log('  Blockchain service result:', result);
       
       if (result.success) {
-        showNotification('success', 'Document Shared', 'Document shared successfully on blockchain!');
-        
         // Return proper object with transaction details
         return {
           success: true,
@@ -2291,7 +2315,6 @@ const FileManager = () => {
         };
       } else {
         console.error('  ❌ Blockchain share failed:', result.error);
-        showNotification('error', 'Sharing Failed', result.error);
         return {
           success: false,
           error: result.error
@@ -2299,10 +2322,13 @@ const FileManager = () => {
       }
     } catch (error) {
       console.error('  ❌ Sharing error:', error);
-      showNotification('error', 'Sharing Error', 'Failed to share document');
+      // Parse the error for user-friendly message using the service's error parser
+      const errorMsg = blockchainServiceV2.parseBlockchainError 
+        ? blockchainServiceV2.parseBlockchainError(error, 'share')
+        : (error.message || 'Failed to share document on blockchain');
       return {
         success: false,
-        error: error.message
+        error: errorMsg
       };
     } finally {
       setIsLoadingBlockchain(false);
@@ -2475,11 +2501,22 @@ const FileManager = () => {
         const fileName = item.name || item.fileName;
         const fileId = item.id;
         // Backend returns 'document_id' (blockchain documentId - bytes32 hash)
-        const blockchainId = item.document_id || item.blockchainId || item.documentId;
+        let blockchainId = item.document_id || item.blockchainId || item.documentId;
         
         console.log(`\n📄 Processing file: ${fileName}`);
         console.log('File data:', item);
-        console.log(`  ID: ${fileId}, Blockchain ID: ${blockchainId}`);
+        console.log(`  ID: ${fileId}, Raw Blockchain ID: ${blockchainId}`);
+        
+        // Normalize blockchainId - ensure it has 0x prefix (some old documents may have been stored without it)
+        if (blockchainId && typeof blockchainId === 'string') {
+          if (!blockchainId.startsWith('0x')) {
+            // Check if it's a 64-char hex string (missing 0x prefix)
+            if (/^[a-fA-F0-9]{64}$/.test(blockchainId)) {
+              blockchainId = '0x' + blockchainId;
+              console.log(`  🔧 Normalized blockchain ID (added 0x prefix): ${blockchainId}`);
+            }
+          }
+        }
         
         // Check if blockchain ID is valid (must be 66 chars starting with 0x)
         const isValidBlockchainId = blockchainId && 
@@ -2487,9 +2524,14 @@ const FileManager = () => {
           blockchainId.startsWith('0x') && 
           blockchainId.length === 66;
         
+        console.log(`  📄 Final Blockchain ID: ${blockchainId}`);
+        console.log(`  ✅ Valid blockchain ID: ${isValidBlockchainId}`);
+        
         if (!isValidBlockchainId) {
-          console.warn(`  ⚠️ Invalid or missing blockchain ID: "${blockchainId}"`);
-          console.warn(`  ⚠️ Skipping blockchain share, will only record in database`);
+          console.error(`  ❌ Invalid or missing blockchain ID: "${blockchainId}"`);
+          showNotification('error', 'Cannot Share', 
+            'This document is not registered on the blockchain. Please re-upload it from File Manager to enable sharing.');
+          continue; // Skip this file
         }
         
         for (const recipient of selectedRecipients) {
@@ -2499,39 +2541,12 @@ const FileManager = () => {
           if (isValidBlockchainId) {
             console.log(`  ✅ File has blockchain ID: ${blockchainId}`);
             
-            // Check if recipient has wallet address
+            // Check if recipient has wallet address - REQUIRED for blockchain sharing
             if (!recipient.address) {
-              console.warn(`  ⚠️ Recipient ${recipient.username} has no wallet address, skipping blockchain share`);
-              // Still record in database
-              try {
-                const shareResponse = await axios.post(
-                  `http://localhost:5000/api/shares/document/${fileId}`,
-                  {
-                    recipients: [{
-                      user_id: recipient.id,
-                      permission: recipient.permission
-                    }],
-                    transaction_hash: null,
-                    block_number: null
-                  },
-                  {
-                    headers: {
-                      'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                      'Content-Type': 'application/json'
-                    }
-                  }
-                );
-                
-                if (shareResponse.data.success) {
-                  console.log(`  ✅ Database share successful (no blockchain)`);
-                  successCount++;
-                } else {
-                  console.error(`  ❌ Database share failed:`, shareResponse.data.error);
-                }
-              } catch (apiError) {
-                console.error(`  ❌ API error:`, apiError.response?.data || apiError.message);
-              }
-              continue;
+              console.error(`  ❌ Recipient ${recipient.username} has no wallet address`);
+              showNotification('error', 'Cannot Share', 
+                `Cannot share with ${recipient.username}: They don't have a wallet address linked to their account. Ask them to add their MetaMask wallet in Profile Settings.`);
+              continue; // Skip this recipient
             }
             
             // Step 1: Share document on blockchain
@@ -2576,48 +2591,36 @@ const FileManager = () => {
                 if (shareResponse.data.success) {
                   console.log(`  ✅ Database share successful`);
                   successCount++;
+                  showNotification('success', 'Document Shared', `Document shared with ${recipient.username} on blockchain!`);
                 } else {
                   console.error(`  ❌ Database share failed:`, shareResponse.data.error);
+                  showNotification('warning', 'Partial Success', 'Blockchain share succeeded but database record failed.');
                 }
               } catch (apiError) {
                 console.error(`  ❌ API error:`, apiError.response?.data || apiError.message);
                 // Still count as partial success if blockchain succeeded
                 successCount++;
+                showNotification('warning', 'Partial Success', 'Blockchain share succeeded but database record failed.');
               }
             } else {
+              // Blockchain share failed - show specific error, don't fall back to DB
               console.error(`  ❌ Blockchain share failed:`, blockchainResult);
+              const errorMsg = blockchainResult?.error || 'Failed to share on blockchain';
+              showNotification('error', 'Share Failed', errorMsg);
+              
+              // Update UI to show error state
+              setTxMessage(`Failed: ${errorMsg.substring(0, 50)}...`);
+              
+              // Don't continue to next recipient if user cancelled
+              if (errorMsg.includes('cancelled') || errorMsg.includes('rejected')) {
+                break;
+              }
             }
           } else {
-            // No valid blockchain ID - share only in database
-            console.warn(`  ⚠️ No valid blockchain ID - sharing only in database`);
-            try {
-              const shareResponse = await axios.post(
-                `http://localhost:5000/api/shares/document/${fileId}`,
-                {
-                  recipients: [{
-                    user_id: recipient.id,
-                    permission: recipient.permission
-                  }],
-                  transaction_hash: null,
-                  block_number: null
-                },
-                {
-                  headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                  }
-                }
-              );
-              
-              if (shareResponse.data.success) {
-                console.log(`  ✅ Database share successful (no blockchain)`);
-                successCount++;
-              } else {
-                console.error(`  ❌ Database share failed:`, shareResponse.data.error);
-              }
-            } catch (apiError) {
-              console.error(`  ❌ API error:`, apiError.response?.data || apiError.message);
-            }
+            // No valid blockchain ID - DO NOT allow DB-only shares
+            console.error(`  ❌ Cannot share: No valid blockchain ID`);
+            showNotification('error', 'Cannot Share', 
+              'This document is not registered on the blockchain. Please re-upload it from File Manager to enable sharing.');
           }
         }
       }

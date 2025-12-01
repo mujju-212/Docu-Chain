@@ -26,7 +26,8 @@ def send_approval_request_chat_message(sender_id, recipient_id, approval_request
                 'requestId': approval_request.request_id
             },
             document={
-                'id': str(approval_request.document_id) if approval_request.document_id else None,
+                'id': None,  # document_id is UUID, not blockchain ID
+                'blockchain_document_id': approval_request.document_id,  # This is the blockchain bytes32 ID
                 'name': approval_request.document_name,
                 'ipfs_hash': approval_request.document_ipfs_hash,
                 'size': approval_request.document_file_size
@@ -180,8 +181,8 @@ def approve_document(request_id):
         approval_request = ApprovalRequest.query.filter_by(request_id=request_id).first()
         step = ApprovalStep.query.filter_by(blockchain_request_id=request_id, approver_id=current_user_id).first()
         
-        # If not found by blockchain ID, try finding by database UUID (for legacy requests)
-        if not approval_request and is_legacy_request:
+        # If not found by blockchain ID, try finding by database UUID (automatic detection)
+        if not approval_request:
             try:
                 from uuid import UUID
                 uuid_id = UUID(request_id)
@@ -189,9 +190,10 @@ def approve_document(request_id):
                 if approval_request:
                     # Find step by approval request ID
                     step = ApprovalStep.query.filter_by(request_id=approval_request.id, approver_id=current_user_id).first()
-                    logger.info(f"Found legacy approval request by UUID: {request_id}")
-            except ValueError:
-                logger.warning(f"Invalid UUID format for legacy request: {request_id}")
+                    logger.info(f"Found approval request by UUID: {request_id}")
+                    is_legacy_request = True  # Mark as legacy for step lookup later
+            except (ValueError, AttributeError):
+                logger.warning(f"Could not parse as UUID: {request_id}")
         
         if not all([user, approval_request, step]):
             logger.error(f"Approval not found - user: {user}, approval_request: {approval_request}, step: {step}")
@@ -338,7 +340,8 @@ def approve_document(request_id):
                 recipient_id=approval_request.requester_id,
                 approval_request={'id': str(approval_request.id)},
                 document={
-                    'id': str(approval_request.document_id) if approval_request.document_id else None,
+                    'id': None,  # document_id is UUID, not blockchain ID
+                    'blockchain_document_id': approval_request.document_id,  # This is the blockchain bytes32 ID
                     'name': approval_request.document_name,
                     'ipfs_hash': approval_request.document_ipfs_hash or approval_request.stamped_document_ipfs_hash,
                     'size': approval_request.document_file_size
@@ -381,17 +384,17 @@ def reject_document(request_id):
         approval_request = ApprovalRequest.query.filter_by(request_id=request_id).first()
         step = ApprovalStep.query.filter_by(blockchain_request_id=request_id, approver_id=current_user_id).first()
         
-        # If not found by blockchain ID, try finding by database UUID (for legacy requests)
-        if not approval_request and is_legacy_request:
+        # If not found by blockchain ID, try finding by database UUID (automatic detection)
+        if not approval_request:
             try:
                 from uuid import UUID
                 uuid_id = UUID(request_id)
                 approval_request = ApprovalRequest.query.get(uuid_id)
                 if approval_request:
                     step = ApprovalStep.query.filter_by(request_id=approval_request.id, approver_id=current_user_id).first()
-                    logger.info(f"Found legacy approval request for rejection by UUID: {request_id}")
-            except ValueError:
-                logger.warning(f"Invalid UUID format for legacy request: {request_id}")
+                    logger.info(f"Found approval request for rejection by UUID: {request_id}")
+            except (ValueError, AttributeError):
+                logger.warning(f"Could not parse as UUID for rejection: {request_id}")
         
         if not all([user, approval_request, step]):
             return jsonify({'error': 'Not found'}), 404
@@ -414,7 +417,8 @@ def reject_document(request_id):
                 recipient_id=approval_request.requester_id,
                 approval_request={'id': str(approval_request.id)},
                 document={
-                    'id': str(approval_request.document_id) if approval_request.document_id else None,
+                    'id': None,  # document_id is UUID, not blockchain ID
+                    'blockchain_document_id': approval_request.document_id,  # This is the blockchain bytes32 ID
                     'name': approval_request.document_name,
                     'ipfs_hash': approval_request.document_ipfs_hash,
                     'size': approval_request.document_file_size
@@ -492,8 +496,21 @@ def cancel_document(request_id):
 @bp.route('/status/<request_id>', methods=['GET'])
 @jwt_required()
 def get_approval_status(request_id):
-    """Get status"""
+    """Get status - supports both blockchain request_id and database UUID"""
+    # First try to find by blockchain request_id (0x format)
     approval_request = ApprovalRequest.query.filter_by(request_id=request_id).first()
+    
+    # If not found and it looks like a UUID, try database ID
+    if not approval_request:
+        try:
+            from uuid import UUID
+            uuid_id = UUID(request_id)
+            approval_request = ApprovalRequest.query.get(uuid_id)
+            if approval_request:
+                logger.info(f"Found approval request by database UUID: {request_id}")
+        except (ValueError, AttributeError):
+            pass
+    
     if not approval_request:
         return jsonify({'error': 'Not found'}), 404
     return jsonify({'success': True, 'data': approval_request.to_dict_detailed()}), 200

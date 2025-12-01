@@ -13,7 +13,7 @@ def token_required(f):
     """Decorator for routes that require authentication"""
     return jwt_required()(f)
 
-def send_share_chat_message(sender_id, recipient_id, document):
+def send_share_chat_message(sender_id, recipient_id, document, permission='read', transaction_hash=None, block_number=None):
     """Send an auto-generated chat message when a document is shared"""
     try:
         from app.routes.chat import create_document_share_message
@@ -22,11 +22,16 @@ def send_share_chat_message(sender_id, recipient_id, document):
             recipient_id=recipient_id,
             document={
                 'id': str(document.id),
-                'name': document.title,
+                'name': document.name,  # Fixed: was 'title', now 'name'
                 'ipfs_hash': document.ipfs_hash,
-                'size': document.file_size
+                'size': document.file_size,
+                'type': document.document_type
             },
-            message_content=f"📄 Shared document: {document.title}"
+            permission=permission,
+            transaction_hash=transaction_hash,
+            block_number=block_number,
+            blockchain_document_id=document.document_id,
+            message_content=f"📄 Shared document: {document.name}"
         )
     except Exception as e:
         print(f"⚠️ Failed to send chat message for share: {e}")
@@ -118,8 +123,15 @@ def share_document(document_id):
                 db.session.add(new_share)
                 print(f"✅ Created new share with user: {user.email}")
                 
-                # Send auto-generated chat message
-                send_share_chat_message(current_user_id, user_id, document)
+                # Send auto-generated chat message with blockchain info
+                send_share_chat_message(
+                    sender_id=current_user_id, 
+                    recipient_id=user_id, 
+                    document=document,
+                    permission=permission,
+                    transaction_hash=transaction_hash,
+                    block_number=block_number
+                )
                 
                 # Move document to "Received" folder for recipient
                 received_folder = Folder.query.filter_by(

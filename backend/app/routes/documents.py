@@ -43,31 +43,61 @@ def list_documents():
                     print(f"📤 Viewing Shared/Sent folder - will show documents shared BY user")
         
         documents = []
+        share_info_map = {}  # Map document_id to share info
         
         # If viewing Shared/Received folder, show documents shared WITH this user
         if is_received_folder:
             from app.models.document import DocumentShare
-            shared_docs_query = db.session.query(Document).join(
+            # Use distinct to avoid duplicates if document was shared multiple times
+            shared_docs_query = db.session.query(Document, DocumentShare).join(
                 DocumentShare, Document.id == DocumentShare.document_id
             ).filter(
                 DocumentShare.shared_with_id == current_user_id,
                 Document.is_active == True
             ).order_by(Document.created_at.desc()).all()
             
-            documents = shared_docs_query
+            # Extract unique documents and build share info map
+            seen_docs = set()
+            for doc, share in shared_docs_query:
+                if doc.id not in seen_docs:
+                    documents.append(doc)
+                    seen_docs.add(doc.id)
+                    # Get shared_by user info
+                    shared_by_user = User.query.get(share.shared_by_id)
+                    share_info_map[str(doc.id)] = {
+                        'permission': share.permission,
+                        'sharedBy': shared_by_user.email if shared_by_user else None,
+                        'sharedAt': share.shared_at.isoformat() if share.shared_at else None,
+                        'transactionHash': share.transaction_hash
+                    }
+            
             print(f"📥 Found {len(documents)} documents shared with user (Shared/Received)")
         
         # If viewing Shared/Sent folder, show documents shared BY this user
         elif is_sent_folder:
             from app.models.document import DocumentShare
-            sent_docs_query = db.session.query(Document).join(
+            sent_docs_query = db.session.query(Document, DocumentShare).join(
                 DocumentShare, Document.id == DocumentShare.document_id
             ).filter(
                 DocumentShare.shared_by_id == current_user_id,
                 Document.is_active == True
             ).order_by(Document.created_at.desc()).all()
             
-            documents = sent_docs_query
+            # Extract unique documents and build share info map
+            seen_docs = set()
+            for doc, share in sent_docs_query:
+                if doc.id not in seen_docs:
+                    documents.append(doc)
+                    seen_docs.add(doc.id)
+                    # Get shared_with user info
+                    shared_with_user = User.query.get(share.shared_with_id)
+                    share_info_map[str(doc.id)] = {
+                        'permission': share.permission,
+                        'sharedWith': shared_with_user.email if shared_with_user else None,
+                        'sharedAt': share.shared_at.isoformat() if share.shared_at else None,
+                        'transactionHash': share.transaction_hash
+                    }
+            
             print(f"📤 Found {len(documents)} documents shared by user (Shared/Sent)")
         
         else:
@@ -95,6 +125,12 @@ def list_documents():
         documents_data = []
         for doc in documents:
             doc_dict = doc.to_dict()
+            # Add share info if available (for Received/Sent folders)
+            doc_id_str = str(doc.id)
+            if doc_id_str in share_info_map:
+                doc_dict['shareInfo'] = share_info_map[doc_id_str]
+                doc_dict['isShared'] = True
+                doc_dict['permission'] = share_info_map[doc_id_str].get('permission', 'read')
             documents_data.append(doc_dict)
             print(f"📄 Document: {doc.file_name} (ID: {doc.id}) in folder: {doc.folder_id}")
         

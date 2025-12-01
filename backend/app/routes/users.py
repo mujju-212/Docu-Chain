@@ -9,6 +9,31 @@ import logging
 bp = Blueprint('users', __name__)
 logger = logging.getLogger(__name__)
 
+@bp.route('/<user_id>', methods=['GET'])
+@token_required
+def get_user_by_id(user_id):
+    """Get user by ID (for sharing - wallet address lookup)"""
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Return user info (including wallet_address for blockchain sharing)
+        return jsonify({
+            'success': True, 
+            'user': {
+                'id': str(user.id),
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'wallet_address': user.wallet_address,
+                'walletAddress': user.wallet_address  # Also return camelCase for frontend
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting user by ID: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to get user'}), 500
+
 @bp.route('/profile', methods=['GET'])
 @token_required
 def get_profile():

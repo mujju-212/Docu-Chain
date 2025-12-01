@@ -261,13 +261,75 @@ class BlockchainServiceV2 {
     } catch (error) {
       console.error('❌ Error sharing document:', error);
       
-      // Check if error is due to wallet mismatch
-      if (error.message.includes('Only owner can share')) {
-        throw new Error(`You must connect to the wallet that uploaded this document to share it.`);
-      }
-      
-      throw error;
+      // Parse blockchain error messages for user-friendly display
+      const errorMsg = this.parseBlockchainError(error, 'share');
+      return {
+        success: false,
+        error: errorMsg
+      };
     }
+  }
+
+  // Parse blockchain errors into user-friendly messages
+  parseBlockchainError(error, operation = 'operation') {
+    const msg = error.message || error.toString();
+    
+    // Document existence errors
+    if (msg.includes('Document does not exist')) {
+      return 'This document is not registered on the blockchain. Please upload it first from File Manager.';
+    }
+    
+    // Owner/permission errors
+    if (msg.includes('Only owner can share')) {
+      return 'You can only share documents you uploaded. Please connect with the wallet that originally uploaded this document.';
+    }
+    if (msg.includes('Only owner can revoke')) {
+      return 'Only the document owner can revoke share permissions.';
+    }
+    if (msg.includes('No permission to update') || msg.includes('Unauthorized')) {
+      return 'You don\'t have permission to update this document. You need to be the owner or have write access.';
+    }
+    
+    // Transaction errors
+    if (msg.includes('user rejected') || msg.includes('User denied') || msg.includes('ACTION_REJECTED')) {
+      return 'Transaction was cancelled in MetaMask.';
+    }
+    if (msg.includes('insufficient funds')) {
+      return 'Insufficient ETH in your wallet for gas fees. Please add some Sepolia ETH.';
+    }
+    if (msg.includes('nonce too low')) {
+      return 'Transaction conflict detected. Please wait a moment and try again.';
+    }
+    if (msg.includes('replacement fee too low') || msg.includes('underpriced')) {
+      return 'Transaction fee too low. Please try again with higher gas.';
+    }
+    
+    // Network errors
+    if (msg.includes('network') || msg.includes('disconnected') || msg.includes('timeout')) {
+      return 'Network connection error. Please check your internet connection and try again.';
+    }
+    if (msg.includes('Invalid chain') || msg.includes('wrong network')) {
+      return 'Please switch to Sepolia testnet in MetaMask.';
+    }
+    
+    // Contract-specific errors
+    if (msg.includes('already shared')) {
+      return 'This document is already shared with this user.';
+    }
+    if (msg.includes('Invalid address')) {
+      return 'Invalid wallet address. Please verify the recipient\'s wallet address.';
+    }
+    if (msg.includes('Document is not active')) {
+      return 'This document has been deactivated and cannot be shared.';
+    }
+    
+    // Wallet connection errors
+    if (msg.includes('MetaMask') || msg.includes('wallet')) {
+      return 'Wallet connection issue. Please ensure MetaMask is connected and try again.';
+    }
+    
+    // Default error
+    return `Blockchain ${operation} failed: ${msg.substring(0, 100)}`;
   }
 
   // Update document (owner or write permission holders)
@@ -294,12 +356,12 @@ class BlockchainServiceV2 {
     } catch (error) {
       console.error('❌ Error updating document:', error);
       
-      // Check if error is due to permission
-      if (error.message.includes('No permission to update')) {
-        throw new Error(`You don't have permission to update this document. You need to be the owner or have write permission.`);
-      }
-      
-      throw error;
+      // Parse blockchain error messages for user-friendly display
+      const errorMsg = this.parseBlockchainError(error, 'update');
+      return {
+        success: false,
+        error: errorMsg
+      };
     }
   }
 
@@ -357,6 +419,25 @@ class BlockchainServiceV2 {
       return hasPermission;
     } catch (error) {
       console.error('❌ Error checking read permission:', error);
+      return false;
+    }
+  }
+
+  // Check if document exists on blockchain using the contract's documentExists mapping
+  async documentExists(documentId) {
+    try {
+      if (!this.isInitialized) await this.initialize();
+      
+      console.log('🔍 Checking if document exists on blockchain:', documentId);
+      
+      // Directly call the documentExists mapping in the smart contract
+      // This returns a boolean directly without reverting if document doesn't exist
+      const exists = await contract.documentExists(documentId);
+      
+      console.log('📄 Document exists on blockchain:', exists);
+      return exists;
+    } catch (error) {
+      console.error('❌ Error checking document existence:', error.message);
       return false;
     }
   }

@@ -473,7 +473,13 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
 
   const handleAddRecipient = (user, customRole) => {
     if (!recipients.find(r => r.id === user.id)) {
+      // Check if user has wallet
+      const hasWallet = user.walletAddress || user.wallet_address;
+      if (!hasWallet) {
+        showNotification(`⚠️ Warning: ${user.fullName || user.name || user.email} doesn't have a wallet connected. They won't be able to approve on blockchain.`, 'warning');
+      }
       setRecipients([...recipients, { ...user, customRole: customRole || user.role }]);
+      console.log('➕ Added recipient:', user.fullName || user.email, 'Wallet:', hasWallet || 'NONE');
     }
   };
 
@@ -633,27 +639,53 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       setTxCurrentStep(0); // Still preparing
       setTxMessage('Validating approver wallets...');
       
-      // Get actual wallet addresses from recipients
-      // CRITICAL: Approvers MUST have wallet addresses for blockchain approval to work
-      const missingWallets = recipients.filter(r => !r.walletAddress && !r.wallet_address);
-      if (missingWallets.length > 0) {
-        const missingNames = missingWallets.map(r => r.name || r.fullName).join(', ');
-        showNotification(
-          `⚠️ Cannot submit: The following approvers don't have wallet addresses linked: ${missingNames}. They must connect their MetaMask wallet first.`,
-          'error'
-        );
+      // Debug log recipients
+      console.log('📋 Recipients before validation:', recipients);
+      
+      // Validate recipients exist
+      if (!recipients || recipients.length === 0) {
+        showNotification('⚠️ Please select at least one approver', 'error');
         setTxLoading(false);
-        setSubmitting(false);
+        setIsGenerating(false);
         return;
       }
       
-      const approverWallets = recipients.map((recipient) => {
-        // Use recipient's actual wallet - this is REQUIRED for blockchain approval
-        return recipient.walletAddress || recipient.wallet_address;
-      });
+      // Get actual wallet addresses from recipients
+      // CRITICAL: Approvers MUST have wallet addresses for blockchain approval to work
+      const approverWallets = [];
+      const missingWalletUsers = [];
       
-      console.log('📍 Approver wallets:', approverWallets);
-      console.log('📍 Recipients data:', recipients);
+      for (const recipient of recipients) {
+        const wallet = recipient.walletAddress || recipient.wallet_address;
+        console.log(`👤 Checking recipient ${recipient.fullName || recipient.name || recipient.email}:`, { wallet, recipient });
+        
+        if (!wallet || wallet === 'null' || wallet === 'undefined' || !wallet.startsWith('0x')) {
+          missingWalletUsers.push(recipient.fullName || recipient.name || recipient.email || 'Unknown');
+        } else {
+          approverWallets.push(wallet);
+        }
+      }
+      
+      if (missingWalletUsers.length > 0) {
+        showNotification(
+          `⚠️ Cannot submit: The following approvers don't have wallet addresses linked: ${missingWalletUsers.join(', ')}. They must connect their MetaMask wallet first.`,
+          'error'
+        );
+        setTxLoading(false);
+        setIsGenerating(false);
+        return;
+      }
+      
+      // Final validation - must have valid wallets
+      if (approverWallets.length === 0) {
+        showNotification('⚠️ No valid approver wallet addresses found. Make sure approvers have connected MetaMask.', 'error');
+        setTxLoading(false);
+        setIsGenerating(false);
+        return;
+      }
+      
+      console.log('📍 Final approver wallets:', approverWallets);
+      console.log('📍 Recipients count:', recipients.length, 'Wallets count:', approverWallets.length);
       
       // Step 3: Call blockchain contract
       setTxProgress(25);
@@ -2659,6 +2691,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               </button>
             </div>
             <div className="modal-body">
+              <div className="wallet-info-banner">
+                <i className="ri-information-line"></i>
+                <span>Only users with connected wallets can approve on blockchain. Users without wallets are greyed out.</span>
+              </div>
               <div className="search-bar" style={{marginBottom: '12px'}}>
                 <i className="ri-search-line"></i>
                 <input 
@@ -2674,50 +2710,79 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
                 )}
               </div>
               <div className="users-list">
-                {availableUsers.filter(user => {
-                  // Filter out students - only show faculty and admin
-                  const role = (user.role || '').toLowerCase();
-                  if (role === 'student') return false;
-                  
-                  // Apply search filter
-                  const searchLower = recipientSearchQuery.toLowerCase();
-                  return (user.fullName || user.name || '').toLowerCase().includes(searchLower) ||
-                         (user.email || '').toLowerCase().includes(searchLower) ||
-                         (user.department || '').toLowerCase().includes(searchLower);
-                }).map(user => {
-                  const hasWallet = user.walletAddress || user.wallet_address;
-                  return (
-                  <div key={user.id} className={`user-item ${!hasWallet ? 'no-wallet' : ''}`}>
-                    <div className="user-avatar">
-                      {(user.fullName || user.name || 'U').split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <div className="user-info">
-                      <strong>
-                        {user.fullName || user.name || user.email}
-                        {!hasWallet && <span className="wallet-warning" title="No wallet linked - cannot approve on blockchain"> ⚠️</span>}
-                      </strong>
-                      <small>{user.department} • {user.email}</small>
-                      {!hasWallet && <small className="no-wallet-text">⚠️ No wallet linked</small>}
-                    </div>
-                    <input 
-                      type="text" 
-                      placeholder="Role (e.g., HOD, Principal)"
-                      className="role-input"
-                      id={`role-${user.id}`}
-                    />
-                    <button 
-                      className="btn-add"
-                      onClick={() => {
-                        const roleInput = document.getElementById(`role-${user.id}`);
-                        const customRole = roleInput.value.trim() || user.role;
-                        handleAddRecipient(user, customRole);
-                      }}
-                      title={!hasWallet ? 'Warning: This user has no wallet linked' : 'Add as approver'}
-                    >
-                      <i className="ri-add-line"></i>
-                    </button>
+                {availableUsers
+                  .filter(user => {
+                    // Filter out students - only show faculty and admin
+                    const role = (user.role || '').toLowerCase();
+                    if (role === 'student') return false;
+                    
+                    // Apply search filter
+                    const searchLower = recipientSearchQuery.toLowerCase();
+                    return (user.fullName || user.name || '').toLowerCase().includes(searchLower) ||
+                           (user.email || '').toLowerCase().includes(searchLower) ||
+                           (user.department || '').toLowerCase().includes(searchLower);
+                  })
+                  .sort((a, b) => {
+                    // Sort users with wallets first
+                    const aHasWallet = !!(a.walletAddress || a.wallet_address);
+                    const bHasWallet = !!(b.walletAddress || b.wallet_address);
+                    if (aHasWallet && !bHasWallet) return -1;
+                    if (!aHasWallet && bHasWallet) return 1;
+                    return 0;
+                  })
+                  .map(user => {
+                    const hasWallet = user.walletAddress || user.wallet_address;
+                    const isAlreadyAdded = recipients.some(r => r.id === user.id);
+                    return (
+                      <div 
+                        key={user.id} 
+                        className={`user-item ${!hasWallet ? 'no-wallet disabled' : ''} ${isAlreadyAdded ? 'already-added' : ''}`}
+                        title={!hasWallet ? 'This user has not connected their wallet and cannot approve on blockchain' : ''}
+                      >
+                        <div className="user-avatar">
+                          {(user.fullName || user.name || 'U').split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <div className="user-info">
+                          <strong>
+                            {user.fullName || user.name || user.email}
+                            {hasWallet && <span className="wallet-badge" title="Wallet connected">✓</span>}
+                          </strong>
+                          <small>{user.department} • {user.email}</small>
+                          {!hasWallet && <small className="no-wallet-text"><i className="ri-wallet-line"></i> No wallet linked</small>}
+                          {hasWallet && <small className="has-wallet-text"><i className="ri-wallet-3-fill"></i> Wallet: {(user.walletAddress || user.wallet_address).slice(0, 6)}...{(user.walletAddress || user.wallet_address).slice(-4)}</small>}
+                        </div>
+                        <input 
+                          type="text" 
+                          placeholder="Role (e.g., HOD)"
+                          className="role-input"
+                          id={`role-${user.id}`}
+                          disabled={!hasWallet || isAlreadyAdded}
+                        />
+                        <button 
+                          className={`btn-add ${!hasWallet ? 'disabled' : ''}`}
+                          onClick={() => {
+                            if (!hasWallet) {
+                              showNotification('This user cannot be added - they need to connect their MetaMask wallet first', 'error');
+                              return;
+                            }
+                            const roleInput = document.getElementById(`role-${user.id}`);
+                            const customRole = roleInput.value.trim() || user.role;
+                            handleAddRecipient(user, customRole);
+                          }}
+                          disabled={!hasWallet || isAlreadyAdded}
+                          title={!hasWallet ? 'Cannot add - no wallet' : isAlreadyAdded ? 'Already added' : 'Add as approver'}
+                        >
+                          {isAlreadyAdded ? <i className="ri-check-line"></i> : <i className="ri-add-line"></i>}
+                        </button>
+                      </div>
+                    );
+                  })}
+                {availableUsers.filter(u => (u.role || '').toLowerCase() !== 'student').length === 0 && (
+                  <div className="no-users-message">
+                    <i className="ri-user-unfollow-line"></i>
+                    <p>No faculty or admin users found</p>
                   </div>
-                )})}
+                )}
               </div>
             </div>
           </div>

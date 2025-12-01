@@ -2,6 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { io } from 'socket.io-client';
 import blockchainServiceV2 from '../../services/blockchainServiceV2';
+import {
+    requestApprovalOnBlockchain,
+    approveDocumentOnBlockchain,
+    rejectDocumentOnBlockchain,
+    getApprovalRequestFromBlockchain
+} from '../../utils/metamask';
+import Web3 from 'web3';
 import './ChatInterface.css';
 
 const API_URL = 'http://localhost:5000/api';
@@ -321,6 +328,32 @@ const ChatInterface = () => {
     const [docFilterType, setDocFilterType] = useState('all'); // all, pdf, image, doc, etc.
     const [sharePermission, setSharePermission] = useState('read'); // read, write
 
+    // Multi-recipient approval state
+    const [isMultiRecipientModalOpen, setIsMultiRecipientModalOpen] = useState(false);
+    const [approvalRecipients, setApprovalRecipients] = useState([]);
+    const [approvalWorkflow, setApprovalWorkflow] = useState('parallel'); // 'parallel' or 'sequential'
+    const [approvalType, setApprovalType] = useState('standard'); // 'standard' or 'digital'
+    const [approvalPurpose, setApprovalPurpose] = useState('');
+    const [allUsers, setAllUsers] = useState([]);
+    const [approvalUserSearch, setApprovalUserSearch] = useState('');
+    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+    const [approvalProgress, setApprovalProgress] = useState({
+        isProcessing: false,
+        step: 0,
+        message: '',
+        error: null
+    });
+
+    // Approval action state (for approve/reject from chat)
+    const [approvalActionModal, setApprovalActionModal] = useState({
+        show: false,
+        type: '', // 'approve' or 'reject'
+        request: null,
+        message: null
+    });
+    const [rejectionReason, setRejectionReason] = useState('');
+    const [isApprovalActionProcessing, setIsApprovalActionProcessing] = useState(false);
+
     // In-app modal helpers (replaces browser confirm/alert/prompt)
     const showAlert = useCallback((title, message) => {
         setAppModal({
@@ -372,6 +405,32 @@ const ChatInterface = () => {
         const token = localStorage.getItem('token');
         return token ? { Authorization: `Bearer ${token}` } : {};
     }, []);
+
+    // Fetch all users for approval recipient selection
+    const fetchAllUsersForApproval = useCallback(async () => {
+        setIsLoadingUsers(true);
+        try {
+            const response = await fetch(`${API_URL}/users/institution`, {
+                headers: getAuthHeader()
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // Filter out current user (already filtered by backend, but just in case)
+                const users = (data.users || []).filter(u => 
+                    String(u.id) !== String(currentUser?.id)
+                );
+                console.log('📋 Loaded users for approval:', users.length);
+                setAllUsers(users);
+            } else {
+                console.error('Failed to fetch users:', response.status);
+            }
+        } catch (error) {
+            console.error('Error fetching users:', error);
+        } finally {
+            setIsLoadingUsers(false);
+        }
+    }, [getAuthHeader, currentUser]);
 
     // Fetch conversations
     const fetchConversations = useCallback(async () => {
@@ -1603,6 +1662,406 @@ const ChatInterface = () => {
         setSharePermission('read');  // Reset permission
     };
 
+    // Open multi-recipient modal for approval requests
+    const openMultiRecipientModal = () => {
+        setIsDocumentShareModalOpen(false);
+        setIsMultiRecipientModalOpen(true);
+        // Pre-select current chat recipient if available
+        const recipientId = selectedConversation?.userId || selectedConversation?.user_id;
+        if (recipientId) {
+            setApprovalRecipients([String(recipientId)]);
+        } else {
+            setApprovalRecipients([]);
+        }
+        fetchAllUsersForApproval();
+    };
+
+    const closeMultiRecipientModal = () => {
+        setIsMultiRecipientModalOpen(false);
+        setApprovalRecipients([]);
+        setApprovalWorkflow('parallel');
+        setApprovalType('standard');
+        setApprovalPurpose('');
+        setApprovalUserSearch('');
+        setApprovalProgress({
+            isProcessing: false,
+            step: 0,
+            message: '',
+            error: null
+        });
+    };
+
+    const toggleApprovalRecipient = (userId) => {
+        const userIdStr = String(userId);
+        setApprovalRecipients(prev => {
+            const isAlreadySelected = prev.some(id => String(id) === userIdStr);
+            if (isAlreadySelected) {
+                return prev.filter(id => String(id) !== userIdStr);
+            } else {
+                return [...prev, userIdStr];
+            }
+        });
+    };
+
+    // Submit approval request with blockchain integration
+    const submitApprovalRequest = async () => {
+        if (!selectedDocument) {
+            showAlert('Error', 'No document selected');
+            return;
+        }
+
+        if (approvalRecipients.length === 0) {
+            showAlert('Error', 'Please select at least one approver');
+            return;
+        }
+
+        setApprovalProgress({
+            isProcessing: true,
+            step: 1,
+            message: 'Preparing approval request...',
+            error: null
+        });
+
+        try {
+            // Get approver details with wallet addresses
+            const approverDetails = [];
+            const missingWallets = [];
+
+            for (const userId of approvalRecipients) {
+                const user = allUsers.find(u => String(u.id) === String(userId));
+                if (user) {
+                    const walletAddress = user.walletAddress || user.wallet_address;
+                    const userName = user.fullName || user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+                    if (!walletAddress) {
+                        missingWallets.push(userName);
+                    } else {
+                        approverDetails.push({
+                            id: user.id,
+                            name: userName,
+                            email: user.email,
+                            walletAddress: walletAddress
+                        });
+                    }
+                }
+            }
+
+            if (missingWallets.length > 0) {
+                setApprovalProgress({
+                    isProcessing: true,
+                    step: 1,
+                    message: '',
+                    error: `The following approvers don't have wallet addresses: ${missingWallets.join(', ')}. They must connect MetaMask first.`
+                });
+                return;
+            }
+
+            // Step 2: Connect wallet and create blockchain request
+            setApprovalProgress(prev => ({
+                ...prev,
+                step: 2,
+                message: 'Connecting to blockchain...'
+            }));
+
+            const web3Instance = new Web3(window.ethereum);
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const currentWallet = accounts[0];
+
+            // Generate document ID for blockchain
+            const documentId = web3Instance.utils.randomHex(32);
+            const docHash = selectedDocument.ipfsHash || selectedDocument.ipfs_hash || selectedDocument.hash;
+            const docName = selectedDocument.fileName || selectedDocument.name || 'Document';
+
+            setApprovalProgress(prev => ({
+                ...prev,
+                message: 'Please confirm transaction in MetaMask...'
+            }));
+
+            // Create blockchain approval request
+            const processTypeStr = approvalWorkflow === 'sequential' ? 'SEQUENTIAL' : 'PARALLEL';
+            const approvalTypeStr = approvalType === 'digital' ? 'DIGITAL_SIGNATURE' : 'STANDARD';
+            const approverWallets = approverDetails.map(a => a.walletAddress);
+
+            console.log('🔗 Creating approval on blockchain:', {
+                documentId,
+                ipfsHash: docHash,
+                approvers: approverWallets,
+                processType: processTypeStr,
+                approvalType: approvalTypeStr
+            });
+
+            const blockchainResult = await requestApprovalOnBlockchain(
+                documentId,
+                docHash || '',
+                approverWallets,
+                processTypeStr,
+                approvalTypeStr,
+                'NORMAL',
+                0,
+                'v1.0'
+            );
+
+            if (!blockchainResult.requestId) {
+                throw new Error('Blockchain did not return a request ID');
+            }
+
+            console.log('✅ Blockchain approval created:', blockchainResult);
+
+            setApprovalProgress(prev => ({
+                ...prev,
+                step: 3,
+                message: 'Saving to database...'
+            }));
+
+            // Save to backend
+            const backendResponse = await fetch(`${API_URL}/approvals/request`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    requestId: blockchainResult.requestId,
+                    documentId: documentId,
+                    documentName: docName,
+                    documentIpfsHash: docHash,
+                    documentFileSize: selectedDocument.fileSize || selectedDocument.file_size || 0,
+                    documentFileType: selectedDocument.documentType || 'application/pdf',
+                    requesterWallet: currentWallet,
+                    approvers: approverDetails.map((approver, index) => ({
+                        userId: approver.id,
+                        wallet: approver.walletAddress,
+                        role: 'Approver',
+                        stepOrder: index + 1
+                    })),
+                    processType: processTypeStr,
+                    approvalType: approvalTypeStr,
+                    priority: 'NORMAL',
+                    purpose: approvalPurpose || 'Approval request from Chat',
+                    blockchainTxHash: blockchainResult.transactionHash,
+                    metadata: {
+                        purpose: approvalPurpose,
+                        recipients: approverDetails.map(a => ({ id: a.id, name: a.name, email: a.email }))
+                    }
+                })
+            });
+
+            if (!backendResponse.ok) {
+                const error = await backendResponse.json();
+                throw new Error(error.error || 'Failed to save approval request');
+            }
+
+            const backendData = await backendResponse.json();
+            console.log('✅ Backend approval saved:', backendData);
+
+            setApprovalProgress(prev => ({
+                ...prev,
+                step: 4,
+                message: 'Sending notifications...'
+            }));
+
+            // Send chat messages to all approvers
+            for (const approver of approverDetails) {
+                // Find or create conversation with this user
+                let conversationId = selectedChat;
+                
+                // Check if we need to find a different conversation
+                const existingConv = conversations.find(c => 
+                    c.userId === approver.id || c.user_id === approver.id
+                );
+                
+                if (existingConv) {
+                    conversationId = existingConv.id;
+                }
+
+                // Chat message is auto-created by backend approval API via create_approval_request_message
+            }
+
+            setApprovalProgress(prev => ({
+                ...prev,
+                step: 5,
+                message: approvalType === 'digital' 
+                    ? '✅ Digital signature request sent successfully!'
+                    : '✅ Approval request sent successfully!'
+            }));
+
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            // Refresh messages
+            if (selectedChat) {
+                fetchMessages(selectedChat);
+            }
+
+            // Close modal
+            closeMultiRecipientModal();
+            setSelectedDocument(null);
+            setDescription('');
+
+            showAlert('Success', `${approvalType === 'digital' ? 'Digital signature' : 'Approval'} request sent to ${approverDetails.length} recipient(s)!`);
+
+        } catch (error) {
+            console.error('❌ Error submitting approval:', error);
+            setApprovalProgress({
+                isProcessing: true,
+                step: 2,
+                message: '',
+                error: error.message || 'Failed to submit approval request'
+            });
+        }
+    };
+
+    // Handle approval action from chat (approve/sign document)
+    const handleApproveFromChat = async (msg) => {
+        const approvalRequestId = msg.approvalRequestId || msg.approval_request_id;
+        const messageType = msg.messageType || msg.message_type;
+        const isDigitalSig = messageType === 'digital_signature_request';
+
+        setApprovalActionModal({
+            show: true,
+            type: 'approve',
+            request: { id: approvalRequestId, messageType, isDigitalSig },
+            message: msg
+        });
+    };
+
+    // Handle rejection from chat
+    const handleRejectFromChat = async (msg) => {
+        const approvalRequestId = msg.approvalRequestId || msg.approval_request_id;
+        
+        setApprovalActionModal({
+            show: true,
+            type: 'reject',
+            request: { id: approvalRequestId },
+            message: msg
+        });
+        setRejectionReason('');
+    };
+
+    // Confirm approval action
+    const confirmApprovalAction = async () => {
+        const { type, request, message } = approvalActionModal;
+        
+        setIsApprovalActionProcessing(true);
+
+        try {
+            // Check if MetaMask is installed
+            if (!window.ethereum) {
+                throw new Error('Please install MetaMask to approve/reject documents');
+            }
+
+            // Get the blockchain request ID from the approval request
+            const approvalResponse = await fetch(`${API_URL}/approvals/status/${request.id}`, {
+                headers: getAuthHeader()
+            });
+
+            if (!approvalResponse.ok) {
+                throw new Error('Could not fetch approval request details');
+            }
+
+            const approvalData = await approvalResponse.json();
+            const blockchainRequestId = approvalData.data?.requestId || approvalData.requestId;
+
+            if (!blockchainRequestId || !blockchainRequestId.startsWith('0x')) {
+                throw new Error('This approval request does not have a valid blockchain ID');
+            }
+
+            console.log('🔍 Processing approval action:', {
+                type,
+                blockchainRequestId,
+                isDigitalSig: request.isDigitalSig
+            });
+
+            // Connect wallet
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+
+            if (type === 'approve') {
+                // Check if request exists and user is approver
+                try {
+                    const blockchainRequest = await getApprovalRequestFromBlockchain(blockchainRequestId);
+                    console.log('📦 Blockchain request:', blockchainRequest);
+                } catch (checkError) {
+                    console.warn('⚠️ Could not verify blockchain request:', checkError);
+                }
+
+                // Create signature hash for digital signature
+                let signatureHash = '0x0000000000000000000000000000000000000000000000000000000000000000';
+                
+                if (request.isDigitalSig) {
+                    const web3Instance = new Web3(window.ethereum);
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    const docHash = message.documentHash || message.document_hash || 'document';
+                    const sigMessage = `I digitally sign this document: ${docHash}`;
+                    const signature = await web3Instance.eth.personal.sign(sigMessage, accounts[0], '');
+                    signatureHash = web3Instance.utils.keccak256(signature);
+                }
+
+                // Approve on blockchain
+                const result = await approveDocumentOnBlockchain(blockchainRequestId, '', signatureHash);
+                console.log('✅ Blockchain approval result:', result);
+
+                // Update backend using blockchain request ID
+                const updateResponse = await fetch(`${API_URL}/approvals/approve/${blockchainRequestId}`, {
+                    method: 'POST',
+                    headers: {
+                        ...getAuthHeader(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        blockchainTxHash: result.transactionHash,
+                        reason: request.isDigitalSig ? 'Digitally signed' : 'Approved',
+                        signatureHash: signatureHash,
+                        isDigitalSignature: request.isDigitalSig
+                    })
+                });
+
+                if (!updateResponse.ok) {
+                    console.warn('Backend update failed but blockchain succeeded');
+                }
+
+                showAlert('Success', request.isDigitalSig ? '✍️ Document digitally signed!' : '✅ Document approved!');
+
+            } else if (type === 'reject') {
+                if (!rejectionReason.trim()) {
+                    showAlert('Required', 'Please provide a reason for rejection');
+                    setIsApprovalActionProcessing(false);
+                    return;
+                }
+
+                // Reject on blockchain
+                const result = await rejectDocumentOnBlockchain(blockchainRequestId, rejectionReason);
+                console.log('✅ Blockchain rejection result:', result);
+
+                // Update backend using blockchain request ID
+                await fetch(`${API_URL}/approvals/reject/${blockchainRequestId}`, {
+                    method: 'POST',
+                    headers: {
+                        ...getAuthHeader(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        blockchainTxHash: result.transactionHash,
+                        reason: rejectionReason
+                    })
+                });
+
+                showAlert('Rejected', '❌ Document rejected');
+            }
+
+            // Refresh messages
+            if (selectedChat) {
+                fetchMessages(selectedChat);
+            }
+
+            setApprovalActionModal({ show: false, type: '', request: null, message: null });
+            setRejectionReason('');
+
+        } catch (error) {
+            console.error('❌ Approval action error:', error);
+            showAlert('Error', error.message || 'Failed to process approval');
+        } finally {
+            setIsApprovalActionProcessing(false);
+        }
+    };
+
     const toggleMemberSelection = (memberId) => {
         setSelectedMembers(prev => 
             prev.includes(memberId) 
@@ -1659,7 +2118,27 @@ const ChatInterface = () => {
                 }));
 
                 // Get document's blockchain ID (bytes32 hash) - similar to FileManagerNew pattern
-                const blockchainId = selectedDocument.documentId || selectedDocument.document_id || selectedDocument.blockchainId;
+                let blockchainId = selectedDocument.documentId || selectedDocument.document_id || selectedDocument.blockchainId;
+                
+                // DEBUG: Log all document fields to find the correct blockchain ID field
+                console.log('🔍 DEBUG - Full selectedDocument:', JSON.stringify(selectedDocument, null, 2));
+                console.log('🔍 DEBUG - Trying fields:');
+                console.log('  - documentId:', selectedDocument.documentId);
+                console.log('  - document_id:', selectedDocument.document_id);
+                console.log('  - blockchainId:', selectedDocument.blockchainId);
+                console.log('  - id:', selectedDocument.id);
+                console.log('📄 Raw blockchain ID:', blockchainId);
+                
+                // Normalize blockchainId - ensure it has 0x prefix (some old documents may have been stored without it)
+                if (blockchainId && typeof blockchainId === 'string') {
+                    if (!blockchainId.startsWith('0x')) {
+                        // Check if it's a 64-char hex string (missing 0x prefix)
+                        if (/^[a-fA-F0-9]{64}$/.test(blockchainId)) {
+                            blockchainId = '0x' + blockchainId;
+                            console.log('🔧 Normalized blockchain ID (added 0x prefix):', blockchainId);
+                        }
+                    }
+                }
                 
                 // Check if blockchain ID is valid (must be 66 chars starting with 0x)
                 const isValidBlockchainId = blockchainId && 
@@ -1667,7 +2146,7 @@ const ChatInterface = () => {
                     blockchainId.startsWith('0x') && 
                     blockchainId.length === 66;
                 
-                console.log('📄 Document blockchain ID:', blockchainId);
+                console.log('📄 Final blockchain ID:', blockchainId);
                 console.log('✅ Valid blockchain ID:', isValidBlockchainId);
 
                 // Get recipient's wallet address
@@ -1687,13 +2166,28 @@ const ChatInterface = () => {
                     try {
                         setSharingProgress(prev => ({
                             ...prev,
-                            message: 'Please confirm transaction in MetaMask...'
+                            message: 'Verifying document on blockchain...'
                         }));
 
                         // Initialize blockchain service if needed
                         if (!blockchainServiceV2.isInitialized) {
                             await blockchainServiceV2.initialize();
                         }
+
+                        // FIRST: Verify document exists on blockchain before trying to share
+                        console.log('🔍 Verifying document exists on blockchain...');
+                        const documentExists = await blockchainServiceV2.documentExists(blockchainId);
+                        
+                        if (!documentExists) {
+                            throw new Error('DOCUMENT_NOT_ON_BLOCKCHAIN');
+                        }
+                        
+                        console.log('✅ Document verified on blockchain');
+
+                        setSharingProgress(prev => ({
+                            ...prev,
+                            message: 'Please confirm transaction in MetaMask...'
+                        }));
 
                         // Call smart contract via blockchainServiceV2 (same as FileManagerNew)
                         console.log('🔗 Calling blockchainServiceV2.shareDocument...');
@@ -1711,17 +2205,66 @@ const ChatInterface = () => {
                             throw new Error(blockchainResult.error || 'Blockchain share failed');
                         }
                     } catch (blockchainError) {
-                        console.warn('⚠️ Blockchain transaction failed:', blockchainError.message);
-                        // Generate placeholder hash for database record
-                        transactionHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`;
-                        blockNumber = Math.floor(Date.now() / 1000);
+                        console.error('❌ Blockchain transaction failed:', blockchainError.message);
+                        
+                        // Extract meaningful error message
+                        let errorMsg = 'Blockchain sharing failed';
+                        if (blockchainError.message === 'DOCUMENT_NOT_ON_BLOCKCHAIN') {
+                            errorMsg = 'This document exists in the database but is NOT registered on the blockchain. The blockchain document ID in the database does not match any document on-chain. Please re-upload it to blockchain from File Manager.';
+                        } else if (blockchainError.message.includes('Document does not exist')) {
+                            errorMsg = 'This document is not registered on the blockchain. Please upload it to blockchain first from File Manager.';
+                        } else if (blockchainError.message.includes('user rejected') || blockchainError.message.includes('User denied')) {
+                            errorMsg = 'Transaction was rejected in MetaMask.';
+                        } else if (blockchainError.message.includes('insufficient funds')) {
+                            errorMsg = 'Insufficient ETH for gas fees.';
+                        } else if (blockchainError.message.includes('Only owner can share')) {
+                            errorMsg = 'You must be connected with the wallet that uploaded this document to share it.';
+                        } else {
+                            errorMsg = `Blockchain error: ${blockchainError.message.substring(0, 100)}`;
+                        }
+                        
+                        // Show error and stop - NO DB fallback
+                        setSharingProgress({
+                            isSharing: true,
+                            step: 2,
+                            message: '',
+                            error: errorMsg
+                        });
+                        
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        setSharingProgress({
+                            isSharing: false,
+                            step: 0,
+                            message: '',
+                            error: null
+                        });
+                        return; // Stop here - don't continue with DB sharing
                     }
                 } else {
-                    // No valid blockchain ID or no recipient wallet - use placeholder
-                    console.warn('⚠️ Skipping blockchain share:', 
-                        !isValidBlockchainId ? 'Invalid/missing blockchain ID' : 'Recipient has no wallet');
-                    transactionHash = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`;
-                    blockNumber = Math.floor(Date.now() / 1000);
+                    // No valid blockchain ID or no recipient wallet - show error
+                    let errorMsg = '';
+                    if (!isValidBlockchainId) {
+                        errorMsg = 'This document does not have a valid blockchain ID. Please upload it to blockchain first from File Manager.';
+                    } else {
+                        errorMsg = 'Recipient does not have a wallet address linked. They need to add their wallet in Profile settings.';
+                    }
+                    
+                    console.error('❌ Cannot share:', errorMsg);
+                    setSharingProgress({
+                        isSharing: true,
+                        step: 2,
+                        message: '',
+                        error: errorMsg
+                    });
+                    
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    setSharingProgress({
+                        isSharing: false,
+                        step: 0,
+                        message: '',
+                        error: null
+                    });
+                    return; // Stop here
                 }
 
                 setSharingProgress(prev => ({
@@ -1729,7 +2272,7 @@ const ChatInterface = () => {
                     message: 'Saving share record...'
                 }));
 
-                // Save share to database
+                // Save share to database (only if blockchain succeeded)
                 const shareResponse = await fetch(`${API_URL}/shares/document/${selectedDocument.id}`, {
                     method: 'POST',
                     headers: {
@@ -1773,11 +2316,23 @@ const ChatInterface = () => {
                                currentDocumentAction === 'digital_signature' ? 'digital_signature' : 
                                'approval_request';
 
-            const content = currentDocumentAction === 'share' 
+            // Build content with blockchain info if available
+            let content = currentDocumentAction === 'share' 
                 ? `📄 Shared document: ${docName}`
                 : currentDocumentAction === 'digital_signature'
                 ? `✍️ Digital signature request: ${docName}`
                 : `📋 Approval request: ${docName}`;
+            
+            // Add permission info for shares
+            if (currentDocumentAction === 'share') {
+                content += ` (${sharePermission === 'write' ? '✏️ Edit Access' : '👁️ View Only'})`;
+                if (transactionHash && transactionHash.startsWith('0x') && transactionHash.length === 66) {
+                    content += ' 🔗';  // Blockchain verified indicator
+                }
+            }
+
+            // Get blockchain document ID
+            const blockchainDocId = selectedDocument.documentId || selectedDocument.document_id || selectedDocument.blockchainId;
 
             // The chat message is auto-generated by the share API, but we can also send explicitly
             const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}/messages`, {
@@ -1794,7 +2349,11 @@ const ChatInterface = () => {
                     documentHash: docHash,
                     documentSize: docSize,
                     documentType: docType,
+                    // Blockchain sharing info
                     permission: sharePermission,
+                    transactionHash: transactionHash,
+                    blockNumber: blockNumber,
+                    blockchainDocumentId: blockchainDocId,
                     description: description || null,
                     isAutoGenerated: false // User-initiated, not auto-generated
                 })
@@ -1803,13 +2362,22 @@ const ChatInterface = () => {
             if (response.ok) {
                 const data = await response.json();
                 
+                // Determine if blockchain verified
+                const isBlockchainVerified = transactionHash && 
+                    transactionHash.startsWith('0x') && 
+                    transactionHash.length === 66;
+                
                 // Step 4: Complete
                 setSharingProgress(prev => ({
                     ...prev,
                     step: 4,
-                    message: currentDocumentAction === 'share' ? '✅ Document shared on blockchain!' :
-                             currentDocumentAction === 'digital_signature' ? '✅ Signature request sent!' :
-                             '✅ Approval request sent!'
+                    message: currentDocumentAction === 'share' 
+                        ? (isBlockchainVerified 
+                            ? `✅ Document shared! Blockchain verified (${sharePermission === 'write' ? 'Edit' : 'View'} access)` 
+                            : `✅ Document shared! (${sharePermission === 'write' ? 'Edit' : 'View'} access)`)
+                        : currentDocumentAction === 'digital_signature' 
+                        ? '✅ Signature request sent!' 
+                        : '✅ Approval request sent!'
                 }));
                 
                 await new Promise(resolve => setTimeout(resolve, 800));
@@ -1933,6 +2501,12 @@ const ChatInterface = () => {
         const messageType = msg.messageType || msg.message_type || 'document_share';
         const approvalId = msg.approvalRequestId || msg.approval_request_id;
         
+        // Blockchain info
+        const txHash = msg.transactionHash || msg.transaction_hash;
+        const blockNum = msg.blockNumber || msg.block_number;
+        const permission = msg.sharePermission || msg.share_permission || msg.permission;
+        const isBlockchainVerified = txHash && txHash.startsWith('0x') && txHash.length === 66;
+        
         // Determine card type
         const isApprovalRequest = messageType === 'approval_request' || messageType === 'digital_signature_request';
         const isApprovalStatus = messageType.startsWith('approval_');
@@ -1984,8 +2558,14 @@ const ChatInterface = () => {
             }
         };
         
+        const handleViewTransaction = () => {
+            if (txHash) {
+                window.open(`https://sepolia.etherscan.io/tx/${txHash}`, '_blank');
+            }
+        };
+        
         return (
-            <div className={`document-card ${statusClass} ${isOwn ? 'own' : ''}`}>
+            <div className={`document-card ${statusClass} ${isOwn ? 'own' : ''} ${isBlockchainVerified ? 'blockchain-verified' : ''}`}>
                 <div className="document-card-header">
                     <div className="document-card-icon">
                         <i className="ri-file-pdf-line"></i>
@@ -1995,8 +2575,19 @@ const ChatInterface = () => {
                         <div className={`document-card-status ${statusClass}`}>
                             <i className={statusIcon}></i>
                             <span>{statusLabel}</span>
+                            {permission && isShare && (
+                                <span className={`permission-badge ${permission}`}>
+                                    <i className={permission === 'write' ? 'ri-edit-line' : 'ri-eye-line'}></i>
+                                    {permission === 'write' ? 'Edit' : 'View'}
+                                </span>
+                            )}
                         </div>
                     </div>
+                    {isBlockchainVerified && (
+                        <div className="blockchain-badge" title="Verified on Blockchain" onClick={handleViewTransaction}>
+                            <i className="ri-links-line"></i>
+                        </div>
+                    )}
                 </div>
                 
                 {docHash && (
@@ -2006,6 +2597,17 @@ const ChatInterface = () => {
                             <span>IPFS: {docHash.substring(0, 8)}...{docHash.substring(docHash.length - 6)}</span>
                         </div>
                         {docSize && <span className="document-card-size">{(docSize / 1024).toFixed(1)} KB</span>}
+                    </div>
+                )}
+                
+                {/* Blockchain transaction info */}
+                {isBlockchainVerified && (
+                    <div className="document-card-blockchain">
+                        <div className="blockchain-tx" onClick={handleViewTransaction}>
+                            <i className="ri-external-link-line"></i>
+                            <span>Tx: {txHash.substring(0, 10)}...{txHash.substring(txHash.length - 6)}</span>
+                        </div>
+                        {blockNum && <span className="blockchain-block">Block #{blockNum}</span>}
                     </div>
                 )}
                 
@@ -2025,14 +2627,14 @@ const ChatInterface = () => {
                     <div className="document-card-approval-actions">
                         <button 
                             className="approval-action-btn approve"
-                            onClick={() => showAlert('Approve', `To approve this document, go to the Document Approval section.`)}
+                            onClick={() => handleApproveFromChat(msg)}
                         >
                             <i className="ri-check-line"></i>
                             {messageType === 'digital_signature_request' ? 'Sign' : 'Approve'}
                         </button>
                         <button 
                             className="approval-action-btn reject"
-                            onClick={() => showAlert('Reject', `To reject this document, go to the Document Approval section.`)}
+                            onClick={() => handleRejectFromChat(msg)}
                         >
                             <i className="ri-close-line"></i>
                             Reject
@@ -2996,41 +3598,72 @@ const ChatInterface = () => {
                         {sharingProgress.isSharing ? (
                             /* Sharing Progress Animation */
                             <div className="sharing-progress-container">
-                                <div className="sharing-animation">
-                                    <div className={`progress-circle ${sharingProgress.step >= 4 ? 'complete' : 'active'}`}>
-                                        {sharingProgress.step >= 4 ? (
-                                            <i className="ri-check-line"></i>
-                                        ) : (
-                                            <div className="spinner"></div>
-                                        )}
+                                {sharingProgress.error ? (
+                                    /* Error State */
+                                    <div className="sharing-error-container">
+                                        <div className="error-icon">
+                                            <i className="ri-error-warning-line"></i>
+                                        </div>
+                                        <h4 className="error-title">Sharing Failed</h4>
+                                        <p className="error-message">{sharingProgress.error}</p>
+                                        <div className="document-being-shared">
+                                            <i className="ri-file-text-line"></i>
+                                            <span>{selectedDocument?.fileName || selectedDocument?.name || 'Document'}</span>
+                                        </div>
+                                        <button 
+                                            className="btn-secondary error-dismiss-btn"
+                                            onClick={() => {
+                                                setSharingProgress({
+                                                    isSharing: false,
+                                                    step: 0,
+                                                    message: '',
+                                                    error: null
+                                                });
+                                            }}
+                                        >
+                                            Close
+                                        </button>
                                     </div>
-                                    <div className="progress-steps">
-                                        <div className={`progress-step ${sharingProgress.step >= 1 ? 'active' : ''} ${sharingProgress.step > 1 ? 'complete' : ''}`}>
-                                            <div className="step-dot"></div>
-                                            <span>Preparing</span>
+                                ) : (
+                                    /* Normal Progress State */
+                                    <>
+                                        <div className="sharing-animation">
+                                            <div className={`progress-circle ${sharingProgress.step >= 4 ? 'complete' : 'active'}`}>
+                                                {sharingProgress.step >= 4 ? (
+                                                    <i className="ri-check-line"></i>
+                                                ) : (
+                                                    <div className="spinner"></div>
+                                                )}
+                                            </div>
+                                            <div className="progress-steps">
+                                                <div className={`progress-step ${sharingProgress.step >= 1 ? 'active' : ''} ${sharingProgress.step > 1 ? 'complete' : ''}`}>
+                                                    <div className="step-dot"></div>
+                                                    <span>Preparing</span>
+                                                </div>
+                                                <div className="progress-line"></div>
+                                                <div className={`progress-step ${sharingProgress.step >= 2 ? 'active' : ''} ${sharingProgress.step > 2 ? 'complete' : ''}`}>
+                                                    <div className="step-dot"></div>
+                                                    <span>Sending</span>
+                                                </div>
+                                                <div className="progress-line"></div>
+                                                <div className={`progress-step ${sharingProgress.step >= 3 ? 'active' : ''} ${sharingProgress.step > 3 ? 'complete' : ''}`}>
+                                                    <div className="step-dot"></div>
+                                                    <span>Confirming</span>
+                                                </div>
+                                                <div className="progress-line"></div>
+                                                <div className={`progress-step ${sharingProgress.step >= 4 ? 'active complete' : ''}`}>
+                                                    <div className="step-dot"></div>
+                                                    <span>Done</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="progress-line"></div>
-                                        <div className={`progress-step ${sharingProgress.step >= 2 ? 'active' : ''} ${sharingProgress.step > 2 ? 'complete' : ''}`}>
-                                            <div className="step-dot"></div>
-                                            <span>Sending</span>
+                                        <p className="sharing-message">{sharingProgress.message}</p>
+                                        <div className="document-being-shared">
+                                            <i className="ri-file-text-line"></i>
+                                            <span>{selectedDocument?.fileName || selectedDocument?.name || 'Document'}</span>
                                         </div>
-                                        <div className="progress-line"></div>
-                                        <div className={`progress-step ${sharingProgress.step >= 3 ? 'active' : ''} ${sharingProgress.step > 3 ? 'complete' : ''}`}>
-                                            <div className="step-dot"></div>
-                                            <span>Confirming</span>
-                                        </div>
-                                        <div className="progress-line"></div>
-                                        <div className={`progress-step ${sharingProgress.step >= 4 ? 'active complete' : ''}`}>
-                                            <div className="step-dot"></div>
-                                            <span>Done</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <p className="sharing-message">{sharingProgress.message}</p>
-                                <div className="document-being-shared">
-                                    <i className="ri-file-text-line"></i>
-                                    <span>{selectedDocument?.name || selectedDocument?.title}</span>
-                                </div>
+                                    </>
+                                )}
                             </div>
                         ) : (
                             /* Normal Share Modal Content */
@@ -3182,16 +3815,17 @@ const ChatInterface = () => {
 
                                 <div className="modal-actions">
                                     <button className="btn-secondary" onClick={closeDocumentModal}>Cancel</button>
-                                    <button className="btn-primary share-btn" onClick={sendDocumentRequest}>
-                                        <i className={
-                                            currentDocumentAction === 'share' ? 'ri-send-plane-line' :
-                                            currentDocumentAction === 'digital_signature' ? 'ri-quill-pen-line' :
-                                            'ri-checkbox-circle-line'
-                                        }></i>
-                                        {currentDocumentAction === 'share' ? 'Share Now' : 
-                                         currentDocumentAction === 'digital_signature' ? 'Request Signature' :
-                                         'Request Approval'}
-                                    </button>
+                                    {currentDocumentAction === 'share' ? (
+                                        <button className="btn-primary share-btn" onClick={sendDocumentRequest}>
+                                            <i className="ri-send-plane-line"></i>
+                                            Share Now
+                                        </button>
+                                    ) : (
+                                        <button className="btn-primary share-btn" onClick={openMultiRecipientModal}>
+                                            <i className={currentDocumentAction === 'digital_signature' ? 'ri-quill-pen-line' : 'ri-checkbox-circle-line'}></i>
+                                            {currentDocumentAction === 'digital_signature' ? 'Select Signers' : 'Select Approvers'}
+                                        </button>
+                                    )}
                                 </div>
                             </>
                         )}
@@ -3928,6 +4562,359 @@ const ChatInterface = () => {
                                     )}
                                 </>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Multi-Recipient Approval Modal */}
+            {isMultiRecipientModalOpen && (
+                <div className="document-share-modal" onClick={approvalProgress.isProcessing ? null : closeMultiRecipientModal}>
+                    <div className="modal-content share-modal-enhanced approval-modal" onClick={e => e.stopPropagation()}>
+                        {approvalProgress.isProcessing ? (
+                            /* Approval Progress Animation */
+                            <div className="sharing-progress-container">
+                                {approvalProgress.error ? (
+                                    <div className="sharing-error-container">
+                                        <div className="error-icon">
+                                            <i className="ri-error-warning-line"></i>
+                                        </div>
+                                        <h4 className="error-title">Request Failed</h4>
+                                        <p className="error-message">{approvalProgress.error}</p>
+                                        <button 
+                                            className="btn-secondary error-dismiss-btn"
+                                            onClick={() => setApprovalProgress({
+                                                isProcessing: false,
+                                                step: 0,
+                                                message: '',
+                                                error: null
+                                            })}
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="sharing-animation">
+                                            <div className={`progress-circle ${approvalProgress.step >= 5 ? 'complete' : 'active'}`}>
+                                                {approvalProgress.step >= 5 ? (
+                                                    <i className="ri-check-line"></i>
+                                                ) : (
+                                                    <div className="spinner"></div>
+                                                )}
+                                            </div>
+                                            <div className="progress-steps">
+                                                <div className={`progress-step ${approvalProgress.step >= 1 ? 'active' : ''} ${approvalProgress.step > 1 ? 'complete' : ''}`}>
+                                                    <div className="step-dot"></div>
+                                                    <span>Preparing</span>
+                                                </div>
+                                                <div className="progress-line"></div>
+                                                <div className={`progress-step ${approvalProgress.step >= 2 ? 'active' : ''} ${approvalProgress.step > 2 ? 'complete' : ''}`}>
+                                                    <div className="step-dot"></div>
+                                                    <span>Blockchain</span>
+                                                </div>
+                                                <div className="progress-line"></div>
+                                                <div className={`progress-step ${approvalProgress.step >= 3 ? 'active' : ''} ${approvalProgress.step > 3 ? 'complete' : ''}`}>
+                                                    <div className="step-dot"></div>
+                                                    <span>Database</span>
+                                                </div>
+                                                <div className="progress-line"></div>
+                                                <div className={`progress-step ${approvalProgress.step >= 4 ? 'active' : ''} ${approvalProgress.step > 4 ? 'complete' : ''}`}>
+                                                    <div className="step-dot"></div>
+                                                    <span>Notify</span>
+                                                </div>
+                                                <div className="progress-line"></div>
+                                                <div className={`progress-step ${approvalProgress.step >= 5 ? 'active complete' : ''}`}>
+                                                    <div className="step-dot"></div>
+                                                    <span>Done</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="sharing-message">{approvalProgress.message}</p>
+                                        <div className="document-being-shared">
+                                            <i className="ri-file-text-line"></i>
+                                            <span>{selectedDocument?.fileName || selectedDocument?.name || 'Document'}</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            <>
+                                <div className="modal-header">
+                                    <h3 className="modal-title">
+                                        {currentDocumentAction === 'digital_signature' 
+                                            ? '✍️ Request Digital Signatures' 
+                                            : '📋 Request Approvals'}
+                                    </h3>
+                                    <button className="close-btn" onClick={closeMultiRecipientModal}>&times;</button>
+                                </div>
+
+                                {/* Document Preview */}
+                                <div className="share-document-preview">
+                                    <div className="doc-preview-icon">
+                                        <i className="ri-file-pdf-line"></i>
+                                    </div>
+                                    <div className="doc-preview-info">
+                                        <h4>{selectedDocument?.fileName || selectedDocument?.name || 'Document'}</h4>
+                                        <p>{selectedDocument?.fileSize ? `${(selectedDocument.fileSize / 1024).toFixed(1)} KB` : 'PDF Document'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Workflow Type Selection */}
+                                <div className="approval-workflow-section">
+                                    <label>Workflow Type:</label>
+                                    <div className="workflow-options">
+                                        <div 
+                                            className={`workflow-option ${approvalWorkflow === 'parallel' ? 'selected' : ''}`}
+                                            onClick={() => setApprovalWorkflow('parallel')}
+                                        >
+                                            <i className="ri-git-branch-line"></i>
+                                            <div>
+                                                <h4>Parallel</h4>
+                                                <p>All approve simultaneously</p>
+                                            </div>
+                                        </div>
+                                        <div 
+                                            className={`workflow-option ${approvalWorkflow === 'sequential' ? 'selected' : ''}`}
+                                            onClick={() => setApprovalWorkflow('sequential')}
+                                        >
+                                            <i className="ri-git-commit-line"></i>
+                                            <div>
+                                                <h4>Sequential</h4>
+                                                <p>One after another</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Approval Type */}
+                                <div className="approval-type-section">
+                                    <label>Approval Type:</label>
+                                    <div className="approval-type-options">
+                                        <div 
+                                            className={`approval-type-option ${approvalType === 'standard' ? 'selected' : ''}`}
+                                            onClick={() => setApprovalType('standard')}
+                                        >
+                                            <i className="ri-checkbox-circle-line"></i>
+                                            <span>Standard Approval</span>
+                                        </div>
+                                        <div 
+                                            className={`approval-type-option ${approvalType === 'digital' ? 'selected' : ''}`}
+                                            onClick={() => setApprovalType('digital')}
+                                        >
+                                            <i className="ri-quill-pen-line"></i>
+                                            <span>Digital Signature</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Recipient Selection */}
+                                <div className="approval-recipients-section">
+                                    <label>Select {currentDocumentAction === 'digital_signature' ? 'Signers' : 'Approvers'} ({approvalRecipients.length} selected):</label>
+                                    
+                                    {/* Show selected users as chips */}
+                                    {approvalRecipients.length > 0 && (
+                                        <div className="selected-recipients-chips">
+                                            {approvalRecipients.map((recipientId, index) => {
+                                                const user = allUsers.find(u => String(u.id) === String(recipientId));
+                                                if (!user) return null;
+                                                const userName = user.fullName || user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+                                                return (
+                                                    <div key={recipientId} className="selected-chip">
+                                                        {approvalWorkflow === 'sequential' && <span className="chip-order">#{index + 1}</span>}
+                                                        <span className="chip-name">{userName}</span>
+                                                        <button 
+                                                            className="chip-remove"
+                                                            onClick={() => toggleApprovalRecipient(recipientId)}
+                                                        >
+                                                            <i className="ri-close-line"></i>
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    
+                                    <div className="recipient-search">
+                                        <i className="ri-search-line"></i>
+                                        <input
+                                            type="text"
+                                            placeholder="Search users..."
+                                            value={approvalUserSearch}
+                                            onChange={(e) => setApprovalUserSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="recipients-list">
+                                        {isLoadingUsers ? (
+                                            <div className="loading-users">
+                                                <i className="ri-loader-4-line spin"></i>
+                                                <span>Loading users...</span>
+                                            </div>
+                                        ) : allUsers.length === 0 ? (
+                                            <div className="no-users-message">
+                                                <i className="ri-user-unfollow-line"></i>
+                                                <span>No users available in your institution</span>
+                                            </div>
+                                        ) : (
+                                            allUsers
+                                                .filter(user => {
+                                                    if (!approvalUserSearch) return true;
+                                                    const searchLower = approvalUserSearch.toLowerCase();
+                                                    const name = (user.fullName || user.name || `${user.firstName || ''} ${user.lastName || ''}`).toLowerCase();
+                                                    const email = (user.email || '').toLowerCase();
+                                                    return name.includes(searchLower) || email.includes(searchLower);
+                                                })
+                                                .sort((a, b) => {
+                                                    // Show selected users at top
+                                                    const aSelected = approvalRecipients.includes(String(a.id));
+                                                    const bSelected = approvalRecipients.includes(String(b.id));
+                                                    if (aSelected && !bSelected) return -1;
+                                                    if (!aSelected && bSelected) return 1;
+                                                    return 0;
+                                                })
+                                                .map(user => {
+                                                    const isSelected = approvalRecipients.some(id => String(id) === String(user.id));
+                                                    const hasWallet = user.walletAddress || user.wallet_address;
+                                                    const userName = user.fullName || user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+                                                    
+                                                    return (
+                                                        <div 
+                                                            key={user.id}
+                                                            className={`recipient-item ${isSelected ? 'selected' : ''} ${!hasWallet ? 'no-wallet' : ''}`}
+                                                            onClick={() => hasWallet && toggleApprovalRecipient(String(user.id))}
+                                                        >
+                                                            <div className="recipient-checkbox">
+                                                                {isSelected ? (
+                                                                    <i className="ri-checkbox-circle-fill"></i>
+                                                                ) : (
+                                                                    <i className="ri-checkbox-blank-circle-line"></i>
+                                                                )}
+                                                            </div>
+                                                            <div className="recipient-avatar">
+                                                                {userName.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div className="recipient-info">
+                                                                <span className="recipient-name">{userName}</span>
+                                                                <span className="recipient-email">{user.email}</span>
+                                                                {user.role && <span className="recipient-role">{user.role}</span>}
+                                                            </div>
+                                                            {!hasWallet && (
+                                                                <span className="no-wallet-badge" title="No wallet connected - cannot approve on blockchain">
+                                                                    <i className="ri-wallet-line"></i> No wallet
+                                                                </span>
+                                                            )}
+                                                            {isSelected && approvalWorkflow === 'sequential' && (
+                                                                <span className="order-badge">
+                                                                    #{approvalRecipients.findIndex(id => String(id) === String(user.id)) + 1}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Purpose Input */}
+                                <div className="approval-purpose-section">
+                                    <label>Purpose / Notes:</label>
+                                    <textarea
+                                        placeholder="Explain what needs to be approved..."
+                                        value={approvalPurpose}
+                                        onChange={(e) => setApprovalPurpose(e.target.value)}
+                                        rows={2}
+                                    />
+                                </div>
+
+                                <div className="modal-actions">
+                                    <button className="btn-secondary" onClick={closeMultiRecipientModal}>Cancel</button>
+                                    <button 
+                                        className="btn-primary"
+                                        onClick={submitApprovalRequest}
+                                        disabled={approvalRecipients.length === 0}
+                                    >
+                                        <i className={approvalType === 'digital' ? 'ri-quill-pen-line' : 'ri-send-plane-line'}></i>
+                                        Send Request ({approvalRecipients.length})
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Approval Action Modal (Approve/Reject from Chat) */}
+            {approvalActionModal.show && (
+                <div className="app-modal-overlay" onClick={() => !isApprovalActionProcessing && setApprovalActionModal({ show: false, type: '', request: null, message: null })}>
+                    <div className="app-modal approval-action-modal" onClick={e => e.stopPropagation()}>
+                        <div className="app-modal-header">
+                            <h3>
+                                {approvalActionModal.type === 'approve' 
+                                    ? (approvalActionModal.request?.isDigitalSig ? '✍️ Sign Document' : '✅ Approve Document')
+                                    : '❌ Reject Document'}
+                            </h3>
+                            {!isApprovalActionProcessing && (
+                                <button className="close-btn" onClick={() => setApprovalActionModal({ show: false, type: '', request: null, message: null })}>
+                                    <i className="ri-close-line"></i>
+                                </button>
+                            )}
+                        </div>
+                        <div className="app-modal-body">
+                            <div className="approval-doc-info">
+                                <i className="ri-file-pdf-line"></i>
+                                <span>{approvalActionModal.message?.documentName || approvalActionModal.message?.document_name || 'Document'}</span>
+                            </div>
+                            
+                            {approvalActionModal.type === 'approve' && (
+                                <p>
+                                    {approvalActionModal.request?.isDigitalSig 
+                                        ? 'You will be asked to sign this document digitally using your MetaMask wallet. This creates a cryptographically verifiable signature.'
+                                        : 'Are you sure you want to approve this document? This action will be recorded on the blockchain.'}
+                                </p>
+                            )}
+                            
+                            {approvalActionModal.type === 'reject' && (
+                                <>
+                                    <p>Please provide a reason for rejection:</p>
+                                    <textarea
+                                        className="rejection-reason-input"
+                                        placeholder="Enter rejection reason..."
+                                        value={rejectionReason}
+                                        onChange={(e) => setRejectionReason(e.target.value)}
+                                        rows={3}
+                                        disabled={isApprovalActionProcessing}
+                                    />
+                                </>
+                            )}
+                            
+                            {isApprovalActionProcessing && (
+                                <div className="processing-indicator">
+                                    <i className="ri-loader-4-line spin"></i>
+                                    <span>Processing on blockchain...</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="app-modal-actions">
+                            <button 
+                                className="modal-btn secondary" 
+                                onClick={() => setApprovalActionModal({ show: false, type: '', request: null, message: null })}
+                                disabled={isApprovalActionProcessing}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                className={`modal-btn ${approvalActionModal.type === 'approve' ? 'primary' : 'danger'}`}
+                                onClick={confirmApprovalAction}
+                                disabled={isApprovalActionProcessing || (approvalActionModal.type === 'reject' && !rejectionReason.trim())}
+                            >
+                                {isApprovalActionProcessing ? (
+                                    <><i className="ri-loader-4-line spin"></i> Processing...</>
+                                ) : approvalActionModal.type === 'approve' ? (
+                                    approvalActionModal.request?.isDigitalSig ? 'Sign Document' : 'Approve'
+                                ) : (
+                                    'Reject'
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -1503,6 +1503,89 @@ body.modal-open {
     font-weight: 500;
 }
 
+/* Blockchain verification styling */
+.document-card.blockchain-verified {
+    border: 1px solid var(--g-500);
+}
+
+.document-card.blockchain-verified .document-card-header {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+}
+
+.blockchain-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--g-500), var(--g-600));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.blockchain-badge:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.permission-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+.permission-badge.read {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+}
+
+.permission-badge.write {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+.document-card-blockchain {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(16, 185, 129, 0.08);
+    border-top: 1px solid rgba(16, 185, 129, 0.15);
+    font-size: 11px;
+}
+
+.blockchain-tx {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--g-500);
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.blockchain-tx:hover {
+    color: var(--g-400);
+    text-decoration: underline;
+}
+
+.blockchain-tx i {
+    font-size: 12px;
+}
+
+.blockchain-block {
+    color: var(--sub);
+    font-weight: 500;
+}
+
 .document-card-actions {
     display: flex;
     gap: 8px;
@@ -6373,6 +6456,63 @@ input:invalid:focus {
     color: var(--g-500);
 }
 
+/* Error state for sharing */
+.sharing-error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    text-align: center;
+}
+
+.sharing-error-container .error-icon {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: errorPulse 0.5s ease;
+}
+
+.sharing-error-container .error-icon i {
+    font-size: 36px;
+    color: white;
+}
+
+@keyframes errorPulse {
+    0% { transform: scale(0.8); opacity: 0; }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.sharing-error-container .error-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #ef4444;
+    margin: 0;
+}
+
+.sharing-error-container .error-message {
+    font-size: 14px;
+    color: var(--sub);
+    margin: 0;
+    padding: 12px 16px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 8px;
+    border-left: 3px solid #ef4444;
+    text-align: left;
+    max-width: 400px;
+    line-height: 1.5;
+}
+
+.sharing-error-container .error-dismiss-btn {
+    margin-top: 8px;
+    padding: 8px 24px;
+}
+
 /* Responsive for share modal */
 @media (max-width: 480px) {
     .share-action-types {
@@ -7289,4 +7429,445 @@ input:invalid:focus {
         max-height: 90vh;
         border-radius: 16px 16px 0 0;
     }
+}
+
+/* ================================
+   Multi-Recipient Approval Modal Styles
+   ================================ */
+
+.approval-modal {
+    max-width: 560px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.approval-workflow-section,
+.approval-type-section,
+.approval-recipients-section,
+.approval-purpose-section {
+    margin-bottom: 16px;
+}
+
+.approval-workflow-section label,
+.approval-type-section label,
+.approval-recipients-section label,
+.approval-purpose-section label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.workflow-options,
+.approval-type-options {
+    display: flex;
+    gap: 12px;
+}
+
+.workflow-option,
+.approval-type-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--bg);
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.workflow-option:hover,
+.approval-type-option:hover {
+    border-color: var(--g-400);
+    background: rgba(var(--g-500-rgb), 0.05);
+}
+
+.workflow-option.selected,
+.approval-type-option.selected {
+    border-color: var(--g-500);
+    background: rgba(var(--g-500-rgb), 0.1);
+}
+
+.workflow-option i,
+.approval-type-option i {
+    font-size: 22px;
+    color: var(--g-500);
+}
+
+.workflow-option h4,
+.approval-type-option span {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+
+.workflow-option p {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 2px 0 0;
+}
+
+.recipient-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+
+.recipient-search i {
+    color: var(--muted);
+    font-size: 18px;
+}
+
+.recipient-search input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+}
+
+.recipients-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg);
+}
+
+.loading-users {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 30px;
+    color: var(--muted);
+}
+
+.loading-users i {
+    font-size: 20px;
+}
+
+.recipient-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.recipient-item:last-child {
+    border-bottom: none;
+}
+
+.recipient-item:hover {
+    background: rgba(var(--g-500-rgb), 0.05);
+}
+
+.recipient-item.selected {
+    background: rgba(var(--g-500-rgb), 0.1);
+}
+
+.recipient-item.no-wallet {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.recipient-checkbox i {
+    font-size: 20px;
+    color: var(--muted);
+}
+
+.recipient-item.selected .recipient-checkbox i {
+    color: var(--g-500);
+}
+
+.recipient-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--g-400), var(--g-600));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.recipient-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.recipient-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.recipient-email {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.no-wallet-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    font-size: 14px;
+}
+
+.order-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 12px;
+    background: var(--g-500);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.approval-purpose-section textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.approval-purpose-section textarea:focus {
+    border-color: var(--g-500);
+}
+
+/* ================================
+   Approval Action Modal Styles
+   ================================ */
+
+.approval-action-modal {
+    max-width: 420px;
+}
+
+.approval-doc-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--bg);
+    border-radius: 10px;
+    margin-bottom: 16px;
+}
+
+.approval-doc-info i {
+    font-size: 24px;
+    color: var(--danger);
+}
+
+.approval-doc-info span {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.rejection-reason-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s ease;
+    margin-top: 8px;
+}
+
+.rejection-reason-input:focus {
+    border-color: var(--g-500);
+}
+
+.processing-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px;
+    margin-top: 12px;
+    background: rgba(var(--g-500-rgb), 0.1);
+    border-radius: 10px;
+    color: var(--g-600);
+}
+
+.processing-indicator i {
+    font-size: 18px;
+}
+
+.modal-btn.danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.modal-btn.danger:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+/* Spin animation for loaders */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Selected Recipients Chips */
+.selected-recipients-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 10px;
+    background: rgba(var(--g-500-rgb), 0.05);
+    border-radius: 10px;
+    border: 1px solid var(--line);
+}
+
+.selected-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--g-500);
+    color: white;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.selected-chip .chip-order {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+}
+
+.selected-chip .chip-name {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.selected-chip .chip-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.2s ease;
+}
+
+.selected-chip .chip-remove:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.selected-chip .chip-remove i {
+    font-size: 12px;
+}
+
+/* No Users Message */
+.no-users-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 40px 20px;
+    color: var(--muted);
+}
+
+.no-users-message i {
+    font-size: 40px;
+    opacity: 0.5;
+}
+
+.no-users-message span {
+    font-size: 14px;
+}
+
+/* Recipient Role Badge */
+.recipient-role {
+    font-size: 11px;
+    color: var(--g-500);
+    background: rgba(var(--g-500-rgb), 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-top: 2px;
+    display: inline-block;
+}
+
+/* No Wallet Badge - Enhanced */
+.no-wallet-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--warning);
+    background: rgba(var(--warning-rgb, 245, 158, 11), 0.1);
+    padding: 4px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+.recipient-item.no-wallet {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.recipient-item.no-wallet:hover {
+    background: transparent;
 }
