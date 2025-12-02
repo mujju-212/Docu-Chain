@@ -7,6 +7,7 @@ import ChatInterface from '../shared/ChatInterface';
 import DocumentGenerator from '../shared/DocumentGenerator';
 import DocumentApproval from '../shared/DocumentApproval';
 import VerificationTool from '../shared/VerificationTool';
+import ActivityLog from '../shared/ActivityLog';
 import Profile from '../../components/shared/Profile';
 import './StudentDashboard.css';
 
@@ -17,6 +18,48 @@ const StudentDashboard = () => {
   const [isResizing, setIsResizing] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
+  
+  // Sidebar badge counts
+  const [chatCount, setChatCount] = useState(0);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+  // Fetch sidebar counts
+  useEffect(() => {
+    const fetchCounts = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        // Fetch unread message count
+        const chatRes = await fetch(`${API_URL}/chat/unread`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (chatRes.ok) {
+          const chatData = await chatRes.json();
+          setChatCount(chatData.unread || 0);
+        }
+
+        // Fetch pending approval requests count
+        const approvalRes = await fetch(`${API_URL}/documents/approval-requests/received`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (approvalRes.ok) {
+          const approvalData = await approvalRes.json();
+          const pendingCount = approvalData.requests?.filter(r => r.status === 'pending')?.length || 0;
+          setPendingApprovalsCount(pendingCount);
+        }
+      } catch (error) {
+        console.error('Error fetching sidebar counts:', error);
+      }
+    };
+
+    fetchCounts();
+    // Refresh counts every 30 seconds
+    const interval = setInterval(fetchCounts, 30000);
+    return () => clearInterval(interval);
+  }, [API_URL]);
 
   // Custom Wallet Component with dropdown
   const CustomWalletButton = () => {
@@ -359,7 +402,6 @@ const StudentDashboard = () => {
                 style={{cursor: 'pointer'}}
               >
                 <i className="ri-folder-line"></i> <span>My Files</span>
-                <span className="badge alert">24</span>
               </a>
               <a
                 onClick={() => setCurrentPage('chat')}
@@ -367,7 +409,7 @@ const StudentDashboard = () => {
                 style={{cursor: 'pointer'}}
               >
                 <i className="ri-chat-3-line"></i> <span>Chat Messages</span>
-                <span className="badge alert">5</span>
+                {chatCount > 0 && <span className="badge alert">{chatCount}</span>}
               </a>
               <a
                 onClick={() => setCurrentPage('document-generator')}
@@ -382,6 +424,7 @@ const StudentDashboard = () => {
                 style={{cursor: 'pointer'}}
               >
                 <i className="ri-shield-check-line"></i> <span>Document Approval</span>
+                {pendingApprovalsCount > 0 && <span className="badge alert">{pendingApprovalsCount}</span>}
               </a>
               <a
                 onClick={() => setCurrentPage('verification-tool')}
@@ -394,6 +437,13 @@ const StudentDashboard = () => {
 
             <div className="section-title">System</div>
             <nav className="menu">
+              <a
+                onClick={() => setCurrentPage('activity-log')}
+                className={currentPage === 'activity-log' ? 'active' : ''}
+                style={{cursor: 'pointer'}}
+              >
+                <i className="ri-file-list-3-line"></i> <span>Activity Log</span>
+              </a>
               <a
                 className={currentPage === 'settings' ? 'active' : ''}
                 onClick={() => setCurrentPage('settings')}
@@ -470,6 +520,8 @@ const StudentDashboard = () => {
               <DocumentApproval userRole="student" />
             ) : currentPage === 'verification-tool' ? (
               <VerificationTool />
+            ) : currentPage === 'activity-log' ? (
+              <ActivityLog />
             ) : (
               <div className="dashboard-content">
             {/* Welcome Header */}

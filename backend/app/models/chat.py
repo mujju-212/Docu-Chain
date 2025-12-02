@@ -239,3 +239,95 @@ class UserOnlineStatus(db.Model):
             'isOnline': self.is_online,
             'lastSeen': self.last_seen.isoformat() if self.last_seen else None
         }
+
+
+class MessageLike(db.Model):
+    """Tracks likes on messages/posts"""
+    __tablename__ = 'message_likes'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    message_id = db.Column(UUID(as_uuid=True), db.ForeignKey('messages.id'), nullable=False)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    message = db.relationship('Message', backref=db.backref('likes', lazy='dynamic'))
+    user = db.relationship('User')
+    
+    # Unique constraint - one like per user per message
+    __table_args__ = (
+        db.UniqueConstraint('message_id', 'user_id', name='unique_message_like'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': str(self.id),
+            'messageId': str(self.message_id),
+            'userId': str(self.user_id),
+            'userName': f"{self.user.first_name} {self.user.last_name}" if self.user else None,
+            'createdAt': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class MessageComment(db.Model):
+    """Comments on messages/posts"""
+    __tablename__ = 'message_comments'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    message_id = db.Column(UUID(as_uuid=True), db.ForeignKey('messages.id'), nullable=False)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    parent_id = db.Column(UUID(as_uuid=True), db.ForeignKey('message_comments.id'))  # For replies
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    edited_at = db.Column(db.DateTime)
+    is_deleted = db.Column(db.Boolean, default=False)
+    
+    # Relationships
+    message = db.relationship('Message', backref=db.backref('comments', lazy='dynamic'))
+    user = db.relationship('User')
+    replies = db.relationship('MessageComment', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
+    
+    def to_dict(self):
+        return {
+            'id': str(self.id),
+            'messageId': str(self.message_id),
+            'userId': str(self.user_id),
+            'content': self.content if not self.is_deleted else '[Comment deleted]',
+            'parentId': str(self.parent_id) if self.parent_id else None,
+            'createdAt': self.created_at.isoformat() if self.created_at else None,
+            'editedAt': self.edited_at.isoformat() if self.edited_at else None,
+            'isDeleted': self.is_deleted,
+            'sender': {
+                'id': str(self.user.id) if self.user else None,
+                'name': f"{self.user.first_name} {self.user.last_name}" if self.user else 'Unknown',
+                'firstName': self.user.first_name if self.user else None,
+                'role': self.user.role if self.user else None
+            }
+        }
+
+
+class SavedPost(db.Model):
+    """Saved/bookmarked posts by users"""
+    __tablename__ = 'saved_posts'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    message_id = db.Column(UUID(as_uuid=True), db.ForeignKey('messages.id'), nullable=False)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    message = db.relationship('Message', backref=db.backref('saved_by', lazy='dynamic'))
+    user = db.relationship('User')
+    
+    # Unique constraint
+    __table_args__ = (
+        db.UniqueConstraint('message_id', 'user_id', name='unique_saved_post'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': str(self.id),
+            'messageId': str(self.message_id),
+            'userId': str(self.user_id),
+            'createdAt': self.created_at.isoformat() if self.created_at else None
+        }

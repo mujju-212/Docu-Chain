@@ -24,6 +24,10 @@ class User(db.Model):
     department_id = db.Column(UUID(as_uuid=True), db.ForeignKey('departments.id'))
     section_id = db.Column(UUID(as_uuid=True), db.ForeignKey('sections.id'))
     
+    # Department change tracking (for 30-day group transition)
+    previous_department_id = db.Column(UUID(as_uuid=True), db.ForeignKey('departments.id'))
+    department_changed_at = db.Column(db.DateTime)
+    
     # Wallet information
     wallet_address = db.Column(db.String(42))
     
@@ -62,6 +66,8 @@ class User(db.Model):
             'institutionId': str(self.institution_id),
             'departmentId': str(self.department_id) if self.department_id else None,
             'sectionId': str(self.section_id) if self.section_id else None,
+            'previousDepartmentId': str(self.previous_department_id) if self.previous_department_id else None,
+            'departmentChangedAt': self.department_changed_at.isoformat() if self.department_changed_at else None,
             'phone': self.phone,
             'uniqueId': self.unique_id,
             'walletAddress': self.wallet_address,

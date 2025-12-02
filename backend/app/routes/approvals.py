@@ -328,6 +328,22 @@ def approve_document(request_id):
             except Exception as stamp_error:
                 # Log error but don't fail the approval
                 logger.error(f"Error generating stamped PDF: {stamp_error}")
+            
+            # Sync status to GeneratedDocument if linked
+            try:
+                from app.models.document_template import GeneratedDocument
+                # Find GeneratedDocument by approval_request_id
+                gen_doc = GeneratedDocument.query.filter(
+                    (GeneratedDocument.approval_request_id == str(approval_request.id)) |
+                    (GeneratedDocument.approval_request_id == approval_request.request_id)
+                ).first()
+                if gen_doc:
+                    # Use 'signed' for digital signature, 'approved' for standard
+                    gen_doc.status = 'signed' if is_digital_signature else 'approved'
+                    gen_doc.completed_at = datetime.utcnow()
+                    logger.info(f"✅ Synced GeneratedDocument status to '{gen_doc.status}' for {gen_doc.request_id}")
+            except Exception as sync_error:
+                logger.warning(f"Could not sync GeneratedDocument status: {sync_error}")
         
         db.session.commit()
         
@@ -406,6 +422,20 @@ def reject_document(request_id):
         
         approval_request.status = 'REJECTED'
         approval_request.completed_at = datetime.utcnow()
+        
+        # Sync status to GeneratedDocument if linked
+        try:
+            from app.models.document_template import GeneratedDocument
+            gen_doc = GeneratedDocument.query.filter(
+                (GeneratedDocument.approval_request_id == str(approval_request.id)) |
+                (GeneratedDocument.approval_request_id == approval_request.request_id)
+            ).first()
+            if gen_doc:
+                gen_doc.status = 'rejected'
+                gen_doc.completed_at = datetime.utcnow()
+                logger.info(f"❌ Synced GeneratedDocument status to 'rejected' for {gen_doc.request_id}")
+        except Exception as sync_error:
+            logger.warning(f"Could not sync GeneratedDocument status: {sync_error}")
         
         db.session.commit()
         

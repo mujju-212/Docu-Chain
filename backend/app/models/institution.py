@@ -77,22 +77,24 @@ class Department(db.Model):
 class Section(db.Model):
     __tablename__ = 'sections'
     
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = db.Column(db.String(50), nullable=False)
-    department_id = db.Column(db.Integer, db.ForeignKey('departments.id'), nullable=False)
-    class_teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    department_id = db.Column(UUID(as_uuid=True), db.ForeignKey('departments.id'), nullable=False)
+    class_teacher = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'))
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     department = db.relationship('Department', back_populates='sections')
     
     def to_dict(self):
         return {
-            'id': self.id,
+            'id': str(self.id),
             'name': self.name,
-            'departmentId': self.department_id,
-            'classTeacherId': self.class_teacher_id,
+            'departmentId': str(self.department_id) if self.department_id else None,
+            'classTeacher': str(self.class_teacher) if self.class_teacher else None,
             'createdAt': self.created_at.isoformat() if self.created_at else None
         }
+

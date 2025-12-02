@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import User, Conversation, ConversationMember, Message, UserOnlineStatus, Document
+from app.models.chat import MessageLike, MessageComment, SavedPost
 from app.models.institution import Institution, Department
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
@@ -277,7 +278,8 @@ def get_circulars_feed():
     for circular in circulars:
         # Get all messages (posts) in this circular
         messages = Message.query.filter_by(
-            conversation_id=circular.id
+            conversation_id=circular.id,
+            is_deleted=False
         ).order_by(Message.created_at.desc()).all()
         
         # Get creator info
@@ -285,15 +287,30 @@ def get_circulars_feed():
         
         for msg in messages:
             sender = User.query.get(msg.sender_id)
+            
+            # Check if current user liked this post
+            user_liked = MessageLike.query.filter_by(
+                message_id=msg.id,
+                user_id=current_user.id
+            ).first() is not None
+            
+            # Check if current user saved this post
+            user_saved = SavedPost.query.filter_by(
+                message_id=msg.id,
+                user_id=current_user.id
+            ).first() is not None
+            
             feed_items.append({
                 'id': str(msg.id),
                 'circularId': str(circular.id),
                 'circularName': circular.name,
                 'content': msg.content,
-                'createdAt': msg.created_at.isoformat() if msg.created_at else None,
+                'createdAt': msg.created_at.isoformat() + 'Z' if msg.created_at else None,
+                'editedAt': msg.edited_at.isoformat() + 'Z' if msg.edited_at else None,
                 'sender': {
                     'id': str(sender.id) if sender else None,
                     'name': f"{sender.first_name} {sender.last_name}" if sender else 'Unknown',
+                    'firstName': sender.first_name if sender else None,
                     'role': sender.role if sender else None,
                     'avatar': sender.first_name[0].upper() if sender and sender.first_name else 'U'
                 },
@@ -301,8 +318,19 @@ def get_circulars_feed():
                 'document': {
                     'id': str(msg.document_id) if msg.document_id else None,
                     'name': msg.document_name,
-                    'hash': msg.document_hash
-                } if msg.document_id else None
+                    'hash': msg.document_hash,
+                    'ipfsHash': msg.document_hash
+                } if msg.document_id or msg.document_name else None,
+                'blockchainDocument': {
+                    'id': str(msg.document_id) if msg.document_id else None,
+                    'name': msg.document_name,
+                    'ipfsHash': msg.document_hash
+                } if msg.document_hash and msg.document_name else None,
+                'likesCount': msg.likes.count(),
+                'commentsCount': msg.comments.filter_by(is_deleted=False).count(),
+                'userLiked': user_liked,
+                'userSaved': user_saved,
+                'isOwner': str(msg.sender_id) == current_user_id
             })
     
     # Sort all feed items by date
@@ -314,7 +342,11 @@ def get_circulars_feed():
     return jsonify({
         'feed': feed_items,
         'canPost': can_post,
-        'circulars': [{'id': str(c.id), 'name': c.name} for c in circulars]
+        'circulars': [{
+            'id': str(c.id), 
+            'name': c.name,
+            'isCreator': str(c.created_by) == current_user_id
+        } for c in circulars]
     })
 
 
@@ -459,11 +491,13 @@ def get_conversation(conversation_id):
                 online_status = UserOnlineStatus.query.get(user.id)
                 members.append({
                     'id': str(user.id),
+                    'userId': str(user.id),  # Alias for consistency
                     'name': f"{user.first_name} {user.last_name}",
                     'role': m.role,
                     'userRole': user.role,
                     'avatar': user.first_name[0].upper(),
-                    'online': online_status.is_online if online_status else False
+                    'online': online_status.is_online if online_status else False,
+                    'walletAddress': user.wallet_address  # For blockchain sharing
                 })
         conv_data['membersList'] = members
     
@@ -604,7 +638,7 @@ def send_message(conversation_id):
 @bp.route('/messages/<message_id>', methods=['DELETE'])
 @jwt_required()
 def delete_message(message_id):
-    """Delete a message (soft delete)"""
+    """Delete a message (soft delete) - sender or admin can delete"""
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     if not current_user:
@@ -615,7 +649,8 @@ def delete_message(message_id):
     if not message:
         return jsonify({'error': 'Message not found'}), 404
     
-    if message.sender_id != current_user.id:
+    # Check permission - sender or admin can delete
+    if str(message.sender_id) != current_user_id and current_user.role != 'admin':
         return jsonify({'error': 'You can only delete your own messages'}), 403
     
     message.is_deleted = True
@@ -849,6 +884,77 @@ def remove_member(conversation_id, member_id):
     return jsonify({'success': True})
 
 
+@bp.route('/conversations/<conversation_id>/leave', methods=['POST'])
+@jwt_required()
+def leave_conversation(conversation_id):
+    """Leave a conversation (remove yourself as member)"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    conversation = Conversation.query.get(conversation_id)
+    if not conversation:
+        return jsonify({'error': 'Conversation not found'}), 404
+    
+    # Cannot leave if you're the creator
+    if str(conversation.created_by) == current_user_id:
+        return jsonify({'error': 'Creator cannot leave. Transfer ownership or delete the group.'}), 400
+    
+    # Remove membership
+    member = ConversationMember.query.filter_by(
+        conversation_id=conversation_id,
+        user_id=current_user.id
+    ).first()
+    
+    if member:
+        db.session.delete(member)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Left the conversation successfully'})
+    else:
+        return jsonify({'error': 'You are not a member of this conversation'}), 400
+
+
+@bp.route('/conversations/<conversation_id>', methods=['PUT'])
+@jwt_required()
+def update_conversation(conversation_id):
+    """Update a conversation (name, etc) - admin or creator only"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    conversation = Conversation.query.get(conversation_id)
+    
+    if not conversation:
+        return jsonify({'error': 'Conversation not found'}), 404
+    
+    # Check if user is admin or creator
+    is_admin = ConversationMember.query.filter_by(
+        conversation_id=conversation_id,
+        user_id=current_user.id,
+        role='admin'
+    ).first()
+    
+    is_creator = str(conversation.created_by) == str(current_user.id)
+    is_system_admin = current_user.role == 'admin'
+    
+    if not is_admin and not is_creator and not is_system_admin:
+        return jsonify({'error': 'Only admins can update the group'}), 403
+    
+    data = request.get_json()
+    
+    if 'name' in data:
+        conversation.name = data['name'].strip()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Conversation updated successfully',
+        'conversation': conversation.to_dict()
+    })
+
+
 @bp.route('/conversations/<conversation_id>', methods=['DELETE'])
 @jwt_required()
 def delete_conversation(conversation_id):
@@ -879,8 +985,9 @@ def delete_conversation(conversation_id):
     ).first()
     
     is_creator = str(conversation.created_by) == str(current_user.id)
+    is_system_admin = current_user.role == 'admin'
     
-    if not is_admin and not is_creator:
+    if not is_admin and not is_creator and not is_system_admin:
         return jsonify({'error': 'Only admins can delete the group'}), 403
     
     # Delete all members first
@@ -1296,3 +1403,342 @@ def get_unread_count():
         total_unread += count
     
     return jsonify({'unread': total_unread})
+
+
+# ============== LIKES ==============
+
+@bp.route('/messages/<message_id>/like', methods=['POST'])
+@jwt_required()
+def like_message(message_id):
+    """Like a message/post"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    message = Message.query.get(message_id)
+    if not message:
+        return jsonify({'error': 'Message not found'}), 404
+    
+    # Check if already liked
+    existing_like = MessageLike.query.filter_by(
+        message_id=message_id,
+        user_id=current_user.id
+    ).first()
+    
+    if existing_like:
+        return jsonify({'message': 'Already liked', 'liked': True}), 200
+    
+    # Create like
+    like = MessageLike(
+        message_id=message.id,
+        user_id=current_user.id
+    )
+    db.session.add(like)
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Liked successfully',
+        'liked': True,
+        'likesCount': message.likes.count()
+    })
+
+
+@bp.route('/messages/<message_id>/like', methods=['DELETE'])
+@jwt_required()
+def unlike_message(message_id):
+    """Unlike a message/post"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    message = Message.query.get(message_id)
+    if not message:
+        return jsonify({'error': 'Message not found'}), 404
+    
+    like = MessageLike.query.filter_by(
+        message_id=message_id,
+        user_id=current_user.id
+    ).first()
+    
+    if like:
+        db.session.delete(like)
+        db.session.commit()
+    
+    return jsonify({
+        'message': 'Unliked successfully',
+        'liked': False,
+        'likesCount': message.likes.count()
+    })
+
+
+@bp.route('/messages/<message_id>/likes', methods=['GET'])
+@jwt_required()
+def get_message_likes(message_id):
+    """Get all likes for a message"""
+    message = Message.query.get(message_id)
+    if not message:
+        return jsonify({'error': 'Message not found'}), 404
+    
+    likes = MessageLike.query.filter_by(message_id=message_id).all()
+    
+    return jsonify({
+        'likes': [l.to_dict() for l in likes],
+        'count': len(likes)
+    })
+
+
+# ============== COMMENTS ==============
+
+@bp.route('/messages/<message_id>/comments', methods=['GET'])
+@jwt_required()
+def get_message_comments(message_id):
+    """Get all comments for a message/post"""
+    message = Message.query.get(message_id)
+    if not message:
+        return jsonify({'error': 'Message not found'}), 404
+    
+    comments = MessageComment.query.filter_by(
+        message_id=message_id,
+        is_deleted=False
+    ).order_by(MessageComment.created_at.asc()).all()
+    
+    return jsonify({
+        'comments': [c.to_dict() for c in comments],
+        'count': len(comments)
+    })
+
+
+@bp.route('/messages/<message_id>/comments', methods=['POST'])
+@jwt_required()
+def add_comment(message_id):
+    """Add a comment to a message/post"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    message = Message.query.get(message_id)
+    if not message:
+        return jsonify({'error': 'Message not found'}), 404
+    
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    
+    if not content:
+        return jsonify({'error': 'Comment content is required'}), 400
+    
+    comment = MessageComment(
+        message_id=message.id,
+        user_id=current_user.id,
+        content=content,
+        parent_id=data.get('parentId')
+    )
+    db.session.add(comment)
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Comment added successfully',
+        'comment': comment.to_dict(),
+        'commentsCount': message.comments.filter_by(is_deleted=False).count()
+    }), 201
+
+
+@bp.route('/messages/<message_id>/comments/<comment_id>', methods=['PUT'])
+@jwt_required()
+def edit_comment(message_id, comment_id):
+    """Edit a comment"""
+    current_user_id = get_jwt_identity()
+    
+    comment = MessageComment.query.get(comment_id)
+    if not comment:
+        return jsonify({'error': 'Comment not found'}), 404
+    
+    if str(comment.user_id) != current_user_id:
+        return jsonify({'error': 'You can only edit your own comments'}), 403
+    
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    
+    if not content:
+        return jsonify({'error': 'Comment content is required'}), 400
+    
+    comment.content = content
+    comment.edited_at = datetime.utcnow()
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Comment updated successfully',
+        'comment': comment.to_dict()
+    })
+
+
+@bp.route('/messages/<message_id>/comments/<comment_id>', methods=['DELETE'])
+@jwt_required()
+def delete_comment(message_id, comment_id):
+    """Delete a comment"""
+    current_user_id = get_jwt_identity()
+    
+    comment = MessageComment.query.get(comment_id)
+    if not comment:
+        return jsonify({'error': 'Comment not found'}), 404
+    
+    if str(comment.user_id) != current_user_id:
+        return jsonify({'error': 'You can only delete your own comments'}), 403
+    
+    comment.is_deleted = True
+    db.session.commit()
+    
+    message = Message.query.get(message_id)
+    
+    return jsonify({
+        'message': 'Comment deleted successfully',
+        'commentsCount': message.comments.filter_by(is_deleted=False).count() if message else 0
+    })
+
+
+# ============== SAVE/BOOKMARK POSTS ==============
+
+@bp.route('/messages/<message_id>/save', methods=['POST'])
+@jwt_required()
+def save_post(message_id):
+    """Save/bookmark a post"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    message = Message.query.get(message_id)
+    if not message:
+        return jsonify({'error': 'Message not found'}), 404
+    
+    # Check if already saved
+    existing = SavedPost.query.filter_by(
+        message_id=message_id,
+        user_id=current_user.id
+    ).first()
+    
+    if existing:
+        return jsonify({'message': 'Already saved', 'saved': True}), 200
+    
+    saved = SavedPost(
+        message_id=message.id,
+        user_id=current_user.id
+    )
+    db.session.add(saved)
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Post saved successfully',
+        'saved': True
+    })
+
+
+@bp.route('/messages/<message_id>/save', methods=['DELETE'])
+@jwt_required()
+def unsave_post(message_id):
+    """Unsave/unbookmark a post"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    saved = SavedPost.query.filter_by(
+        message_id=message_id,
+        user_id=current_user.id
+    ).first()
+    
+    if saved:
+        db.session.delete(saved)
+        db.session.commit()
+    
+    return jsonify({
+        'message': 'Post unsaved successfully',
+        'saved': False
+    })
+
+
+@bp.route('/saved-posts', methods=['GET'])
+@jwt_required()
+def get_saved_posts():
+    """Get all saved posts for current user"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    saved_posts = SavedPost.query.filter_by(
+        user_id=current_user.id
+    ).order_by(SavedPost.created_at.desc()).all()
+    
+    posts = []
+    for saved in saved_posts:
+        msg = saved.message
+        if msg and not msg.is_deleted:
+            # Get conversation info
+            conv = Conversation.query.get(msg.conversation_id)
+            sender = User.query.get(msg.sender_id)
+            
+            posts.append({
+                'id': str(msg.id),
+                'savedAt': saved.created_at.isoformat() if saved.created_at else None,
+                'circularId': str(conv.id) if conv else None,
+                'circularName': conv.name if conv else None,
+                'content': msg.content,
+                'createdAt': msg.created_at.isoformat() if msg.created_at else None,
+                'sender': {
+                    'id': str(sender.id) if sender else None,
+                    'name': f"{sender.first_name} {sender.last_name}" if sender else 'Unknown',
+                    'firstName': sender.first_name if sender else None,
+                    'role': sender.role if sender else None,
+                    'avatar': sender.first_name[0].upper() if sender and sender.first_name else 'U'
+                },
+                'hasDocument': msg.document_id is not None,
+                'document': {
+                    'id': str(msg.document_id) if msg.document_id else None,
+                    'name': msg.document_name,
+                    'hash': msg.document_hash
+                } if msg.document_id else None,
+                'likesCount': msg.likes.count(),
+                'commentsCount': msg.comments.filter_by(is_deleted=False).count()
+            })
+    
+    return jsonify({
+        'posts': posts,
+        'count': len(posts)
+    })
+
+
+# ============== EDIT/DELETE POSTS ==============
+
+@bp.route('/messages/<message_id>', methods=['PUT'])
+@jwt_required()
+def edit_message(message_id):
+    """Edit a message/post (only by sender)"""
+    current_user_id = get_jwt_identity()
+    
+    message = Message.query.get(message_id)
+    if not message:
+        return jsonify({'error': 'Message not found'}), 404
+    
+    if str(message.sender_id) != current_user_id:
+        return jsonify({'error': 'You can only edit your own posts'}), 403
+    
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    
+    if not content:
+        return jsonify({'error': 'Content is required'}), 400
+    
+    message.content = content
+    message.edited_at = datetime.utcnow()
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Post updated successfully',
+        'post': message.to_dict()
+    })
+
+
+# Note: DELETE /messages/<message_id> is already defined above in the regular message routes

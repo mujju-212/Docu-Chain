@@ -2206,18 +2206,29 @@ const FileManager = () => {
   const downloadFile = async (file) => {
     try {
       if (file.ipfsHash) {
-        // Download from IPFS - use helper to handle directory CIDs
+        // Download from IPFS - fetch as blob for actual download
         const url = getIpfsUrl(file.ipfsHash, file.fileName || file.name);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = file.name;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        showNotification('info', 'Downloading...', `Fetching ${file.name} from IPFS`);
         
-        showNotification('success', 'Download Started', 
-          `Downloading ${file.name} from IPFS`);
+        try {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error('Fetch failed');
+          const blob = await response.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = file.name || 'document';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+          showNotification('success', 'Download Complete', `${file.name} downloaded successfully`);
+        } catch (fetchError) {
+          // Fallback: open in new tab if fetch fails (CORS issues)
+          console.warn('Blob download failed, falling back to new tab:', fetchError);
+          window.open(url, '_blank');
+          showNotification('info', 'Opening in Browser', 'Save the file using browser\'s save option');
+        }
       } else {
         // Fallback for files without IPFS hash
         const content = file.content || `No content available for ${file.name}`;
@@ -2387,6 +2398,8 @@ const FileManager = () => {
           role: user.role,
           department: user.department || 'N/A',
           address: user.walletAddress || '',
+          walletAddress: user.walletAddress || '',  // Also store as walletAddress for share modal
+          wallet_address: user.walletAddress || '', // Also store as wallet_address for compatibility
           avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName || user.email)}&background=random`
         }));
         

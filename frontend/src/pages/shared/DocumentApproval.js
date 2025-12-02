@@ -1607,16 +1607,26 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       // Direct URL - files are uploaded with wrapWithDirectory: false
       const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
       
-      // Create invisible link and trigger download
-      const link = document.createElement('a');
-      link.href = ipfsUrl;
-      link.download = fileName || 'document.pdf';
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      showNotification('Download started', 'success');
+      try {
+        // Fetch as blob for actual download
+        const response = await fetch(ipfsUrl);
+        if (!response.ok) throw new Error('Fetch failed');
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName || 'document.pdf';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        showNotification('Download complete!', 'success');
+      } catch (fetchError) {
+        // Fallback: open in new tab if fetch fails (CORS issues)
+        console.warn('Blob download failed, falling back to new tab:', fetchError);
+        window.open(ipfsUrl, '_blank');
+        showNotification('Opening in browser - save using browser menu', 'info');
+      }
     } catch (error) {
       console.error('Download error:', error);
       showNotification('Failed to download document', 'error');

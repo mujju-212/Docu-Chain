@@ -191,110 +191,90 @@ grid-template-columns: repeat(2, minmax(0, 1fr));
 
 /* FIELD STYLES - PROPERLY ALIGNED AND SIZED */
 .field {
-position: relative;
-width: 100%;
-margin-bottom: 18px; /* Reduced spacing for better proportions */
+  position: relative;
+  width: 100%;
+  margin-bottom: 18px;
 }
 
 .field input,
 .field select,
 .field textarea {
-width: 100%;
-padding: 16px 50px 16px 65px !important; /* Force left padding to prevent icon overlap */
-border-radius: 14px;
-border: 1px solid var(--line);
-background: #f8fafc;
-font-size: 15px;
-color: var(--text);
-outline: none;
-transition: box-shadow 0.2s, border-color 0.2s, background 0.2s;
-font-family: inherit;
-min-height: 52px;
-font-weight: 400;
-letter-spacing: 0.025em;
+  width: 100%;
+  padding: 16px 50px 16px 48px !important; /* Left padding for icon */
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #f8fafc;
+  font-size: 15px;
+  color: var(--text);
+  outline: none;
+  transition: box-shadow 0.2s, border-color 0.2s, background 0.2s;
+  font-family: inherit;
+  min-height: 52px;
+  font-weight: 400;
+  letter-spacing: 0.025em;
+  text-align: left;
+  box-sizing: border-box;
 }
 
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
-background: #fff;
-border-color: var(--b-500);
-box-shadow: var(--ring);
-}
-
-/* Icon color change on input focus */
-.field input:focus + i,
-.field select:focus + i,
-.field textarea:focus + i,
-.field:focus-within i {
-color: var(--b-600);
-opacity: 1;
-}
-
-/* Modern form field enhancements */
-.field {
-position: relative;
-margin-bottom: 20px;
+  background: #fff;
+  border-color: var(--b-500);
+  box-shadow: var(--ring);
 }
 
 .field input:hover,
 .field select:hover,
 .field textarea:hover {
-border-color: var(--b-300);
-background: #ffffff;
+  border-color: var(--b-300);
+  background: #ffffff;
+}
+
+/* Icon styling - positioned inside input */
+.field > i:first-child {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--b-500);
+  font-size: 18px;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.8;
+  transition: color 0.2s, opacity 0.2s;
+}
+
+/* Icon color change on input focus */
+.field:focus-within > i:first-child {
+  color: var(--b-600);
+  opacity: 1;
 }
 
 /* Proper placeholder styling */
 .field input::placeholder,
 .field select::placeholder,
 .field textarea::placeholder {
-color: var(--muted);
-font-weight: 400;
-opacity: 0.8;
-/* Removed text-indent for proper alignment */
-}
-
-/* Ensure consistent text alignment and spacing */
-.field input,
-.field select,
-.field textarea {
-text-align: left;
-/* Removed text-indent for proper alignment */
-}
-
-/* Smooth icon transitions */
-.field i {
-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--muted);
+  font-weight: 400;
+  opacity: 0.8;
 }
 
 /* Loading state for select dropdowns */
 .field select:disabled {
-background: #f1f5f9;
-color: var(--muted);
-cursor: not-allowed;
+  background: #f1f5f9;
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .field select:disabled + i {
-color: var(--muted);
-opacity: 0.5;
+  color: var(--muted);
+  opacity: 0.5;
 }
 
-.field i {
-position: absolute;
-left: 16px; /* Properly positioned for new padding */
-top: 50%;
-transform: translateY(-50%);
-color: var(--b-500); /* Brand color for better visual hierarchy */
-font-size: 18px; /* Reduced size for better proportions */
-pointer-events: none;
-z-index: 1;
-opacity: 0.8;
-transition: color 0.2s, opacity 0.2s;
-}
-
-.field.ta i {
-top: 18px;
-transform: none;
+.field.ta > i:first-child {
+  top: 18px;
+  transform: none;
 }
 
 .field textarea {
@@ -305,8 +285,9 @@ resize: vertical;
 
 /* PASSWORD FIELD - Fix toggle button overlap for both Login and Register */
 .field input[type="password"],
+.field input[type="text"].password-visible,
 #regForm .field input[type="password"] {
-padding-right: 80px !important; /* Increased to 80px to give more space for toggle button */
+  padding-right: 56px !important; /* Space for toggle button */
 }
 
 /* Password toggle button - positioned to avoid overlap completely */
@@ -314,23 +295,32 @@ padding-right: 80px !important; /* Increased to 80px to give more space for togg
 .field button.icon,
 #regForm .field .toggle-password,
 #regForm .field button.icon {
-position: absolute;
-right: 12px; /* Positioned well inside the padding area */
-top: 50%;
-transform: translateY(-50%);
-background: transparent;
-border: none;
-color: var(--b-500);
-width: 36px; /* Slightly smaller to fit better */
-height: 36px;
-border-radius: 8px;
-display: grid;
-place-items: center;
-cursor: pointer;
-font-size: 16px; /* Slightly smaller icon */
-z-index: 10; /* Much higher z-index */
-transition: all 0.2s ease;
-flex-shrink: 0; /* Prevent button from shrinking */
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--b-500);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 18px;
+  z-index: 10;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.field .toggle-password i,
+.field button.icon i,
+#regForm .field .toggle-password i,
+#regForm .field button.icon i {
+  position: static;
+  transform: none;
+  pointer-events: none;
 }
 
 .field .toggle-password:hover,
@@ -355,24 +345,24 @@ cursor: pointer;
 
 /* PHONE FIELD */
 .phone-field {
-display: flex;
-gap: 10px;
-position: relative;
+  display: flex;
+  gap: 10px;
+  position: relative;
 }
 
 .phone-field select {
-width: 115px; /* Increased from 100px */
-padding: 16px 16px 16px 16px;
-flex-shrink: 0;
+  width: 100px;
+  padding: 16px 12px !important;
+  flex-shrink: 0;
 }
 
 .phone-field input {
-flex: 1;
-padding-left: 165px !important; /* Force consistent spacing with other fields */
+  flex: 1;
+  padding-left: 48px !important;
 }
 
-.phone-field i {
-left: 125px;
+.phone-field > i:first-child {
+  left: 120px;
 }
 
 /* ROW LAYOUT */

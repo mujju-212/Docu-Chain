@@ -8,6 +8,9 @@ import DocumentGenerator from '../shared/DocumentGenerator';
 import DocumentApproval from '../shared/DocumentApproval';
 import VerificationTool from '../shared/VerificationTool';
 import Profile from '../../components/shared/Profile';
+import AddUser from './AddUser';
+import UserManagement from './UserManagement';
+import InstitutionManagement from './InstitutionManagement';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -17,6 +20,48 @@ const AdminDashboard = () => {
   const [isResizing, setIsResizing] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
+  
+  // Sidebar badge counts
+  const [chatCount, setChatCount] = useState(0);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+  // Fetch sidebar counts
+  useEffect(() => {
+    const fetchCounts = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        // Fetch unread message count
+        const chatRes = await fetch(`${API_URL}/chat/unread`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (chatRes.ok) {
+          const chatData = await chatRes.json();
+          setChatCount(chatData.unread || 0);
+        }
+
+        // Fetch pending approval requests count
+        const approvalRes = await fetch(`${API_URL}/approvals/my-tasks`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (approvalRes.ok) {
+          const approvalData = await approvalRes.json();
+          const pendingCount = approvalData.tasks?.filter(r => r.status === 'PENDING')?.length || 0;
+          setPendingApprovalsCount(pendingCount);
+        }
+      } catch (error) {
+        console.error('Error fetching sidebar counts:', error);
+      }
+    };
+
+    fetchCounts();
+    // Refresh counts every 30 seconds
+    const interval = setInterval(fetchCounts, 30000);
+    return () => clearInterval(interval);
+  }, [API_URL]);
 
   // Custom Wallet Component with dropdown
   const CustomWalletButton = () => {
@@ -374,7 +419,6 @@ const AdminDashboard = () => {
                 style={{cursor: 'pointer'}}
               >
                 <i className="ri-folder-line"></i> <span>My Files</span>
-                <span className="badge alert">24</span>
               </a>
               <a
                 onClick={() => setCurrentPage('chat')}
@@ -382,7 +426,7 @@ const AdminDashboard = () => {
                 style={{cursor: 'pointer'}}
               >
                 <i className="ri-chat-3-line"></i> <span>Chat Messages</span>
-                <span className="badge alert">5</span>
+                {chatCount > 0 && <span className="badge alert">{chatCount}</span>}
               </a>
               <a
                 onClick={() => setCurrentPage('document-generator')}
@@ -397,6 +441,7 @@ const AdminDashboard = () => {
                 style={{cursor: 'pointer'}}
               >
                 <i className="ri-shield-check-line"></i> <span>Document Approval</span>
+                {pendingApprovalsCount > 0 && <span className="badge alert">{pendingApprovalsCount}</span>}
               </a>
               <a
                 onClick={() => setCurrentPage('verification-tool')}
@@ -409,24 +454,33 @@ const AdminDashboard = () => {
 
             <div className="section-title">Administration</div>
             <nav className="menu">
-              <a>
+              <a
+                className={currentPage === 'user-management' ? 'active' : ''}
+                onClick={() => setCurrentPage('user-management')}
+                style={{cursor: 'pointer'}}
+              >
                 <i className="ri-user-line"></i> <span>User Management</span>
               </a>
               <a>
                 <i className="ri-user-settings-line"></i> <span>Account Requests</span>
                 <span className="badge alert">7</span>
               </a>
-              <a>
+              <a 
+                className={currentPage === 'add-user' ? 'active' : ''}
+                onClick={() => setCurrentPage('add-user')}
+                style={{cursor: 'pointer'}}
+              >
                 <i className="ri-user-add-line"></i> <span>Add User</span>
               </a>
-              <a>
+              <a 
+                className={currentPage === 'institution-management' ? 'active' : ''}
+                onClick={() => setCurrentPage('institution-management')}
+                style={{cursor: 'pointer'}}
+              >
                 <i className="ri-building-4-line"></i> <span>Institution Management</span>
               </a>
               <a>
                 <i className="ri-links-line"></i> <span>Blockchain Monitor</span>
-              </a>
-              <a>
-                <i className="ri-broadcast-line"></i> <span>Circulars</span>
               </a>
             </nav>
 
@@ -508,6 +562,12 @@ const AdminDashboard = () => {
               <DocumentApproval userRole="admin" />
             ) : currentPage === 'verification-tool' ? (
               <VerificationTool />
+            ) : currentPage === 'add-user' ? (
+              <AddUser />
+            ) : currentPage === 'user-management' ? (
+              <UserManagement />
+            ) : currentPage === 'institution-management' ? (
+              <InstitutionManagement />
             ) : (
               <div className="dashboard-content">
             {/* Welcome Header */}

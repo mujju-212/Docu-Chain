@@ -170,6 +170,123 @@ def token_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+def admin_required(f):
+    """Decorator to require admin role for protected routes"""
+    @wraps(f)
+    @jwt_required()
+    def decorated_function(*args, **kwargs):
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+        if not user or user.role.lower() != 'admin':
+            return jsonify({'success': False, 'message': 'Admin access required'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@bp.route('/admin/create-user', methods=['POST'])
+@admin_required
+def admin_create_user():
+    """Admin creates a new user directly (no approval needed, user is immediately active)"""
+    try:
+        data = request.get_json()
+        current_admin_id = get_jwt_identity()
+        admin_user = User.query.get(current_admin_id)
+        
+        # Validate required fields based on role
+        role = data.get('role', '').lower()
+        
+        if role == 'admin':
+            required_fields = ['email', 'password', 'firstName', 'lastName', 'role']
+        else:
+            required_fields = ['email', 'password', 'firstName', 'lastName', 'role', 'uniqueId']
+        
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        if missing_fields:
+            return jsonify({
+                'success': False, 
+                'message': f'Missing required fields: {", ".join(missing_fields)}'
+            }), 400
+        
+        # Check if email already exists
+        existing_user = User.query.filter_by(email=data['email']).first()
+        if existing_user:
+            return jsonify({
+                'success': False, 
+                'message': f'This email ({data["email"]}) is already registered.'
+            }), 409
+        
+        # Check if unique_id already exists (for non-admin roles)
+        if role != 'admin' and data.get('uniqueId'):
+            existing_unique_id = User.query.filter_by(unique_id=data['uniqueId']).first()
+            if existing_unique_id:
+                return jsonify({
+                    'success': False, 
+                    'message': f'This ID ({data["uniqueId"]}) is already registered.'
+                }), 409
+        
+        # Use admin's institution if not specified
+        institution_id = data.get('institutionId') or admin_user.institution_id
+        
+        # Create new user (immediately active - no approval needed)
+        user = User(
+            email=data['email'],
+            first_name=data['firstName'],
+            last_name=data['lastName'],
+            role=data['role'],
+            institution_id=institution_id,
+            phone=data.get('phone'),
+            unique_id=data.get('uniqueId'),
+            department=data.get('department'),
+            section=data.get('section'),
+            wallet_address=data.get('walletAddress'),
+            status='active'  # Admin-created users are immediately active
+        )
+        user.set_password(data['password'])
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        # Create default folder structure for the new user
+        try:
+            create_default_folders_for_user(user)
+            db.session.commit()
+        except Exception as e:
+            print(f"Warning: Failed to create default folders: {str(e)}")
+        
+        # Send welcome email with temporary password info
+        try:
+            full_name = f"{user.first_name} {user.last_name}"
+            institution = Institution.query.get(institution_id)
+            inst_name = institution.name if institution else "DocuChain Institution"
+            EmailService.send_welcome_email(
+                user.email, 
+                full_name, 
+                user.role, 
+                inst_name
+            )
+        except Exception as e:
+            print(f"Warning: Failed to send welcome email to {user.email}: {str(e)}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'{user.role.title()} account created successfully for {user.email}',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'firstName': user.first_name,
+                'lastName': user.last_name,
+                'role': user.role,
+                'status': user.status
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating user: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @bp.route('/register', methods=['POST'])
 def register():
     """Register a new user (requires admin approval)"""

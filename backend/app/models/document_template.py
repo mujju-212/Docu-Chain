@@ -96,6 +96,32 @@ class GeneratedDocument(db.Model):
     requester = db.relationship('User', backref='generated_documents', foreign_keys=[requester_id])
     
     def to_dict(self):
+        # Helper to format dates with timezone
+        def format_date(dt):
+            if not dt:
+                return None
+            # Add 'Z' suffix to indicate UTC timezone
+            return dt.isoformat() + 'Z' if not dt.isoformat().endswith('Z') else dt.isoformat()
+        
+        # Check if there's a linked approval request with different status
+        actual_status = self.status
+        approval_type = None
+        if self.approval_request_id:
+            from app.models.approval import ApprovalRequest
+            approval = ApprovalRequest.query.filter(
+                (ApprovalRequest.id.cast(db.String) == self.approval_request_id) |
+                (ApprovalRequest.request_id == self.approval_request_id)
+            ).first()
+            if approval:
+                approval_type = approval.approval_type
+                is_digital = approval_type in ['DIGITAL_SIGNATURE', 'digital']
+                if approval.status == 'APPROVED':
+                    actual_status = 'signed' if is_digital else 'approved'
+                elif approval.status == 'REJECTED':
+                    actual_status = 'rejected'
+                elif approval.status == 'PENDING':
+                    actual_status = 'pending'
+        
         return {
             'id': str(self.id),
             'requestId': self.request_id,
@@ -107,13 +133,14 @@ class GeneratedDocument(db.Model):
             'generatedContent': self.generated_content,
             'pdfIpfsHash': self.pdf_ipfs_hash,
             'blockchainTxHash': self.blockchain_tx_hash,
-            'status': self.status,
+            'status': actual_status,
+            'approvalType': approval_type,
             'currentApproverIndex': self.current_approver_index,
             'approvalHistory': self.approval_history or [],
             'approvalRequestId': self.approval_request_id,
-            'createdAt': self.created_at.isoformat() if self.created_at else None,
-            'submittedAt': self.submitted_at.isoformat() if self.submitted_at else None,
-            'completedAt': self.completed_at.isoformat() if self.completed_at else None
+            'createdAt': format_date(self.created_at),
+            'submittedAt': format_date(self.submitted_at),
+            'completedAt': format_date(self.completed_at)
         }
     
     def to_dict_with_requester(self):

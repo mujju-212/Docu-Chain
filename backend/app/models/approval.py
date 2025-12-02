@@ -73,6 +73,13 @@ class ApprovalRequest(db.Model):
     history = db.relationship('ApprovalHistory', back_populates='request', lazy='dynamic', cascade='all, delete-orphan')
     
     def to_dict(self):
+        # Helper to format dates with UTC timezone
+        def format_date(dt):
+            if not dt:
+                return None
+            iso_str = dt.isoformat()
+            return iso_str + 'Z' if not iso_str.endswith('Z') else iso_str
+        
         return {
             'id': str(self.id),
             'requestId': self.request_id,
@@ -82,7 +89,7 @@ class ApprovalRequest(db.Model):
             'documentSize': self.document_file_size,  # Add this field for frontend
             'documentIpfsHash': self.document_ipfs_hash,
             'stampedDocumentIpfsHash': self.stamped_document_ipfs_hash,
-            'stampedAt': self.stamped_at.isoformat() if self.stamped_at else None,
+            'stampedAt': format_date(self.stamped_at),
             'documentFileSize': self.document_file_size,
             'documentFileType': self.document_file_type,
             'requesterId': str(self.requester_id),
@@ -95,9 +102,9 @@ class ApprovalRequest(db.Model):
             'status': self.status,
             'isActive': self.is_active,
             'expiryTimestamp': self.expiry_timestamp,
-            'createdAt': self.created_at.isoformat() if self.created_at else None,
-            'submittedAt': self.submitted_at.isoformat() if self.submitted_at else None,
-            'completedAt': self.completed_at.isoformat() if self.completed_at else None,
+            'createdAt': format_date(self.created_at),
+            'submittedAt': format_date(self.submitted_at),
+            'completedAt': format_date(self.completed_at),
             'blockchainTxHash': self.blockchain_tx_hash,
             'metadata': self.request_metadata
         }
@@ -226,8 +233,8 @@ class ApprovalStep(db.Model):
             'signatureHash': self.signature_hash,
             'reason': self.reason,
             'blockchainTxHash': self.blockchain_tx_hash,
-            'createdAt': self.created_at.isoformat() if self.created_at else None,
-            'updatedAt': self.updated_at.isoformat() if self.updated_at else None
+            'createdAt': (self.created_at.isoformat() + 'Z') if self.created_at else None,
+            'updatedAt': (self.updated_at.isoformat() + 'Z') if self.updated_at else None
         }
 
 
@@ -290,7 +297,7 @@ class ApprovedDocument(db.Model):
             'publicVerificationUrl': self.public_verification_url,
             'verificationCode': self.verification_code,
             'metadata': self.document_metadata,
-            'createdAt': self.created_at.isoformat() if self.created_at else None
+            'createdAt': (self.created_at.isoformat() + 'Z') if self.created_at else None
         }
 
 
@@ -338,6 +345,6 @@ class ApprovalHistory(db.Model):
             'oldStatus': self.old_status,
             'newStatus': self.new_status,
             'blockchainTxHash': self.blockchain_tx_hash,
-            'createdAt': self.created_at.isoformat() if self.created_at else None,
+            'createdAt': (self.created_at.isoformat() + 'Z') if self.created_at else None,
             'metadata': self.history_metadata
         }

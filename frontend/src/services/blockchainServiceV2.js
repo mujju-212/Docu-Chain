@@ -237,6 +237,28 @@ class BlockchainServiceV2 {
       console.log('🔐 Permission:', permission);
       console.log('🔗 Sharing from wallet:', this.currentWallet);
 
+      // Pre-check: Verify document ownership before attempting transaction
+      try {
+        const doc = await contract.getDocument(documentId);
+        const documentOwner = doc.owner.toLowerCase();
+        const currentWalletLower = this.currentWallet.toLowerCase();
+        
+        console.log('📋 Document owner:', documentOwner);
+        console.log('👤 Current wallet:', currentWalletLower);
+        
+        if (documentOwner !== currentWalletLower) {
+          const shortOwner = `${documentOwner.substring(0, 6)}...${documentOwner.substring(documentOwner.length - 4)}`;
+          const shortCurrent = `${currentWalletLower.substring(0, 6)}...${currentWalletLower.substring(currentWalletLower.length - 4)}`;
+          return {
+            success: false,
+            error: `Only the document owner can share this document.\n\nDocument owner: ${shortOwner}\nYour wallet: ${shortCurrent}\n\nPlease connect with the wallet that originally uploaded this document.`
+          };
+        }
+      } catch (ownerCheckError) {
+        console.warn('⚠️ Could not verify ownership, proceeding with transaction:', ownerCheckError.message);
+        // Continue with the transaction - let the blockchain handle ownership validation
+      }
+
       // Validate permission
       if (permission !== 'read' && permission !== 'write') {
         throw new Error('Permission must be "read" or "write"');

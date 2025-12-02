@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { io } from 'socket.io-client';
 import blockchainServiceV2 from '../../services/blockchainServiceV2';
@@ -259,6 +260,27 @@ const ChatInterface = () => {
     const [selectedCircularId, setSelectedCircularId] = useState('');
     const [circularAttachment, setCircularAttachment] = useState(null);
     const circularFileInputRef = useRef(null);
+    
+    // Enhanced Circulars state
+    const [circularView, setCircularView] = useState('feed'); // 'feed', 'create', or 'saved'
+    const [circularImages, setCircularImages] = useState([]); // Local image uploads
+    const [circularBlockchainDoc, setCircularBlockchainDoc] = useState(null); // Blockchain document
+    const [showDocumentPicker, setShowDocumentPicker] = useState(false);
+    const [availableBlockchainDocs, setAvailableBlockchainDocs] = useState([]);
+    const [circularComments, setCircularComments] = useState({}); // { postId: [comments] }
+    const [showCommentsFor, setShowCommentsFor] = useState(null); // postId to show comments
+    const [newComment, setNewComment] = useState('');
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [likedPosts, setLikedPosts] = useState(new Set());
+    const [savedPosts, setSavedPosts] = useState(new Set());
+    const [savedPostsList, setSavedPostsList] = useState([]);
+    const [editingPost, setEditingPost] = useState(null);
+    const [editPostContent, setEditPostContent] = useState('');
+    const [postOptionsMenu, setPostOptionsMenu] = useState({ show: false, postId: null, x: 0, y: 0 });
+    const [circularOptionsMenu, setCircularOptionsMenu] = useState({ show: false, circularId: null, x: 0, y: 0 });
+    const [editingCircular, setEditingCircular] = useState(null);
+    const [editCircularName, setEditCircularName] = useState('');
+    const circularImageInputRef = useRef(null);
 
     // Shared documents modal state
     const [isSharedDocsModalOpen, setIsSharedDocsModalOpen] = useState(false);
@@ -290,6 +312,16 @@ const ChatInterface = () => {
         step: 0, // 0: idle, 1: preparing, 2: uploading, 3: confirming, 4: complete
         message: '',
         error: null
+    });
+
+    // Group bulk share state
+    const [groupShareMode, setGroupShareMode] = useState(false);
+    const [groupShareProgress, setGroupShareProgress] = useState({
+        current: 0,
+        total: 0,
+        currentMember: '',
+        completed: [],
+        failed: []
     });
 
     // In-app modal state (replaces browser confirm/alert)
@@ -481,6 +513,16 @@ const ChatInterface = () => {
                 if (data.circulars?.length > 0 && !selectedCircularId) {
                     setSelectedCircularId(data.circulars[0].id);
                 }
+                
+                // Initialize liked and saved posts from server response
+                const liked = new Set();
+                const saved = new Set();
+                (data.feed || []).forEach(item => {
+                    if (item.userLiked) liked.add(item.id);
+                    if (item.userSaved) saved.add(item.id);
+                });
+                setLikedPosts(liked);
+                setSavedPosts(saved);
             }
         } catch (error) {
             console.error('Error fetching circulars feed:', error);
@@ -640,6 +682,23 @@ const ChatInterface = () => {
             fetchCircularsFeed();
         }
     }, [activeTab, currentUser, fetchCircularsFeed]);
+
+    // Close menus when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            // Close post options menu
+            if (postOptionsMenu.show && !e.target.closest('.post-options-wrapper')) {
+                setPostOptionsMenu({ show: false, postId: null, x: 0, y: 0 });
+            }
+            // Close circular options menu
+            if (circularOptionsMenu.show && !e.target.closest('.circular-options-wrapper')) {
+                setCircularOptionsMenu({ show: false, circularId: null, x: 0, y: 0 });
+            }
+        };
+        
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [postOptionsMenu.show, circularOptionsMenu.show]);
 
     // Initialize Socket.IO connection (optional enhancement)
     useEffect(() => {
@@ -1513,6 +1572,579 @@ const ChatInterface = () => {
         }
     };
 
+    // ========== ENHANCED CIRCULAR FUNCTIONS ==========
+    
+    // Handle local image selection for circular post
+    const handleCircularImageSelect = (e) => {
+        const files = Array.from(e.target.files);
+        const validImages = files.filter(file => {
+            if (!file.type.startsWith('image/')) {
+                showAlert('Error', 'Only image files are allowed');
+                return false;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                showAlert('Error', `Image ${file.name} is too large (max 5MB)`);
+                return false;
+            }
+            return true;
+        });
+        
+        // Convert to base64 for preview and storage
+        validImages.forEach(file => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setCircularImages(prev => [...prev, {
+                    file,
+                    name: file.name,
+                    preview: reader.result,
+                    size: file.size
+                }]);
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        if (circularImageInputRef.current) {
+            circularImageInputRef.current.value = '';
+        }
+    };
+    
+    // Remove image from circular post
+    const removeCircularImage = (index) => {
+        setCircularImages(prev => prev.filter((_, i) => i !== index));
+    };
+    
+    // Fetch available blockchain documents for attachment
+    const fetchBlockchainDocuments = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/documents/my-documents`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setAvailableBlockchainDocs(data.documents || data.data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching blockchain docs:', error);
+        }
+    };
+    
+    // Select a blockchain document for circular
+    const selectBlockchainDocument = (doc) => {
+        setCircularBlockchainDoc({
+            id: doc.id,
+            name: doc.fileName || doc.file_name || doc.name,
+            ipfsHash: doc.ipfsHash || doc.ipfs_hash,
+            size: doc.fileSize || doc.file_size,
+            verified: true
+        });
+        setShowDocumentPicker(false);
+    };
+    
+    // Remove blockchain document from circular
+    const removeBlockchainDocument = () => {
+        setCircularBlockchainDoc(null);
+    };
+    
+    // Enhanced post to circular with images and blockchain docs
+    const postEnhancedCircular = async () => {
+        const content = newCircularPost.trim();
+        if (!content) {
+            showAlert('Error', 'Please write something for your announcement');
+            return;
+        }
+        
+        try {
+            // Build the post data
+            const postData = {
+                content,
+                messageType: 'circular_post',
+                images: [],
+                blockchainDocument: null
+            };
+            
+            // Upload images if any
+            if (circularImages.length > 0) {
+                const imageUrls = [];
+                for (const img of circularImages) {
+                    // For local images, we'll store base64 or upload to server
+                    // Here we'll store base64 for simplicity
+                    imageUrls.push({
+                        url: img.preview,
+                        name: img.name
+                    });
+                }
+                postData.images = imageUrls;
+            }
+            
+            // Add blockchain document if attached
+            if (circularBlockchainDoc) {
+                postData.blockchainDocument = circularBlockchainDoc;
+                postData.documentId = circularBlockchainDoc.id;
+                postData.documentName = circularBlockchainDoc.name;
+                postData.documentHash = circularBlockchainDoc.ipfsHash;
+            }
+            
+            // Get target circular (use first one if none selected)
+            const targetCircularId = selectedCircularId || (circularsList.length > 0 ? circularsList[0].id : null);
+            
+            if (!targetCircularId) {
+                showAlert('Error', 'No circular channel available. Please create one first.');
+                return;
+            }
+            
+            const response = await fetch(`${API_URL}/chat/conversations/${targetCircularId}/messages`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(postData)
+            });
+            
+            if (response.ok) {
+                // Reset form
+                setNewCircularPost('');
+                setCircularImages([]);
+                setCircularBlockchainDoc(null);
+                setCircularView('feed');
+                
+                // Refresh feed
+                fetchCircularsFeed();
+                showAlert('🎉 Posted!', 'Your announcement has been posted successfully!');
+            } else {
+                const error = await response.json();
+                showAlert('Error', error.message || 'Failed to post announcement');
+            }
+        } catch (error) {
+            console.error('Error posting circular:', error);
+            showAlert('Error', 'Failed to post announcement');
+        }
+    };
+    
+    // Fetch comments for a post
+    const fetchComments = async (postId) => {
+        setLoadingComments(true);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/chat/messages/${postId}/comments`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setCircularComments(prev => ({
+                    ...prev,
+                    [postId]: data.comments || []
+                }));
+            }
+        } catch (error) {
+            console.error('Error fetching comments:', error);
+        }
+        setLoadingComments(false);
+    };
+    
+    // Post a comment
+    const postComment = async (postId) => {
+        if (!newComment.trim()) return;
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/chat/messages/${postId}/comments`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ content: newComment.trim() })
+            });
+            
+            if (response.ok) {
+                setNewComment('');
+                fetchComments(postId);
+            } else {
+                showAlert('Error', 'Failed to post comment');
+            }
+        } catch (error) {
+            console.error('Error posting comment:', error);
+        }
+    };
+    
+    // Toggle like on a post
+    const toggleLike = async (postId) => {
+        const isLiked = likedPosts.has(postId);
+        
+        // Optimistic update for liked state
+        setLikedPosts(prev => {
+            const newSet = new Set(prev);
+            if (isLiked) {
+                newSet.delete(postId);
+            } else {
+                newSet.add(postId);
+            }
+            return newSet;
+        });
+        
+        // Optimistic update for like count in feed
+        setCircularsFeed(prev => prev.map(item => {
+            if (item.id === postId) {
+                return {
+                    ...item,
+                    likesCount: isLiked ? (item.likesCount || 1) - 1 : (item.likesCount || 0) + 1
+                };
+            }
+            return item;
+        }));
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/chat/messages/${postId}/like`, {
+                method: isLiked ? 'DELETE' : 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to toggle like');
+            }
+        } catch (error) {
+            console.error('Error toggling like:', error);
+            // Revert on error
+            setLikedPosts(prev => {
+                const newSet = new Set(prev);
+                if (isLiked) {
+                    newSet.add(postId);
+                } else {
+                    newSet.delete(postId);
+                }
+                return newSet;
+            });
+            // Revert feed count
+            setCircularsFeed(prev => prev.map(item => {
+                if (item.id === postId) {
+                    return {
+                        ...item,
+                        likesCount: isLiked ? (item.likesCount || 0) + 1 : (item.likesCount || 1) - 1
+                    };
+                }
+                return item;
+            }));
+        }
+    };
+    
+    // Toggle save/bookmark on a post
+    const toggleSave = async (postId) => {
+        const isSaved = savedPosts.has(postId);
+        
+        // Optimistic update
+        setSavedPosts(prev => {
+            const newSet = new Set(prev);
+            if (isSaved) {
+                newSet.delete(postId);
+            } else {
+                newSet.add(postId);
+            }
+            return newSet;
+        });
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/chat/messages/${postId}/save`, {
+                method: isSaved ? 'DELETE' : 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                showAlert(isSaved ? 'Removed' : 'Saved!', isSaved ? 'Post removed from saved' : 'Post saved successfully');
+            } else {
+                throw new Error('Failed to toggle save');
+            }
+        } catch (error) {
+            console.error('Error toggling save:', error);
+            // Revert on error
+            setSavedPosts(prev => {
+                const newSet = new Set(prev);
+                if (isSaved) {
+                    newSet.add(postId);
+                } else {
+                    newSet.delete(postId);
+                }
+                return newSet;
+            });
+        }
+    };
+    
+    // Fetch saved posts
+    const fetchSavedPosts = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/chat/saved-posts`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setSavedPostsList(data.posts || []);
+            }
+        } catch (error) {
+            console.error('Error fetching saved posts:', error);
+        }
+    };
+    
+    // Share post (copy link)
+    const sharePost = (postId) => {
+        const url = `${window.location.origin}/circulars/${postId}`;
+        navigator.clipboard.writeText(url).then(() => {
+            showAlert('Copied!', 'Link copied to clipboard');
+        }).catch(() => {
+            showAlert('Share', 'Share functionality coming soon!');
+        });
+    };
+    
+    // Edit post
+    const startEditPost = (post) => {
+        setEditingPost(post.id);
+        setEditPostContent(post.content);
+        setPostOptionsMenu({ show: false, postId: null, x: 0, y: 0 });
+    };
+    
+    const cancelEditPost = () => {
+        setEditingPost(null);
+        setEditPostContent('');
+    };
+    
+    const saveEditPost = async (postId) => {
+        if (!editPostContent.trim()) {
+            showAlert('Error', 'Post content cannot be empty');
+            return;
+        }
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/chat/messages/${postId}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ content: editPostContent.trim() })
+            });
+            
+            if (response.ok) {
+                // Update local feed
+                setCircularsFeed(prev => prev.map(item => {
+                    if (item.id === postId) {
+                        return { ...item, content: editPostContent.trim(), editedAt: new Date().toISOString() };
+                    }
+                    return item;
+                }));
+                setEditingPost(null);
+                setEditPostContent('');
+                showAlert('Updated!', 'Post updated successfully');
+            } else {
+                const error = await response.json();
+                showAlert('Error', error.error || 'Failed to update post');
+            }
+        } catch (error) {
+            console.error('Error updating post:', error);
+            showAlert('Error', 'Failed to update post');
+        }
+    };
+    
+    // Delete post
+    const deletePost = async (postId) => {
+        if (!window.confirm('Are you sure you want to delete this post?')) {
+            return;
+        }
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/chat/messages/${postId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                // Remove from local feed
+                setCircularsFeed(prev => prev.filter(item => item.id !== postId));
+                setPostOptionsMenu({ show: false, postId: null, x: 0, y: 0 });
+                showAlert('Deleted', 'Post deleted successfully');
+            } else {
+                const error = await response.json();
+                showAlert('Error', error.error || 'Failed to delete post');
+            }
+        } catch (error) {
+            console.error('Error deleting post:', error);
+            showAlert('Error', 'Failed to delete post');
+        }
+    };
+    
+    // Toggle post options menu
+    const togglePostOptions = (e, postId) => {
+        e.stopPropagation();
+        if (postOptionsMenu.show && postOptionsMenu.postId === postId) {
+            setPostOptionsMenu({ show: false, postId: null, x: 0, y: 0 });
+        } else {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setPostOptionsMenu({
+                show: true,
+                postId: postId,
+                x: rect.left,
+                y: rect.bottom + 5
+            });
+        }
+    };
+    
+    // Toggle comments panel
+    const toggleComments = (postId) => {
+        if (showCommentsFor === postId) {
+            setShowCommentsFor(null);
+        } else {
+            setShowCommentsFor(postId);
+            fetchComments(postId);
+        }
+    };
+    
+    // Toggle circular options menu
+    const toggleCircularOptions = (e, circularId) => {
+        e.stopPropagation();
+        if (circularOptionsMenu.show && circularOptionsMenu.circularId === circularId) {
+            setCircularOptionsMenu({ show: false, circularId: null, x: 0, y: 0 });
+        } else {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setCircularOptionsMenu({ 
+                show: true, 
+                circularId,
+                x: rect.left - 175,
+                y: rect.top
+            });
+        }
+    };
+    
+    // Start editing a circular
+    const startEditCircular = (circular) => {
+        setEditingCircular(circular.id);
+        setEditCircularName(circular.name);
+        setCircularOptionsMenu({ show: false, circularId: null, x: 0, y: 0 });
+    };
+    
+    // Save edited circular name
+    const saveEditCircular = async (circularId) => {
+        if (!editCircularName.trim()) return;
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/chat/conversations/${circularId}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: editCircularName.trim() })
+            });
+            
+            if (response.ok) {
+                // Update circular in list
+                setCircularsList(prev => prev.map(c => 
+                    c.id === circularId ? { ...c, name: editCircularName.trim() } : c
+                ));
+                setEditingCircular(null);
+                setEditCircularName('');
+                showAlert('Success', 'Circular updated successfully');
+            } else {
+                showAlert('Error', 'Failed to update circular');
+            }
+        } catch (error) {
+            console.error('Error updating circular:', error);
+            showAlert('Error', 'Failed to update circular');
+        }
+    };
+    
+    // Cancel editing circular
+    const cancelEditCircular = () => {
+        setEditingCircular(null);
+        setEditCircularName('');
+    };
+    
+    // Delete a circular channel (creator only)
+    const deleteCircular = async (circularId) => {
+        if (!window.confirm('Are you sure you want to delete this circular channel? This will delete all posts for everyone.')) {
+            return;
+        }
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/chat/conversations/${circularId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                // Remove from lists
+                setCircularsList(prev => prev.filter(c => c.id !== circularId));
+                setCircularsFeed(prev => prev.filter(f => f.circularId !== circularId));
+                if (selectedCircularId === circularId) {
+                    setSelectedCircularId(null);
+                }
+                setCircularOptionsMenu({ show: false, circularId: null, x: 0, y: 0 });
+                showAlert('Deleted', 'Circular channel deleted successfully');
+            } else {
+                const data = await response.json();
+                showAlert('Error', data.error || 'Failed to delete circular');
+            }
+        } catch (error) {
+            console.error('Error deleting circular:', error);
+            showAlert('Error', 'Failed to delete circular');
+        }
+    };
+    
+    // Leave a circular channel (hide from user's view)
+    const leaveCircular = async (circularId) => {
+        if (!window.confirm('Leave this circular? You won\'t see new posts but can rejoin later.')) {
+            return;
+        }
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/chat/conversations/${circularId}/leave`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                // Remove from user's list (just hide locally)
+                setCircularsList(prev => prev.filter(c => c.id !== circularId));
+                setCircularsFeed(prev => prev.filter(f => f.circularId !== circularId));
+                setCircularOptionsMenu({ show: false, circularId: null, x: 0, y: 0 });
+                showAlert('Left', 'You have left the circular');
+            } else {
+                showAlert('Error', 'Failed to leave circular');
+            }
+        } catch (error) {
+            console.error('Error leaving circular:', error);
+            showAlert('Error', 'Failed to leave circular');
+        }
+    };
+    
+    // ========== END ENHANCED CIRCULAR FUNCTIONS ==========
+
     const sendMessage = async () => {
         const content = messageInput.trim();
         if (!content || !selectedChat) return;
@@ -1909,6 +2541,94 @@ const ChatInterface = () => {
         }
     };
 
+    // Track approval status - fetch from backend
+    const handleTrackApprovalStatus = async (msg) => {
+        const approvalRequestId = msg.approvalRequestId || msg.approval_request_id;
+        const messageType = msg.messageType || msg.message_type;
+        const isDigitalSig = messageType === 'digital_signature_request';
+        const docName = msg.documentName || msg.document_name || 'Document';
+        
+        if (!approvalRequestId) {
+            showAlert('❌ Error', 'No approval request ID found for tracking.');
+            return;
+        }
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/approvals/status/${approvalRequestId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                const approval = data.data || data;
+                
+                // Format status info
+                const status = (approval.status || 'PENDING').toUpperCase();
+                const approvalType = approval.approvalType || approval.approval_type;
+                const isDigital = approvalType === 'DIGITAL_SIGNATURE' || approvalType === 'digital' || isDigitalSig;
+                
+                let statusIcon = '⏳';
+                let statusText = 'Pending';
+                
+                if (status === 'APPROVED' || status === 'SIGNED') {
+                    statusIcon = isDigital ? '✍️' : '✅';
+                    statusText = isDigital ? 'Digitally Signed' : 'Approved';
+                } else if (status === 'REJECTED') {
+                    statusIcon = '❌';
+                    statusText = 'Rejected';
+                } else if (status === 'CANCELLED') {
+                    statusIcon = '🚫';
+                    statusText = 'Cancelled';
+                } else {
+                    statusIcon = '⏳';
+                    statusText = 'Pending';
+                }
+                
+                // Get approval steps info
+                let stepsInfo = '';
+                if (approval.steps && approval.steps.length > 0) {
+                    const approved = approval.steps.filter(s => s.hasApproved).length;
+                    const total = approval.steps.length;
+                    stepsInfo = `\n\n📊 Progress: ${approved}/${total} ${isDigital ? 'signed' : 'approved'}`;
+                    
+                    // List approvers
+                    stepsInfo += '\n\n👥 Approvers:';
+                    approval.steps.forEach((step, idx) => {
+                        const approverName = step.approver?.name || step.approverRole || 'Unknown';
+                        const stepStatus = step.hasApproved ? (isDigital ? '✍️ Signed' : '✅ Approved') : 
+                                          step.hasRejected ? '❌ Rejected' : '⏳ Pending';
+                        stepsInfo += `\n  ${idx + 1}. ${approverName} - ${stepStatus}`;
+                    });
+                }
+                
+                // Format dates
+                let dateInfo = '';
+                if (approval.submittedAt || approval.submitted_at) {
+                    const submitted = new Date(approval.submittedAt || approval.submitted_at);
+                    dateInfo += `\n\n📅 Submitted: ${submitted.toLocaleDateString()} ${submitted.toLocaleTimeString()}`;
+                }
+                if (approval.completedAt || approval.completed_at) {
+                    const completed = new Date(approval.completedAt || approval.completed_at);
+                    dateInfo += `\n✅ Completed: ${completed.toLocaleDateString()} ${completed.toLocaleTimeString()}`;
+                }
+                
+                showAlert(
+                    `${statusIcon} Approval Status: ${statusText}`, 
+                    `📄 Document: ${docName}\n🔖 Type: ${isDigital ? 'Digital Signature' : 'Standard Approval'}${stepsInfo}${dateInfo}`
+                );
+            } else {
+                showAlert('❌ Error', 'Failed to fetch approval status. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error fetching approval status:', error);
+            showAlert('❌ Error', `Failed to fetch status: ${error.message}`);
+        }
+    };
+
     // Handle approval action from chat (approve/sign document)
     const handleApproveFromChat = async (msg) => {
         const approvalRequestId = msg.approvalRequestId || msg.approval_request_id;
@@ -2217,10 +2937,10 @@ const ChatInterface = () => {
                             errorMsg = 'Transaction was rejected in MetaMask.';
                         } else if (blockchainError.message.includes('insufficient funds')) {
                             errorMsg = 'Insufficient ETH for gas fees.';
-                        } else if (blockchainError.message.includes('Only owner can share')) {
-                            errorMsg = 'You must be connected with the wallet that uploaded this document to share it.';
+                        } else if (blockchainError.message.includes('Only owner can share') || blockchainError.message.includes('Only the document owner')) {
+                            errorMsg = blockchainError.message; // Use the detailed message from blockchainServiceV2
                         } else {
-                            errorMsg = `Blockchain error: ${blockchainError.message.substring(0, 100)}`;
+                            errorMsg = `Blockchain error: ${blockchainError.message.substring(0, 150)}`;
                         }
                         
                         // Show error and stop - NO DB fallback
@@ -2411,6 +3131,118 @@ const ChatInterface = () => {
         }
     };
 
+    // Share document with all group members (DATABASE ONLY - no blockchain for groups)
+    const shareWithAllGroupMembers = async () => {
+        if (!selectedDocument) {
+            showAlert('Required', 'No document selected.');
+            return;
+        }
+
+        if (!selectedChat || !selectedConversation) {
+            showAlert('Required', 'Please select a group first.');
+            return;
+        }
+
+        const docName = selectedDocument.fileName || selectedDocument.name || 'Document';
+
+        // Start sharing progress
+        setSharingProgress({
+            isSharing: true,
+            step: 1,
+            message: 'Sharing document with group...',
+            error: null
+        });
+
+        try {
+            // Step 2: Send chat message with document to group
+            setSharingProgress(prev => ({
+                ...prev,
+                step: 2,
+                message: 'Sending to group...'
+            }));
+
+            const content = `📄 Shared document: ${docName}`;
+
+            const response = await fetch(`${API_URL}/chat/conversations/${selectedChat}/messages`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    content,
+                    messageType: 'document_share',
+                    documentId: selectedDocument.id,
+                    documentName: docName,
+                    documentHash: selectedDocument.ipfsHash || selectedDocument.ipfs_hash,
+                    documentSize: selectedDocument.fileSize || selectedDocument.size,
+                    documentType: selectedDocument.documentType || selectedDocument.type,
+                    permission: 'read',  // Groups always get read-only
+                    isGroupShare: true
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to share document');
+            }
+
+            const data = await response.json();
+
+            // Step 3: Complete
+            setSharingProgress({
+                isSharing: true,
+                step: 4,
+                message: '✅ Document shared with group!',
+                error: null
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 800));
+
+            // Add message to chat
+            setMessages(prev => [...prev, {
+                ...data.message,
+                isOwn: true,
+                senderName: 'You'
+            }]);
+
+            // Reset and close
+            setSharingProgress({
+                isSharing: false,
+                step: 0,
+                message: '',
+                error: null
+            });
+            closeDocumentModal();
+
+        } catch (error) {
+            console.error('Error sharing to group:', error);
+            setSharingProgress({
+                isSharing: false,
+                step: 0,
+                message: '',
+                error: null
+            });
+            showAlert('Error', 'Failed to share document with group');
+        }
+    };
+
+    const resetGroupShare = () => {
+        setGroupShareMode(false);
+        setSharingProgress({
+            isSharing: false,
+            step: 0,
+            message: '',
+            error: null
+        });
+        setGroupShareProgress({
+            current: 0,
+            total: 0,
+            currentMember: '',
+            completed: [],
+            failed: []
+        });
+    };
+
     const renderDocumentAttachment = (document, isOwn) => {
         const statusIcons = {
             approved: <i className="ri-checkbox-circle-line status-approved"></i>,
@@ -2546,17 +3378,33 @@ const ChatInterface = () => {
             }
         };
         
-        const handleDownloadDocument = () => {
+        const handleDownloadDocument = async () => {
             if (docHash) {
-                const link = document.createElement('a');
-                link.href = `https://gateway.pinata.cloud/ipfs/${docHash}`;
-                link.download = docName;
-                link.target = '_blank';
-                link.click();
+                try {
+                    showAlert('Downloading...', 'Please wait while the file is being downloaded.');
+                    const response = await fetch(`https://gateway.pinata.cloud/ipfs/${docHash}`);
+                    if (!response.ok) throw new Error('Download failed');
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = docName || 'document';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                } catch (error) {
+                    console.error('Download error:', error);
+                    // Fallback to opening in new tab
+                    window.open(`https://gateway.pinata.cloud/ipfs/${docHash}`, '_blank');
+                }
             } else {
-                showAlert('Download', `Downloading: ${docName}`);
+                showAlert('Download', 'No file available for download');
             }
         };
+        
+        // Get purpose/description from message content or metadata
+        const purpose = msg.purpose || msg.content || '';
         
         const handleViewTransaction = () => {
             if (txHash) {
@@ -2590,6 +3438,14 @@ const ChatInterface = () => {
                     )}
                 </div>
                 
+                {/* Purpose/Description - Show for approval requests */}
+                {isApprovalRequest && purpose && !purpose.includes('📋') && !purpose.includes('✍️') && (
+                    <div className="document-card-purpose">
+                        <i className="ri-message-2-line"></i>
+                        <span>{purpose}</span>
+                    </div>
+                )}
+                
                 {docHash && (
                     <div className="document-card-meta">
                         <div className="document-card-hash">
@@ -2620,10 +3476,20 @@ const ChatInterface = () => {
                         <i className="ri-download-line"></i>
                         Download
                     </button>
+                    {/* Track Status button for sender on approval requests */}
+                    {isOwn && isApprovalRequest && (
+                        <button 
+                            className="doc-action-btn track"
+                            onClick={() => handleTrackApprovalStatus(msg)}
+                        >
+                            <i className="ri-radar-line"></i>
+                            Track
+                        </button>
+                    )}
                 </div>
                 
                 {/* Show approval actions for receiver if pending */}
-                {!isOwn && isApprovalRequest && (
+                {!isOwn && isApprovalRequest && status === 'pending' && (
                     <div className="document-card-approval-actions">
                         <button 
                             className="approval-action-btn approve"
@@ -2788,12 +3654,44 @@ const ChatInterface = () => {
                                             <div className="circular-item-icon">
                                                 <i className="ri-megaphone-line"></i>
                                             </div>
-                                            <div className="circular-item-info">
-                                                <span className="circular-item-name">{circular.name}</span>
-                                                <span className="circular-item-posts">
-                                                    {circularsFeed.filter(f => f.circularId === circular.id).length} posts
-                                                </span>
-                                            </div>
+                                            {editingCircular === circular.id ? (
+                                                <div className="circular-edit-inline" onClick={e => e.stopPropagation()}>
+                                                    <input 
+                                                        type="text"
+                                                        value={editCircularName}
+                                                        onChange={(e) => setEditCircularName(e.target.value)}
+                                                        className="circular-edit-input"
+                                                        autoFocus
+                                                        onKeyPress={(e) => e.key === 'Enter' && saveEditCircular(circular.id)}
+                                                    />
+                                                    <div className="circular-edit-btns">
+                                                        <button onClick={() => saveEditCircular(circular.id)} className="save-btn">
+                                                            <i className="ri-check-line"></i>
+                                                        </button>
+                                                        <button onClick={cancelEditCircular} className="cancel-btn">
+                                                            <i className="ri-close-line"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="circular-item-info">
+                                                        <span className="circular-item-name">{circular.name}</span>
+                                                        <span className="circular-item-posts">
+                                                            {circularsFeed.filter(f => f.circularId === circular.id).length} posts
+                                                        </span>
+                                                    </div>
+                                                    {/* Options button - for everyone */}
+                                                    <div className="circular-options-wrapper">
+                                                        <button 
+                                                            className="circular-options-btn"
+                                                            onClick={(e) => toggleCircularOptions(e, circular.id)}
+                                                        >
+                                                            <i className="ri-more-2-fill"></i>
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     ))
                                 )}
@@ -2926,6 +3824,7 @@ const ChatInterface = () => {
                         <button className="create-group-btn" onClick={() => {
                             setCreationType('group');
                             setIsCreateGroupModalOpen(true);
+                            fetchAllUsersForApproval(); // Load users for member selection
                         }}>
                             <i className="ri-add-line"></i>
                             Create Group
@@ -2937,6 +3836,7 @@ const ChatInterface = () => {
                         <button className="create-group-btn" onClick={() => {
                             setCreationType('circular');
                             setIsCreateGroupModalOpen(true);
+                            fetchAllUsersForApproval(); // Load users for member selection
                         }}>
                             <i className="ri-add-line"></i>
                             Create Circular
@@ -2947,9 +3847,9 @@ const ChatInterface = () => {
                 {/* Chat Area */}
                 <div className={`chat-area ${isMobileSidebarHidden ? 'mobile-full' : ''}`}>
                     {activeTab === 'circulars' ? (
-                        /* Circulars Feed in Chat Area */
+                        /* Enhanced Circulars Feed with Create/View Tabs */
                         <div className="circulars-main-feed">
-                            {/* Circulars Header */}
+                            {/* Circulars Header with View Toggle */}
                             <div className="circulars-header">
                                 <div className="circulars-header-left">
                                     <button className="back-btn mobile-only" onClick={goBackToConversations}>
@@ -2965,14 +3865,54 @@ const ChatInterface = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="circulars-header-right">
+                                
+                                {/* View Toggle - Saved for everyone, Create only for faculty/admin */}
+                                <div className="circulars-view-toggle">
+                                    <button 
+                                        className={`view-toggle-btn ${circularView === 'feed' ? 'active' : ''}`}
+                                        onClick={() => setCircularView('feed')}
+                                    >
+                                        <i className="ri-newspaper-line"></i>
+                                        <span>Feed</span>
+                                    </button>
                                     {canPostCircular && (
+                                        <button 
+                                            className={`view-toggle-btn ${circularView === 'create' ? 'active' : ''}`}
+                                            onClick={() => {
+                                                setCircularView('create');
+                                                fetchBlockchainDocuments();
+                                            }}
+                                        >
+                                            <i className="ri-add-circle-line"></i>
+                                            <span>Create</span>
+                                        </button>
+                                    )}
+                                    <button 
+                                        className={`view-toggle-btn ${circularView === 'saved' ? 'active' : ''}`}
+                                        onClick={() => {
+                                            setCircularView('saved');
+                                            fetchSavedPosts();
+                                        }}
+                                    >
+                                        <i className="ri-bookmark-line"></i>
+                                        <span>Saved</span>
+                                    </button>
+                                    <button 
+                                        className={`view-toggle-btn ${circularView === 'myposts' ? 'active' : ''}`}
+                                        onClick={() => setCircularView('myposts')}
+                                    >
+                                        <i className="ri-file-user-line"></i>
+                                        <span>My Posts</span>
+                                    </button>
+                                </div>
+                                
+                                <div className="circulars-header-right">
+                                    {canPostCircular ? (
                                         <div className="circulars-role-badge admin">
                                             <i className="ri-shield-check-line"></i>
                                             {currentUser?.role === 'admin' ? 'Admin' : 'Faculty'}
                                         </div>
-                                    )}
-                                    {!canPostCircular && (
+                                    ) : (
                                         <div className="circulars-role-badge student">
                                             <i className="ri-eye-line"></i>
                                             View Only
@@ -2981,13 +3921,13 @@ const ChatInterface = () => {
                                 </div>
                             </div>
 
-                            {/* Circulars Feed Content */}
+                            {/* Circulars Content Area */}
                             <div className="circulars-feed-content">
-                                {/* Post composer for admin/faculty only */}
-                                {canPostCircular && (
-                                    <div className="circular-composer-card">
+                                
+                                {/* CREATE VIEW - Only for Faculty/Admin */}
+                                {canPostCircular && circularView === 'create' && (
+                                    <div className="circular-create-view">
                                         {circularsList.length === 0 ? (
-                                            /* No circulars - show create prompt */
                                             <div className="no-circulars-prompt">
                                                 <div className="prompt-icon">
                                                     <i className="ri-megaphone-line"></i>
@@ -2999,6 +3939,7 @@ const ChatInterface = () => {
                                                     onClick={() => {
                                                         setCreationType('circular');
                                                         setIsCreateGroupModalOpen(true);
+                                                        fetchAllUsersForApproval();
                                                     }}
                                                 >
                                                     <i className="ri-add-line"></i>
@@ -3006,186 +3947,477 @@ const ChatInterface = () => {
                                                 </button>
                                             </div>
                                         ) : (
-                                            /* Has circulars - show composer */
-                                            <>
-                                                <div className="composer-user-row">
-                                                    <div className="composer-avatar">
+                                            <div className="circular-create-card">
+                                                {/* User Info Header */}
+                                                <div className="create-card-header">
+                                                    <div className="create-avatar">
                                                         {currentUser?.firstName?.[0]?.toUpperCase() || 'U'}
                                                     </div>
-                                                    <div className="composer-user-info">
-                                                        <span className="composer-name">{currentUser?.firstName} {currentUser?.lastName}</span>
-                                                        <span className="composer-role">{currentUser?.role}</span>
+                                                    <div className="create-user-info">
+                                                        <span className="create-user-name">{currentUser?.firstName} {currentUser?.lastName}</span>
+                                                        <div className="create-user-meta">
+                                                            <span className="create-role-badge">{currentUser?.role}</span>
+                                                            <span className="create-visibility">
+                                                                <i className="ri-global-line"></i>
+                                                                Public Post
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div className="composer-body">
-                                                    <div className="composer-header">
-                                                        <label className="composer-label">Post to:</label>
+                                                
+                                                {/* Post Content */}
+                                                <div className="create-card-body">
+                                                    {/* Channel Selector */}
+                                                    <div className="create-channel-select">
+                                                        <label>
+                                                            <i className="ri-megaphone-line"></i>
+                                                            Post to:
+                                                        </label>
                                                         <select 
                                                             value={selectedCircularId} 
                                                             onChange={(e) => setSelectedCircularId(e.target.value)}
-                                                            className="circular-select"
                                                         >
-                                                            {!selectedCircularId && (
-                                                                <option value="" disabled>Select a circular...</option>
-                                                            )}
+                                                            {!selectedCircularId && <option value="">Select channel...</option>}
                                                             {circularsList.map(c => (
                                                                 <option key={c.id} value={c.id}>{c.name}</option>
                                                             ))}
                                                         </select>
                                                     </div>
+                                                    
+                                                    {/* Text Area */}
                                                     <textarea 
-                                                        className="composer-input"
-                                                        placeholder="Write an announcement for students and faculty..."
+                                                        className="create-content-input"
+                                                        placeholder="What's your announcement? Write something for students and faculty..."
                                                         value={newCircularPost}
                                                         onChange={(e) => setNewCircularPost(e.target.value)}
-                                                        rows={4}
+                                                        rows={5}
                                                     />
-                                            
-                                                    {/* Show attached file */}
-                                            {circularAttachment && (
-                                                <div className="composer-attachment">
-                                                    <div className="attachment-icon">
-                                                        <i className="ri-file-text-line"></i>
+                                                    
+                                                    {/* Image Previews */}
+                                                    {circularImages.length > 0 && (
+                                                        <div className="create-images-preview">
+                                                            {circularImages.map((img, idx) => (
+                                                                <div key={idx} className="image-preview-item">
+                                                                    <img src={img.preview} alt={img.name} />
+                                                                    <button 
+                                                                        className="remove-image-btn"
+                                                                        onClick={() => removeCircularImage(idx)}
+                                                                    >
+                                                                        <i className="ri-close-line"></i>
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {/* Blockchain Document Attachment */}
+                                                    {circularBlockchainDoc && (
+                                                        <div className="create-blockchain-doc">
+                                                            <div className="blockchain-doc-icon">
+                                                                <i className="ri-shield-check-fill"></i>
+                                                            </div>
+                                                            <div className="blockchain-doc-info">
+                                                                <span className="doc-name">{circularBlockchainDoc.name}</span>
+                                                                <span className="doc-verified">
+                                                                    <i className="ri-checkbox-circle-fill"></i>
+                                                                    Blockchain Verified
+                                                                </span>
+                                                            </div>
+                                                            <button 
+                                                                className="remove-doc-btn"
+                                                                onClick={removeBlockchainDocument}
+                                                            >
+                                                                <i className="ri-close-line"></i>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* Actions Footer */}
+                                                <div className="create-card-footer">
+                                                    <div className="create-tools">
+                                                        {/* Image Upload */}
+                                                        <input 
+                                                            type="file"
+                                                            ref={circularImageInputRef}
+                                                            onChange={handleCircularImageSelect}
+                                                            style={{ display: 'none' }}
+                                                            accept="image/*"
+                                                            multiple
+                                                        />
+                                                        <button 
+                                                            className="create-tool-btn"
+                                                            onClick={() => circularImageInputRef.current?.click()}
+                                                            title="Add Photos"
+                                                        >
+                                                            <i className="ri-image-add-line"></i>
+                                                            <span>Photo</span>
+                                                        </button>
+                                                        
+                                                        {/* Blockchain Document */}
+                                                        <button 
+                                                            className={`create-tool-btn ${circularBlockchainDoc ? 'active' : ''}`}
+                                                            onClick={() => {
+                                                                setShowDocumentPicker(true);
+                                                                fetchBlockchainDocuments();
+                                                            }}
+                                                            title="Attach Blockchain Document"
+                                                        >
+                                                            <i className="ri-links-line"></i>
+                                                            <span>Document</span>
+                                                        </button>
                                                     </div>
-                                                    <div className="attachment-info">
-                                                        <span className="attachment-name">{circularAttachment.name}</span>
-                                                        <span className="attachment-size">
-                                                            {(circularAttachment.size / 1024).toFixed(1)} KB
-                                                        </span>
-                                                    </div>
+                                                    
                                                     <button 
-                                                        className="attachment-remove"
-                                                        onClick={removeCircularAttachment}
-                                                        title="Remove attachment"
+                                                        className="create-post-btn"
+                                                        onClick={postEnhancedCircular}
+                                                        disabled={!newCircularPost.trim() || !selectedCircularId}
                                                     >
-                                                        <i className="ri-close-line"></i>
+                                                        <i className="ri-send-plane-fill"></i>
+                                                        Post Announcement
                                                     </button>
                                                 </div>
-                                            )}
-                                            
-                                            {/* Hidden file input */}
-                                            <input 
-                                                type="file"
-                                                ref={circularFileInputRef}
-                                                onChange={handleCircularFileSelect}
-                                                style={{ display: 'none' }}
-                                                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif"
-                                            />
-                                            
-                                            <div className="composer-actions">
-                                                <div className="composer-tools">
-                                                    <button 
-                                                        className={`composer-tool-btn ${circularAttachment ? 'active' : ''}`}
-                                                        title="Attach Document"
-                                                        onClick={() => circularFileInputRef.current?.click()}
-                                                    >
-                                                        <i className="ri-attachment-2"></i>
-                                                    </button>
-                                                    <button 
-                                                        className="composer-tool-btn" 
-                                                        title="Add Image"
-                                                        onClick={() => {
-                                                            circularFileInputRef.current.accept = '.jpg,.jpeg,.png,.gif';
-                                                            circularFileInputRef.current?.click();
-                                                        }}
-                                                    >
-                                                        <i className="ri-image-line"></i>
-                                                    </button>
-                                                </div>
-                                                <button 
-                                                    className="composer-post-btn"
-                                                    onClick={postToCircular}
-                                                    disabled={!newCircularPost.trim() || !selectedCircularId}
-                                                >
-                                                    <i className="ri-send-plane-fill"></i>
-                                                    Post Announcement
-                                                </button>
                                             </div>
-                                                </div>
-                                            </>
                                         )}
                                     </div>
                                 )}
                                 
-                                {/* Feed Items */}
-                                {circularsFeed.length === 0 ? (
-                                    <div className="empty-circulars-feed">
-                                        <div className="empty-feed-icon">
-                                            <i className="ri-notification-3-line"></i>
-                                        </div>
-                                        <h3>No Announcements Yet</h3>
-                                        <p>Circulars and announcements from faculty and administration will appear here.</p>
-                                        {canPostCircular && (
-                                            <span className="empty-feed-hint">
-                                                <i className="ri-lightbulb-line"></i>
-                                                You can create the first announcement above!
-                                            </span>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="circulars-feed-items">
-                                        {circularsFeed.map(item => (
-                                            <div key={item.id} className="circular-feed-card">
-                                                <div className="feed-card-header">
-                                                    <div className="feed-avatar">
-                                                        {item.sender?.avatar || 'A'}
-                                                    </div>
-                                                    <div className="feed-meta">
-                                                        <div className="feed-sender">
-                                                            {item.sender?.name}
-                                                            {item.sender?.role && (
-                                                                <span className={`sender-role-badge ${item.sender.role}`}>
-                                                                    {item.sender.role}
-                                                                </span>
+                                {/* FEED VIEW - For Everyone (Feed, Saved, My Posts) */}
+                                {(circularView === 'feed' || circularView === 'saved' || circularView === 'myposts' || !canPostCircular) && (
+                                    <>
+                                        {/* My Posts Empty State */}
+                                        {circularView === 'myposts' && circularsFeed.filter(item => item.isOwner).length === 0 ? (
+                                            <div className="empty-circulars-feed">
+                                                <div className="empty-feed-icon">
+                                                    <i className="ri-file-user-line"></i>
+                                                </div>
+                                                <h3>No Posts Yet</h3>
+                                                <p>Posts you create will appear here.</p>
+                                                {canPostCircular && (
+                                                    <button 
+                                                        className="empty-create-btn"
+                                                        onClick={() => setCircularView('create')}
+                                                    >
+                                                        <i className="ri-add-line"></i>
+                                                        Create Post
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : circularView === 'saved' && circularsFeed.filter(item => savedPosts.has(item.id)).length === 0 ? (
+                                            <div className="empty-circulars-feed">
+                                                <div className="empty-feed-icon">
+                                                    <i className="ri-bookmark-line"></i>
+                                                </div>
+                                                <h3>No Saved Posts</h3>
+                                                <p>Posts you save will appear here for easy access later.</p>
+                                                <button 
+                                                    className="empty-create-btn"
+                                                    onClick={() => setCircularView('feed')}
+                                                >
+                                                    <i className="ri-arrow-left-line"></i>
+                                                    Browse Feed
+                                                </button>
+                                            </div>
+                                        ) : circularsFeed.length === 0 ? (
+                                            <div className="empty-circulars-feed">
+                                                <div className="empty-feed-icon">
+                                                    <i className="ri-notification-3-line"></i>
+                                                </div>
+                                                <h3>No Announcements Yet</h3>
+                                                <p>Circulars and announcements from faculty and administration will appear here.</p>
+                                                {canPostCircular && (
+                                                    <button 
+                                                        className="empty-create-btn"
+                                                        onClick={() => setCircularView('create')}
+                                                    >
+                                                        <i className="ri-add-line"></i>
+                                                        Create First Announcement
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="circulars-feed-scroll">
+                                                {(circularView === 'saved' 
+                                                    ? circularsFeed.filter(item => savedPosts.has(item.id))
+                                                    : circularView === 'myposts'
+                                                    ? circularsFeed.filter(item => item.isOwner)
+                                                    : circularsFeed
+                                                ).map(item => (
+                                                    <div key={item.id} className="feed-post-card">
+                                                        {/* Post Header */}
+                                                        <div className="feed-post-header">
+                                                            <div className="post-avatar">
+                                                                {item.sender?.firstName?.[0]?.toUpperCase() || item.sender?.name?.[0]?.toUpperCase() || 'A'}
+                                                            </div>
+                                                            <div className="post-meta">
+                                                                <div className="post-author">
+                                                                    <span className="author-name">{item.sender?.name || item.sender?.firstName}</span>
+                                                                    {item.sender?.role && (
+                                                                        <span className={`author-role-badge ${item.sender.role?.toLowerCase()}`}>
+                                                                            {item.sender.role}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="post-info">
+                                                                    <span className="post-channel">
+                                                                        <i className="ri-megaphone-line"></i>
+                                                                        {item.circularName || 'General'}
+                                                                    </span>
+                                                                    <span className="post-separator">•</span>
+                                                                    <span className="post-time">
+                                                                        {formatRelativeTime(item.createdAt)}
+                                                                        {item.editedAt && <span className="edited-badge"> (edited)</span>}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            {/* Options button - only show for owner or admin */}
+                                                            {(item.isOwner || currentUser?.role === 'admin') && (
+                                                                <div className="post-options-wrapper">
+                                                                    <button 
+                                                                        className="post-options-btn"
+                                                                        onClick={(e) => togglePostOptions(e, item.id)}
+                                                                    >
+                                                                        <i className="ri-more-2-fill"></i>
+                                                                    </button>
+                                                                </div>
                                                             )}
                                                         </div>
-                                                        <div className="feed-info">
-                                                            <span className="feed-circular-tag">
-                                                                <i className="ri-megaphone-line"></i>
-                                                                {item.circularName}
+                                                        
+                                                        {/* Post Content - Editable or Display */}
+                                                        <div className="feed-post-content">
+                                                            {editingPost === item.id ? (
+                                                                <div className="edit-post-form">
+                                                                    <textarea 
+                                                                        value={editPostContent}
+                                                                        onChange={(e) => setEditPostContent(e.target.value)}
+                                                                        className="edit-post-textarea"
+                                                                        rows={5}
+                                                                    />
+                                                                    <div className="edit-post-actions">
+                                                                        <button className="cancel-edit-btn" onClick={cancelEditPost}>
+                                                                            Cancel
+                                                                        </button>
+                                                                        <button className="save-edit-btn" onClick={() => saveEditPost(item.id)}>
+                                                                            <i className="ri-check-line"></i>
+                                                                            Save Changes
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <p className="post-text">{item.content}</p>
+                                                            )}
+                                                            
+                                                            {/* Images Grid */}
+                                                            {item.images && item.images.length > 0 && (
+                                                                <div className={`post-images-grid images-${Math.min(item.images.length, 4)}`}>
+                                                                    {item.images.slice(0, 4).map((img, idx) => (
+                                                                        <div key={idx} className="post-image-item">
+                                                                            <img src={img.url || img} alt="" />
+                                                                            {idx === 3 && item.images.length > 4 && (
+                                                                                <div className="more-images-overlay">
+                                                                                    +{item.images.length - 4}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {/* Blockchain Document */}
+                                                            {item.blockchainDocument && (
+                                                                <div 
+                                                                    className="post-blockchain-doc"
+                                                                    onClick={() => window.open(`https://gateway.pinata.cloud/ipfs/${item.blockchainDocument.ipfsHash}`, '_blank')}
+                                                                >
+                                                                    <div className="blockchain-doc-badge">
+                                                                        <i className="ri-shield-check-fill"></i>
+                                                                    </div>
+                                                                    <div className="blockchain-doc-details">
+                                                                        <span className="doc-title">{item.blockchainDocument.name}</span>
+                                                                        <span className="doc-subtitle">
+                                                                            <i className="ri-checkbox-circle-fill"></i>
+                                                                            Blockchain Verified Document
+                                                                        </span>
+                                                                    </div>
+                                                                    <i className="ri-external-link-line"></i>
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {/* Legacy Document Support */}
+                                                            {item.hasDocument && item.document && !item.blockchainDocument && (
+                                                                <div 
+                                                                    className="post-document-attachment"
+                                                                    onClick={() => item.document.ipfsHash && window.open(`https://gateway.pinata.cloud/ipfs/${item.document.ipfsHash}`, '_blank')}
+                                                                >
+                                                                    <div className="doc-icon">
+                                                                        <i className="ri-file-text-line"></i>
+                                                                    </div>
+                                                                    <div className="doc-info">
+                                                                        <span className="doc-name">{item.document.name}</span>
+                                                                        <span className="doc-action">Click to view</span>
+                                                                    </div>
+                                                                    <i className="ri-external-link-line"></i>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        {/* Post Stats */}
+                                                        <div className="feed-post-stats">
+                                                            <span className="stat-item">
+                                                                <i className="ri-heart-fill"></i>
+                                                                {item.likesCount || 0} likes
                                                             </span>
-                                                            <span className="feed-dot">•</span>
-                                                            <span className="feed-time">
-                                                                <i className="ri-time-line"></i>
-                                                                {formatTimestamp(item.createdAt)}
+                                                            <span className="stat-item" onClick={() => toggleComments(item.id)}>
+                                                                {item.commentsCount || 0} comments
                                                             </span>
                                                         </div>
+                                                        
+                                                        {/* Post Actions */}
+                                                        <div className="feed-post-actions">
+                                                            <button 
+                                                                className={`post-action-btn ${likedPosts.has(item.id) ? 'liked' : ''}`}
+                                                                onClick={() => toggleLike(item.id)}
+                                                            >
+                                                                <i className={likedPosts.has(item.id) ? 'ri-heart-fill' : 'ri-heart-line'}></i>
+                                                                <span>Like</span>
+                                                            </button>
+                                                            <button 
+                                                                className="post-action-btn"
+                                                                onClick={() => toggleComments(item.id)}
+                                                            >
+                                                                <i className="ri-chat-1-line"></i>
+                                                                <span>Comment</span>
+                                                            </button>
+                                                            <button 
+                                                                className="post-action-btn"
+                                                                onClick={() => sharePost(item.id)}
+                                                            >
+                                                                <i className="ri-share-forward-line"></i>
+                                                                <span>Share</span>
+                                                            </button>
+                                                            <button 
+                                                                className={`post-action-btn ${savedPosts.has(item.id) ? 'saved' : ''}`}
+                                                                onClick={() => toggleSave(item.id)}
+                                                            >
+                                                                <i className={savedPosts.has(item.id) ? 'ri-bookmark-fill' : 'ri-bookmark-line'}></i>
+                                                                <span>{savedPosts.has(item.id) ? 'Saved' : 'Save'}</span>
+                                                            </button>
+                                                        </div>
+                                                        
+                                                        {/* Comments Section */}
+                                                        {showCommentsFor === item.id && (
+                                                            <div className="feed-post-comments">
+                                                                <div className="comments-list">
+                                                                    {loadingComments ? (
+                                                                        <div className="comments-loading">
+                                                                            <i className="ri-loader-4-line spin"></i>
+                                                                            Loading comments...
+                                                                        </div>
+                                                                    ) : circularComments[item.id]?.length > 0 ? (
+                                                                        circularComments[item.id].map(comment => (
+                                                                            <div key={comment.id} className="comment-item">
+                                                                                <div className="comment-avatar">
+                                                                                    {comment.sender?.firstName?.[0]?.toUpperCase() || 'U'}
+                                                                                </div>
+                                                                                <div className="comment-content">
+                                                                                    <div className="comment-bubble">
+                                                                                        <span className="comment-author">{comment.sender?.name}</span>
+                                                                                        <p className="comment-text">{comment.content}</p>
+                                                                                    </div>
+                                                                                    <div className="comment-meta">
+                                                                                        <span className="comment-time">{formatRelativeTime(comment.createdAt)}</span>
+                                                                                        <button className="comment-like-btn">Like</button>
+                                                                                        <button className="comment-reply-btn">Reply</button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="no-comments">
+                                                                            <p>No comments yet. Be the first to comment!</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                
+                                                                {/* Comment Input */}
+                                                                <div className="comment-input-section">
+                                                                    <div className="comment-input-avatar">
+                                                                        {currentUser?.firstName?.[0]?.toUpperCase() || 'U'}
+                                                                    </div>
+                                                                    <div className="comment-input-wrapper">
+                                                                        <input 
+                                                                            type="text"
+                                                                            placeholder="Write a comment..."
+                                                                            value={newComment}
+                                                                            onChange={(e) => setNewComment(e.target.value)}
+                                                                            onKeyPress={(e) => e.key === 'Enter' && postComment(item.id)}
+                                                                        />
+                                                                        <button 
+                                                                            className="send-comment-btn"
+                                                                            onClick={() => postComment(item.id)}
+                                                                            disabled={!newComment.trim()}
+                                                                        >
+                                                                            <i className="ri-send-plane-fill"></i>
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </div>
-                                                <div className="feed-card-body">
-                                                    <div className="feed-content">{item.content}</div>
-                                                    {item.hasDocument && item.document && (
-                                                        <div className="feed-document-attachment">
-                                                            <div className="feed-doc-icon">
-                                                                <i className="ri-file-text-line"></i>
-                                                            </div>
-                                                            <div className="feed-doc-info">
-                                                                <span className="feed-doc-name">{item.document.name}</span>
-                                                                <span className="feed-doc-action">Click to view document</span>
-                                                            </div>
-                                                            <i className="ri-external-link-line"></i>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="feed-card-actions">
-                                                    <button className="feed-action-btn">
-                                                        <i className="ri-eye-line"></i>
-                                                        <span>View</span>
-                                                    </button>
-                                                    <button className="feed-action-btn">
-                                                        <i className="ri-share-forward-line"></i>
-                                                        <span>Share</span>
-                                                    </button>
-                                                    <button className="feed-action-btn">
-                                                        <i className="ri-bookmark-line"></i>
-                                                        <span>Save</span>
-                                                    </button>
-                                                </div>
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
+                            
+                            {/* Document Picker Modal */}
+                            {showDocumentPicker && (
+                                <div className="modal-overlay" onClick={() => setShowDocumentPicker(false)}>
+                                    <div className="document-picker-modal" onClick={e => e.stopPropagation()}>
+                                        <div className="picker-header">
+                                            <h3>
+                                                <i className="ri-links-line"></i>
+                                                Select Blockchain Document
+                                            </h3>
+                                            <button onClick={() => setShowDocumentPicker(false)}>
+                                                <i className="ri-close-line"></i>
+                                            </button>
+                                        </div>
+                                        <div className="picker-body">
+                                            {availableBlockchainDocs.length === 0 ? (
+                                                <div className="no-docs-available">
+                                                    <i className="ri-file-forbid-line"></i>
+                                                    <p>No blockchain documents available</p>
+                                                    <span>Upload documents first in File Manager</span>
+                                                </div>
+                                            ) : (
+                                                <div className="docs-list">
+                                                    {availableBlockchainDocs.map(doc => (
+                                                        <div 
+                                                            key={doc.id} 
+                                                            className="doc-picker-item"
+                                                            onClick={() => selectBlockchainDocument(doc)}
+                                                        >
+                                                            <div className="doc-picker-icon">
+                                                                <i className="ri-file-shield-2-line"></i>
+                                                            </div>
+                                                            <div className="doc-picker-info">
+                                                                <span className="doc-picker-name">{doc.fileName || doc.file_name || doc.name}</span>
+                                                                <span className="doc-picker-meta">
+                                                                    <i className="ri-shield-check-fill"></i>
+                                                                    Verified on Blockchain
+                                                                </span>
+                                                            </div>
+                                                            <i className="ri-add-line"></i>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ) : !selectedChat ? (
                         /* Empty State */
@@ -3635,27 +4867,52 @@ const ChatInterface = () => {
                                                     <div className="spinner"></div>
                                                 )}
                                             </div>
-                                            <div className="progress-steps">
-                                                <div className={`progress-step ${sharingProgress.step >= 1 ? 'active' : ''} ${sharingProgress.step > 1 ? 'complete' : ''}`}>
-                                                    <div className="step-dot"></div>
-                                                    <span>Preparing</span>
+                                            {/* Group share progress bar */}
+                                            {groupShareMode && groupShareProgress.total > 0 && (
+                                                <div className="group-share-progress">
+                                                    <div className="progress-bar-container">
+                                                        <div 
+                                                            className="progress-bar-fill"
+                                                            style={{ 
+                                                                width: `${(groupShareProgress.current / groupShareProgress.total) * 100}%` 
+                                                            }}
+                                                        ></div>
+                                                    </div>
+                                                    <div className="progress-text">
+                                                        {groupShareProgress.current} of {groupShareProgress.total} members
+                                                    </div>
+                                                    {groupShareProgress.completed.length > 0 && (
+                                                        <div className="completed-members">
+                                                            <i className="ri-checkbox-circle-fill"></i>
+                                                            {groupShareProgress.completed.slice(-3).join(', ')}
+                                                            {groupShareProgress.completed.length > 3 && ` +${groupShareProgress.completed.length - 3} more`}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className="progress-line"></div>
-                                                <div className={`progress-step ${sharingProgress.step >= 2 ? 'active' : ''} ${sharingProgress.step > 2 ? 'complete' : ''}`}>
-                                                    <div className="step-dot"></div>
-                                                    <span>Sending</span>
+                                            )}
+                                            {!groupShareMode && (
+                                                <div className="progress-steps">
+                                                    <div className={`progress-step ${sharingProgress.step >= 1 ? 'active' : ''} ${sharingProgress.step > 1 ? 'complete' : ''}`}>
+                                                        <div className="step-dot"></div>
+                                                        <span>Preparing</span>
+                                                    </div>
+                                                    <div className="progress-line"></div>
+                                                    <div className={`progress-step ${sharingProgress.step >= 2 ? 'active' : ''} ${sharingProgress.step > 2 ? 'complete' : ''}`}>
+                                                        <div className="step-dot"></div>
+                                                        <span>Sending</span>
+                                                    </div>
+                                                    <div className="progress-line"></div>
+                                                    <div className={`progress-step ${sharingProgress.step >= 3 ? 'active' : ''} ${sharingProgress.step > 3 ? 'complete' : ''}`}>
+                                                        <div className="step-dot"></div>
+                                                        <span>Confirming</span>
+                                                    </div>
+                                                    <div className="progress-line"></div>
+                                                    <div className={`progress-step ${sharingProgress.step >= 4 ? 'active complete' : ''}`}>
+                                                        <div className="step-dot"></div>
+                                                        <span>Done</span>
+                                                    </div>
                                                 </div>
-                                                <div className="progress-line"></div>
-                                                <div className={`progress-step ${sharingProgress.step >= 3 ? 'active' : ''} ${sharingProgress.step > 3 ? 'complete' : ''}`}>
-                                                    <div className="step-dot"></div>
-                                                    <span>Confirming</span>
-                                                </div>
-                                                <div className="progress-line"></div>
-                                                <div className={`progress-step ${sharingProgress.step >= 4 ? 'active complete' : ''}`}>
-                                                    <div className="step-dot"></div>
-                                                    <span>Done</span>
-                                                </div>
-                                            </div>
+                                            )}
                                         </div>
                                         <p className="sharing-message">{sharingProgress.message}</p>
                                         <div className="document-being-shared">
@@ -3723,51 +4980,69 @@ const ChatInterface = () => {
                                     <label>Sending to:</label>
                                     <div className="recipient-badge">
                                         <div className="recipient-avatar">
-                                            {selectedConversation?.avatar || selectedConversation?.name?.charAt(0) || '?'}
+                                            {selectedConversation?.type !== 'direct' ? (
+                                                <i className="ri-group-line"></i>
+                                            ) : (
+                                                selectedConversation?.avatar || selectedConversation?.name?.charAt(0) || '?'
+                                            )}
                                         </div>
                                         <div className="recipient-details">
                                             <strong>{selectedConversation?.name || 'Recipient'}</strong>
-                                            <small>{selectedConversation?.role || selectedConversation?.type}</small>
+                                            <small>
+                                                {selectedConversation?.type !== 'direct' 
+                                                    ? `${selectedConversation?.memberCount || selectedConversation?.members || 'Group'} members`
+                                                    : selectedConversation?.role || selectedConversation?.type
+                                                }
+                                            </small>
                                         </div>
                                     </div>
+                                    {/* Group share info badge */}
+                                    {selectedConversation?.type !== 'direct' && currentDocumentAction === 'share' && (
+                                        <div className="group-share-info">
+                                            <i className="ri-information-line"></i>
+                                            <span>Document will be shared with all group members (View Only)</span>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* Action Type Selection */}
-                                <div className="share-action-types">
-                                    <div 
-                                        className={`action-type-option ${currentDocumentAction === 'share' ? 'selected' : ''}`}
-                                        onClick={() => setCurrentDocumentAction('share')}
-                                    >
-                                        <i className="ri-share-line"></i>
-                                        <div>
-                                            <h4>Share Only</h4>
-                                            <p>For viewing</p>
+                                {/* Action Type Selection - Only show for direct chats, groups only have Share */}
+                                {selectedConversation?.type === 'direct' && (
+                                    <div className="share-action-types">
+                                        <div 
+                                            className={`action-type-option ${currentDocumentAction === 'share' ? 'selected' : ''}`}
+                                            onClick={() => setCurrentDocumentAction('share')}
+                                        >
+                                            <i className="ri-share-line"></i>
+                                            <div>
+                                                <h4>Share Only</h4>
+                                                <p>For viewing</p>
+                                            </div>
+                                        </div>
+                                        <div 
+                                            className={`action-type-option ${currentDocumentAction === 'approval' ? 'selected' : ''}`}
+                                            onClick={() => setCurrentDocumentAction('approval')}
+                                        >
+                                            <i className="ri-checkbox-circle-line"></i>
+                                            <div>
+                                                <h4>Approval</h4>
+                                                <p>Request sign-off</p>
+                                            </div>
+                                        </div>
+                                        <div 
+                                            className={`action-type-option ${currentDocumentAction === 'digital_signature' ? 'selected' : ''}`}
+                                            onClick={() => setCurrentDocumentAction('digital_signature')}
+                                        >
+                                            <i className="ri-quill-pen-line"></i>
+                                            <div>
+                                                <h4>Signature</h4>
+                                                <p>Legal binding</p>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div 
-                                        className={`action-type-option ${currentDocumentAction === 'approval' ? 'selected' : ''}`}
-                                        onClick={() => setCurrentDocumentAction('approval')}
-                                    >
-                                        <i className="ri-checkbox-circle-line"></i>
-                                        <div>
-                                            <h4>Approval</h4>
-                                            <p>Request sign-off</p>
-                                        </div>
-                                    </div>
-                                    <div 
-                                        className={`action-type-option ${currentDocumentAction === 'digital_signature' ? 'selected' : ''}`}
-                                        onClick={() => setCurrentDocumentAction('digital_signature')}
-                                    >
-                                        <i className="ri-quill-pen-line"></i>
-                                        <div>
-                                            <h4>Signature</h4>
-                                            <p>Legal binding</p>
-                                        </div>
-                                    </div>
-                                </div>
+                                )}
 
-                                {/* Permission Selection - Only show for Share action */}
-                                {currentDocumentAction === 'share' && (
+                                {/* Permission Selection - Only show for Share action in DIRECT chats */}
+                                {currentDocumentAction === 'share' && selectedConversation?.type === 'direct' && (
                                     <div className="share-permission-section">
                                         <label>Permission:</label>
                                         <div className="permission-options">
@@ -3816,10 +5091,22 @@ const ChatInterface = () => {
                                 <div className="modal-actions">
                                     <button className="btn-secondary" onClick={closeDocumentModal}>Cancel</button>
                                     {currentDocumentAction === 'share' ? (
-                                        <button className="btn-primary share-btn" onClick={sendDocumentRequest}>
-                                            <i className="ri-send-plane-line"></i>
-                                            Share Now
-                                        </button>
+                                        selectedConversation?.type !== 'direct' ? (
+                                            /* Group share - simple share button */
+                                            <button 
+                                                className="btn-primary share-btn group-share-btn" 
+                                                onClick={shareWithAllGroupMembers}
+                                            >
+                                                <i className="ri-send-plane-line"></i>
+                                                Share to Group
+                                            </button>
+                                        ) : (
+                                            /* Direct chat - single share */
+                                            <button className="btn-primary share-btn" onClick={sendDocumentRequest}>
+                                                <i className="ri-send-plane-line"></i>
+                                                Share Now
+                                            </button>
+                                        )
                                     ) : (
                                         <button className="btn-primary share-btn" onClick={openMultiRecipientModal}>
                                             <i className={currentDocumentAction === 'digital_signature' ? 'ri-quill-pen-line' : 'ri-checkbox-circle-line'}></i>
@@ -4247,25 +5534,56 @@ const ChatInterface = () => {
                                 )}
                                 
                                 <div className="member-search-results">
-                                    {searchResults
-                                        .filter(user => !newGroupMembers.find(m => m.id === user.id))
-                                        .map(user => (
+                                    {/* Use allUsers and filter by search, fallback to searchResults */}
+                                    {(() => {
+                                        const usersToShow = allUsers.length > 0 ? allUsers : searchResults;
+                                        const filteredUsers = usersToShow
+                                            .filter(user => {
+                                                // Filter out current user
+                                                if (String(user.id) === String(currentUser?.id)) return false;
+                                                // Filter out already selected members
+                                                if (newGroupMembers.find(m => String(m.id) === String(user.id))) return false;
+                                                // Filter by search query if provided
+                                                if (userSearchQuery.length >= 1) {
+                                                    const searchLower = userSearchQuery.toLowerCase();
+                                                    const userName = (user.name || user.fullName || `${user.firstName || ''} ${user.lastName || ''}`).toLowerCase();
+                                                    const userEmail = (user.email || '').toLowerCase();
+                                                    return userName.includes(searchLower) || userEmail.includes(searchLower);
+                                                }
+                                                return true;
+                                            });
+                                        
+                                        if (filteredUsers.length === 0) {
+                                            return (
+                                                <div className="no-users-message" style={{padding: '20px', textAlign: 'center', color: '#6b7280'}}>
+                                                    <i className="ri-user-search-line" style={{fontSize: '24px', marginBottom: '8px', display: 'block'}}></i>
+                                                    <p>{userSearchQuery ? 'No users found matching your search' : 'No users available'}</p>
+                                                </div>
+                                            );
+                                        }
+                                        
+                                        return filteredUsers.map(user => (
                                             <div 
                                                 key={user.id} 
                                                 className="member-search-item"
-                                                onClick={() => setNewGroupMembers(prev => [...prev, user])}
+                                                onClick={() => setNewGroupMembers(prev => [...prev, {
+                                                    id: user.id,
+                                                    name: user.name || user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+                                                    avatar: user.avatar || (user.name || user.fullName || user.email || '?').charAt(0).toUpperCase(),
+                                                    role: user.role || 'User'
+                                                }])}
                                             >
                                                 <div className="user-avatar-search">
-                                                    {user.avatar}
+                                                    {user.avatar || (user.name || user.fullName || user.email || '?').charAt(0).toUpperCase()}
                                                 </div>
                                                 <div className="user-info-search">
-                                                    <h4>{user.name}</h4>
-                                                    <p>{user.role}</p>
+                                                    <h4>{user.name || user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email}</h4>
+                                                    <p>{user.role || user.email}</p>
                                                 </div>
                                                 <i className="ri-add-line"></i>
                                             </div>
-                                        ))
-                                    }
+                                        ));
+                                    })()}
                                 </div>
                             </div>
                         </div>
@@ -4979,6 +6297,64 @@ const ChatInterface = () => {
                         </div>
                     </div>
                 </div>
+            )}
+            
+            {/* Post Options Menu Portal - rendered outside all containers */}
+            {postOptionsMenu.show && ReactDOM.createPortal(
+                <div 
+                    className="post-options-menu"
+                    style={{
+                        left: postOptionsMenu.x - 150,
+                        top: postOptionsMenu.y
+                    }}
+                >
+                    <button onClick={() => {
+                        const post = circularsFeed.find(p => p.id === postOptionsMenu.postId);
+                        if (post) startEditPost(post);
+                    }}>
+                        <i className="ri-edit-line"></i>
+                        Edit Post
+                    </button>
+                    <button className="danger" onClick={() => deletePost(postOptionsMenu.postId)}>
+                        <i className="ri-delete-bin-line"></i>
+                        Delete Post
+                    </button>
+                </div>,
+                document.body
+            )}
+            
+            {/* Circular Options Menu Portal - rendered outside all containers */}
+            {circularOptionsMenu.show && ReactDOM.createPortal(
+                <div 
+                    className="circular-options-menu"
+                    style={{
+                        left: circularOptionsMenu.x,
+                        top: circularOptionsMenu.y
+                    }}
+                >
+                    {(() => {
+                        const circular = circularsList.find(c => c.id === circularOptionsMenu.circularId);
+                        if (!circular) return null;
+                        return circular.isCreator ? (
+                            <>
+                                <button onClick={() => startEditCircular(circular)}>
+                                    <i className="ri-edit-line"></i>
+                                    Rename Circular
+                                </button>
+                                <button className="danger" onClick={() => deleteCircular(circular.id)}>
+                                    <i className="ri-delete-bin-line"></i>
+                                    Delete Circular
+                                </button>
+                            </>
+                        ) : (
+                            <button onClick={() => leaveCircular(circular.id)}>
+                                <i className="ri-logout-box-line"></i>
+                                Leave Circular
+                            </button>
+                        );
+                    })()}
+                </div>,
+                document.body
             )}
         </div>
     );
