@@ -4,6 +4,7 @@ from app.models.user import User
 from app.models.document import Document, DocumentShare, DocumentVersion
 from app.models.folder import Folder
 from app.models.blockchain_transaction import BlockchainTransaction
+from app.models.activity_log import log_activity
 from app.routes.auth import token_required
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
@@ -215,6 +216,27 @@ def upload_document():
         
         print(f"✅ Document saved to database with ID: {document.id}")
         
+        # Log the upload activity
+        log_activity(
+            user_id=current_user_id,
+            action_type='upload',
+            action_category='document',
+            description=f'Uploaded document: {document.file_name}',
+            target_id=str(document.id),
+            target_type='document',
+            target_name=document.file_name,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success',
+            metadata={
+                'file_size': document.file_size,
+                'file_type': document.document_type,
+                'folder_id': str(document.folder_id) if document.folder_id else None,
+                'ipfs_hash': document.ipfs_hash,
+                'transaction_hash': document.transaction_hash
+            }
+        )
+        
         # Return the saved document data
         document_data = {
             'id': str(document.id),
@@ -265,6 +287,7 @@ def delete_document(document_id):
             }), 404
         
         folder_id = document.folder_id  # Store folder_id before soft deleting
+        document_name = document.file_name  # Store name for logging
         
         # Soft delete - mark as inactive and move to trash
         document.is_active = False
@@ -272,6 +295,20 @@ def delete_document(document_id):
         document.trash_date = datetime.utcnow()
         
         db.session.commit()
+        
+        # Log the delete activity
+        log_activity(
+            user_id=current_user_id,
+            action_type='delete',
+            action_category='document',
+            description=f'Moved document to trash: {document_name}',
+            target_id=str(document_id),
+            target_type='document',
+            target_name=document_name,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success'
+        )
         
         # Update parent folder's updated_at timestamp
         if folder_id:
@@ -757,3 +794,48 @@ def get_document_versions(document_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@bp.route('/<document_id>/log-access', methods=['POST'])
+@token_required
+def log_document_access(document_id):
+    """
+    Log when user views or downloads a document.
+    Called from frontend when opening/downloading a file.
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        action_type = data.get('action', 'view')  # 'view' or 'download'
+        
+        # Find the document
+        document = Document.query.filter_by(id=document_id, is_active=True).first()
+        
+        if not document:
+            return jsonify({'success': False, 'message': 'Document not found'}), 404
+        
+        # Log the activity
+        log_activity(
+            user_id=current_user_id,
+            action_type=action_type,
+            action_category='document',
+            description=f'{"Viewed" if action_type == "view" else "Downloaded"} document: {document.file_name}',
+            target_id=str(document.id),
+            target_type='document',
+            target_name=document.file_name,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success',
+            metadata={
+                'ipfs_hash': document.ipfs_hash,
+                'file_type': document.document_type,
+                'file_size': document.file_size
+            }
+        )
+        
+        return jsonify({'success': True, 'message': f'{action_type.capitalize()} logged'}), 200
+        
+    except Exception as e:
+        print(f"❌ Error logging document access: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500

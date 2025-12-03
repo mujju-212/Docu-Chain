@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models.user import User
 from app.models.folder import Folder
+from app.models.activity_log import log_activity
 from app.routes.auth import token_required
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
@@ -93,6 +94,24 @@ def create_folder_flexible():
         
         db.session.add(new_folder)
         db.session.commit()
+        
+        # Log the folder creation activity
+        log_activity(
+            user_id=current_user_id,
+            action_type='folder_create',
+            action_category='folder',
+            description=f'Created folder: {folder_name}',
+            target_id=str(new_folder.id),
+            target_type='folder',
+            target_name=folder_name,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success',
+            metadata={
+                'path': folder_path,
+                'parent_id': str(parent_id) if parent_id else None
+            }
+        )
         
         # Update parent folder's updated_at timestamp
         if parent_id:

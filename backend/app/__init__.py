@@ -63,10 +63,10 @@ def create_app(config_name=None):
             return response
     
     # Import models to ensure they are registered with SQLAlchemy
-    from app.models import user, document, institution, folder, recent_activity, approval, document_template, chat, blockchain_transaction
+    from app.models import user, document, institution, folder, recent_activity, approval, document_template, chat, blockchain_transaction, activity_log
     
     # Register blueprints
-    from app.routes import auth, documents, users, approvals, chat, circulars, institutions, folders, shares, recent, document_generation, blockchain
+    from app.routes import auth, documents, users, approvals, chat, circulars, institutions, folders, shares, recent, document_generation, blockchain, activity_log as activity_log_routes
     
     app.register_blueprint(auth.bp, url_prefix='/api/auth')
     app.register_blueprint(documents.bp, url_prefix='/api/documents')
@@ -80,6 +80,7 @@ def create_app(config_name=None):
     app.register_blueprint(recent.bp)  # /api/recent prefix already in blueprint
     app.register_blueprint(document_generation.bp, url_prefix='/api/document-generation')
     app.register_blueprint(blockchain.bp)  # /api/blockchain prefix already in blueprint
+    app.register_blueprint(activity_log_routes.bp)  # /api/activity-logs prefix already in blueprint
     
     # Create upload folder if it doesn't exist
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)

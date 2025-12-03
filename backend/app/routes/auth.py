@@ -4,6 +4,7 @@ from app import db
 from app.models.user import User
 from app.models.institution import Institution
 from app.models.folder import Folder
+from app.models.activity_log import log_activity
 from app.services.email_service import EmailService
 from datetime import datetime, timedelta
 from functools import wraps
@@ -379,14 +380,45 @@ def login():
         user = User.query.filter_by(email=data['email']).first()
         
         if not user or not user.check_password(data['password']):
+            # Log failed login attempt
+            if user:
+                log_activity(
+                    user_id=user.id,
+                    action_type='failed_login',
+                    action_category='auth',
+                    description='Failed login attempt - invalid password',
+                    ip_address=request.remote_addr,
+                    user_agent=request.headers.get('User-Agent'),
+                    status='failed',
+                    metadata={'email': data['email']}
+                )
             return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
         
         # Validate institution access
         if str(user.institution_id) != str(data['institutionId']):
+            log_activity(
+                user_id=user.id,
+                action_type='failed_login',
+                action_category='auth',
+                description='Failed login attempt - institution access denied',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent'),
+                status='failed',
+                metadata={'attempted_institution_id': data['institutionId']}
+            )
             return jsonify({'success': False, 'message': 'Institution access denied'}), 403
         
         # Check if user is active
         if user.status != 'active':
+            log_activity(
+                user_id=user.id,
+                action_type='failed_login',
+                action_category='auth',
+                description=f'Failed login attempt - account {user.status}',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent'),
+                status='failed'
+            )
             if user.status == 'pending':
                 return jsonify({'success': False, 'message': 'Account pending admin approval'}), 403
             else:
@@ -405,6 +437,17 @@ def login():
         
         # Create access token
         access_token = create_access_token(identity=user.id)
+        
+        # Log successful login
+        log_activity(
+            user_id=user.id,
+            action_type='login',
+            action_category='auth',
+            description='Logged in successfully',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success'
+        )
         
         return jsonify({
             'success': True,
@@ -550,6 +593,17 @@ def get_current_user():
 @jwt_required()
 def logout():
     """Logout user"""
+    # Log the logout activity
+    current_user_id = get_jwt_identity()
+    log_activity(
+        user_id=current_user_id,
+        action_type='logout',
+        action_category='auth',
+        description='Logged out successfully',
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent'),
+        status='success'
+    )
     # JWT tokens are stateless, so logout is handled client-side
     return jsonify({'success': True, 'message': 'Logged out successfully'}), 200
 
@@ -814,6 +868,17 @@ def reset_password():
         # Update password
         user.set_password(new_password)
         db.session.commit()
+        
+        # Log the password change activity
+        log_activity(
+            user_id=user.id,
+            action_type='password_change',
+            action_category='auth',
+            description='Password reset successfully',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success'
+        )
         
         # Clean up reset session
         del otp_storage[reset_key]

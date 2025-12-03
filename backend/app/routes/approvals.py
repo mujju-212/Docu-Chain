@@ -3,6 +3,7 @@ from app import db
 from app.models import User, ApprovalRequest, ApprovalStep, ApprovedDocument, ApprovalHistory
 from app.models.approval import generate_verification_code
 from app.models.blockchain_transaction import BlockchainTransaction
+from app.models.activity_log import log_activity
 from app.services.pdf_stamping import pdf_stamping_service
 from app.services.approval_folder_service import approval_folder_service
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -138,6 +139,27 @@ def create_approval_request():
         db.session.add(history)
         
         db.session.commit()
+        
+        # Log the approval request activity
+        log_activity(
+            user_id=current_user_id,
+            action_type='request_approval',
+            action_category='approval',
+            description=f'Requested approval for document: {approval_request.document_name}',
+            target_id=str(approval_request.id),
+            target_type='approval_request',
+            target_name=approval_request.document_name,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success',
+            metadata={
+                'request_id': approval_request.request_id,
+                'approval_type': approval_request.approval_type,
+                'process_type': approval_request.process_type,
+                'priority': approval_request.priority,
+                'approvers_count': len(data['approvers'])
+            }
+        )
         
         # Send chat messages to all approvers
         try:
@@ -376,6 +398,26 @@ def approve_document(request_id):
         
         db.session.commit()
         
+        # Log the approval activity
+        log_activity(
+            user_id=current_user_id,
+            action_type='approve',
+            action_category='approval',
+            description=f'Approved document: {approval_request.document_name}',
+            target_id=str(approval_request.id),
+            target_type='approval_request',
+            target_name=approval_request.document_name,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success',
+            metadata={
+                'request_id': approval_request.request_id,
+                'is_digital_signature': is_digital_signature,
+                'final_status': approval_request.status,
+                'blockchain_tx_hash': data.get('blockchainTxHash')
+            }
+        )
+        
         # Send chat message to requester about approval status
         try:
             from app.routes.chat import create_approval_status_message
@@ -496,6 +538,25 @@ def reject_document(request_id):
             logger.warning(f"Could not sync GeneratedDocument status: {sync_error}")
         
         db.session.commit()
+        
+        # Log the rejection activity
+        log_activity(
+            user_id=current_user_id,
+            action_type='reject',
+            action_category='approval',
+            description=f'Rejected document: {approval_request.document_name}',
+            target_id=str(approval_request.id),
+            target_type='approval_request',
+            target_name=approval_request.document_name,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success',
+            metadata={
+                'request_id': approval_request.request_id,
+                'reason': data['reason'],
+                'blockchain_tx_hash': data.get('blockchainTxHash')
+            }
+        )
         
         # Send chat message to requester about rejection
         try:

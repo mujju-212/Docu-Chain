@@ -4,6 +4,7 @@ from app import db
 from app.models.user import User
 from app.models.institution import Department, Section
 from app.models.chat import Conversation, ConversationMember
+from app.models.activity_log import log_activity
 from app.routes.auth import token_required
 from werkzeug.exceptions import BadRequest
 from datetime import datetime, timedelta
@@ -120,6 +121,22 @@ def update_profile():
                 user.theme = data['theme']
         
         db.session.commit()
+        
+        # Log the profile update activity
+        updated_fields = [k for k in ['firstName', 'lastName', 'phone', 'walletAddress', 'theme'] if k in data]
+        log_activity(
+            user_id=current_user_id,
+            action_type='profile_update',
+            action_category='profile',
+            description='Updated profile information',
+            target_id=str(current_user_id),
+            target_type='user',
+            target_name=f'{user.first_name} {user.last_name}',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success',
+            metadata={'updated_fields': updated_fields}
+        )
         
         logger.info(f"User {user.email} updated profile")
         

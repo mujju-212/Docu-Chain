@@ -4,6 +4,7 @@ from app.models.document import Document, DocumentShare
 from app.models.user import User
 from app.models.folder import Folder
 from app.models.blockchain_transaction import BlockchainTransaction
+from app.models.activity_log import log_activity
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from sqlalchemy import or_
@@ -153,6 +154,26 @@ def share_document(document_id):
             })
         
         db.session.commit()
+        
+        # Log the share activity
+        recipient_names = [s['username'] for s in shares_created]
+        log_activity(
+            user_id=current_user_id,
+            action_type='share',
+            action_category='share',
+            description=f'Shared document "{document.name}" with {len(shares_created)} user(s)',
+            target_id=str(document.id),
+            target_type='document',
+            target_name=document.name,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success',
+            metadata={
+                'recipients': recipient_names,
+                'transaction_hash': transaction_hash,
+                'block_number': block_number
+            }
+        )
         
         # Record blockchain transaction for monitoring
         if transaction_hash:
