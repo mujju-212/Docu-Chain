@@ -7,6 +7,7 @@ from flask import request
 from app import socketio, db
 from app.models import User
 from app.models.chat import Conversation, ConversationMember, Message, UserOnlineStatus
+from app.models.notification import create_notification
 from datetime import datetime
 import jwt
 from flask import current_app
@@ -174,6 +175,55 @@ def handle_send_message(data):
         conversation.last_message_at = datetime.utcnow()
     
     db.session.commit()
+    
+    # Create notifications for other members
+    try:
+        if conversation.type == 'direct':
+            # For direct messages, notify the other person
+            other_member = ConversationMember.query.filter(
+                ConversationMember.conversation_id == conversation_id,
+                ConversationMember.user_id != user.id
+            ).first()
+            if other_member:
+                create_notification(
+                    user_id=str(other_member.user_id),
+                    notification_type='message',
+                    title='New Message',
+                    message=f'{user.first_name} {user.last_name}: {content[:50]}{"..." if len(content) > 50 else ""}',
+                    sender_id=str(user.id),
+                    sender_name=f'{user.first_name} {user.last_name}',
+                    extra_data={
+                        'conversation_id': str(conversation_id),
+                        'message_id': str(message.id),
+                        'sender_id': str(user.id)
+                    }
+                )
+                print(f"✉️ Created message notification for user {other_member.user_id}")
+        elif conversation.type == 'group':
+            # For groups, notify all members except sender
+            members = ConversationMember.query.filter(
+                ConversationMember.conversation_id == conversation_id,
+                ConversationMember.user_id != user.id,
+                ConversationMember.is_muted == False
+            ).limit(50).all()
+            for m in members:
+                create_notification(
+                    user_id=str(m.user_id),
+                    notification_type='group_message',
+                    title=f'New Message in {conversation.name or "Group"}',
+                    message=f'{user.first_name}: {content[:50]}{"..." if len(content) > 50 else ""}',
+                    sender_id=str(user.id),
+                    sender_name=f'{user.first_name} {user.last_name}',
+                    extra_data={
+                        'conversation_id': str(conversation_id),
+                        'message_id': str(message.id),
+                        'sender_id': str(user.id),
+                        'group_name': conversation.name
+                    }
+                )
+            print(f"✉️ Created {len(members)} group message notifications for {conversation.name}")
+    except Exception as notif_error:
+        print(f"⚠️ Could not create message notification: {notif_error}")
     
     # Broadcast message to all in conversation EXCEPT the sender
     message_data = message.to_dict()

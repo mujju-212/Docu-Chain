@@ -5,6 +5,7 @@ from app.models.user import User
 from app.models.folder import Folder
 from app.models.blockchain_transaction import BlockchainTransaction
 from app.models.activity_log import log_activity
+from app.models.notification import create_notification
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from sqlalchemy import or_
@@ -133,6 +134,24 @@ def share_document(document_id):
                     permission=permission,
                     transaction_hash=transaction_hash,
                     block_number=block_number
+                )
+                
+                # Create notification for recipient
+                sender = User.query.get(current_user_id)
+                sender_name = f"{sender.first_name} {sender.last_name}" if sender else "Someone"
+                create_notification(
+                    user_id=user_id,
+                    notification_type='document_shared',
+                    title='Document Shared with You',
+                    message=f'{sender_name} shared "{document.name}" with you',
+                    sender_id=current_user_id,
+                    sender_name=sender_name,
+                    extra_data={
+                        'document_id': str(document.id),
+                        'document_name': document.name,
+                        'shared_by': current_user_id,
+                        'permission': permission
+                    }
                 )
                 
                 # Move document to "Received" folder for recipient

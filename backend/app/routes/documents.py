@@ -155,6 +155,131 @@ def list_documents():
             'error': str(e)
         }), 500
 
+
+@bp.route('/search', methods=['GET'])
+@token_required
+def search_documents():
+    """
+    Search documents recursively across all folders.
+    Query params:
+        - q: search query (required)
+        - recursive: search in all subfolders (default true)
+        - limit: max results (default 20)
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        
+        query = request.args.get('q', '').strip()
+        recursive = request.args.get('recursive', 'true').lower() == 'true'
+        limit = min(int(request.args.get('limit', 20)), 100)  # Max 100 results
+        
+        if not query or len(query) < 2:
+            return jsonify({
+                'success': True,
+                'documents': [],
+                'message': 'Query must be at least 2 characters'
+            }), 200
+        
+        # Search pattern for ILIKE (case-insensitive)
+        search_pattern = f'%{query}%'
+        
+        from sqlalchemy import or_
+        
+        # Build base query - search user's own documents
+        doc_query = Document.query.filter(
+            Document.owner_id == current_user_id,
+            Document.is_active == True,
+            Document.is_in_trash == False,
+            or_(
+                Document.name.ilike(search_pattern),
+                Document.file_name.ilike(search_pattern),
+                Document.document_type.ilike(search_pattern)
+            )
+        )
+        
+        # Also search in documents shared WITH the current user
+        from app.models.document import DocumentShare
+        shared_doc_ids = db.session.query(DocumentShare.document_id).filter(
+            DocumentShare.shared_with_id == current_user_id
+        ).subquery()
+        
+        shared_docs_query = Document.query.filter(
+            Document.id.in_(shared_doc_ids),
+            Document.is_active == True,
+            Document.is_in_trash == False,
+            or_(
+                Document.name.ilike(search_pattern),
+                Document.file_name.ilike(search_pattern),
+                Document.document_type.ilike(search_pattern)
+            )
+        )
+        
+        # Combine queries using union
+        combined_query = doc_query.union(shared_docs_query).limit(limit)
+        documents = combined_query.all()
+        
+        # Format documents with folder path info
+        documents_data = []
+        for doc in documents:
+            doc_dict = doc.to_dict()
+            
+            # Add name field explicitly for frontend compatibility
+            doc_dict['name'] = doc.name or doc.file_name
+            doc_dict['filename'] = doc.file_name
+            doc_dict['folder_name'] = None
+            
+            # Get folder path for navigation
+            folder_path = []
+            folder_name = None
+            if doc.folder_id:
+                folder = Folder.query.get(doc.folder_id)
+                if folder:
+                    folder_name = folder.name
+                    # Build full path
+                    current_folder = folder
+                    while current_folder:
+                        folder_path.insert(0, {
+                            'id': str(current_folder.id),
+                            'name': current_folder.name
+                        })
+                        if current_folder.parent_id:
+                            current_folder = Folder.query.get(current_folder.parent_id)
+                        else:
+                            current_folder = None
+            
+            # Determine if it's a shared document
+            is_shared = str(doc.owner_id) != str(current_user_id)
+            
+            doc_dict['folderPath'] = folder_path
+            doc_dict['folderName'] = folder_name or 'Root'
+            doc_dict['folder_name'] = folder_name or 'Root'
+            doc_dict['isSharedDocument'] = is_shared
+            
+            # Get owner info for shared documents
+            if is_shared:
+                owner = User.query.get(doc.owner_id)
+                if owner:
+                    doc_dict['ownerName'] = f"{owner.first_name} {owner.last_name}"
+                    doc_dict['ownerEmail'] = owner.email
+            
+            documents_data.append(doc_dict)
+        
+        print(f"🔍 Document search for '{query}': found {len(documents_data)} results")
+        
+        return jsonify({
+            'success': True,
+            'documents': documents_data,
+            'count': len(documents_data)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error searching documents: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @bp.route('/upload', methods=['POST'])
 @token_required
 def upload_document():

@@ -4,6 +4,7 @@ from app.models import User, ApprovalRequest, ApprovalStep, ApprovedDocument, Ap
 from app.models.approval import generate_verification_code
 from app.models.blockchain_transaction import BlockchainTransaction
 from app.models.activity_log import log_activity
+from app.models.notification import create_notification
 from app.services.pdf_stamping import pdf_stamping_service
 from app.services.approval_folder_service import approval_folder_service
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -169,6 +170,21 @@ def create_approval_request():
                     recipient_id=step.approver_id,
                     approval_request=approval_request,
                     document={'name': approval_request.document_name}
+                )
+                # Create notification for approver
+                create_notification(
+                    user_id=step.approver_id,
+                    notification_type='approval_request',
+                    title='New Approval Request',
+                    message=f'{user.first_name} {user.last_name} requested your approval for "{approval_request.document_name}"',
+                    sender_id=current_user_id,
+                    sender_name=f'{user.first_name} {user.last_name}',
+                    extra_data={
+                        'approval_request_id': str(approval_request.id),
+                        'document_name': approval_request.document_name,
+                        'requester_id': current_user_id,
+                        'priority': approval_request.priority
+                    }
                 )
             logger.info(f"Sent chat messages to approvers for request {approval_request.request_id}")
         except Exception as chat_error:
@@ -437,6 +453,22 @@ def approve_document(request_id):
                 comment=data.get('reason', '')
             )
             logger.info(f"Sent approval status chat message to requester")
+            
+            # Create notification for requester
+            create_notification(
+                user_id=approval_request.requester_id,
+                notification_type='approval_response',
+                title=f'Document {"Signed" if is_digital_signature else "Approved"}',
+                message=f'Your document "{approval_request.document_name}" has been {status_type} by {user.first_name} {user.last_name}',
+                sender_id=current_user_id,
+                sender_name=f'{user.first_name} {user.last_name}',
+                extra_data={
+                    'approval_request_id': str(approval_request.id),
+                    'document_name': approval_request.document_name,
+                    'approver_id': current_user_id,
+                    'status': status_type
+                }
+            )
         except Exception as chat_error:
             logger.warning(f"Could not send approval status chat message: {chat_error}")
         
@@ -576,6 +608,23 @@ def reject_document(request_id):
                 comment=data.get('reason', '')
             )
             logger.info(f"Sent rejection status chat message to requester")
+            
+            # Create notification for requester about rejection
+            create_notification(
+                user_id=approval_request.requester_id,
+                notification_type='approval_response',
+                title='Document Rejected',
+                message=f'Your document "{approval_request.document_name}" has been rejected by {user.first_name} {user.last_name}',
+                sender_id=current_user_id,
+                sender_name=f'{user.first_name} {user.last_name}',
+                extra_data={
+                    'approval_request_id': str(approval_request.id),
+                    'document_name': approval_request.document_name,
+                    'approver_id': current_user_id,
+                    'status': 'rejected',
+                    'reason': data.get('reason', '')
+                }
+            )
         except Exception as chat_error:
             logger.warning(f"Could not send rejection status chat message: {chat_error}")
         

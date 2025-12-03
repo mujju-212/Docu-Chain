@@ -57,24 +57,40 @@ class User(db.Model):
     
     def to_dict(self):
         """Convert to dictionary"""
+        created_at_str = self.created_at.isoformat() if self.created_at else None
+        last_login_str = self.last_login.isoformat() if self.last_login else None
+        dept_changed_str = self.department_changed_at.isoformat() if self.department_changed_at else None
         return {
             'id': str(self.id),
             'email': self.email,
+            # Both camelCase and snake_case for frontend compatibility
             'firstName': self.first_name,
+            'first_name': self.first_name,
             'lastName': self.last_name,
+            'last_name': self.last_name,
             'role': self.role,
             'institutionId': str(self.institution_id),
+            'institution_id': str(self.institution_id),
             'departmentId': str(self.department_id) if self.department_id else None,
+            'department_id': str(self.department_id) if self.department_id else None,
             'sectionId': str(self.section_id) if self.section_id else None,
+            'section_id': str(self.section_id) if self.section_id else None,
             'previousDepartmentId': str(self.previous_department_id) if self.previous_department_id else None,
-            'departmentChangedAt': self.department_changed_at.isoformat() if self.department_changed_at else None,
+            'previous_department_id': str(self.previous_department_id) if self.previous_department_id else None,
+            'departmentChangedAt': dept_changed_str,
+            'department_changed_at': dept_changed_str,
             'phone': self.phone,
             'uniqueId': self.unique_id,
+            'unique_id': self.unique_id,
             'walletAddress': self.wallet_address,
+            'wallet_address': self.wallet_address,
             'theme': self.theme,
             'status': self.status,
-            'createdAt': self.created_at.isoformat() if self.created_at else None,
-            'lastLogin': self.last_login.isoformat() if self.last_login else None
+            'is_active': self.status == 'active',
+            'createdAt': created_at_str,
+            'created_at': created_at_str,
+            'lastLogin': last_login_str,
+            'last_login': last_login_str
         }
     
     def __repr__(self):

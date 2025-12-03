@@ -13,6 +13,82 @@ import logging
 bp = Blueprint('users', __name__)
 logger = logging.getLogger(__name__)
 
+@bp.route('/me', methods=['GET'])
+@token_required
+def get_current_user():
+    """Get current user profile with full details"""
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        return jsonify({
+            'success': True, 
+            'user': user.to_dict()
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting current user: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to get user'}), 500
+
+@bp.route('/me', methods=['PUT'])
+@token_required
+def update_current_user():
+    """Update current user profile"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Update allowed fields (support both camelCase and snake_case)
+        if 'first_name' in data or 'firstName' in data:
+            user.first_name = data.get('first_name') or data.get('firstName')
+        if 'last_name' in data or 'lastName' in data:
+            user.last_name = data.get('last_name') or data.get('lastName')
+        if 'phone' in data:
+            user.phone = data['phone']
+        if 'walletAddress' in data or 'wallet_address' in data:
+            user.wallet_address = data.get('wallet_address') or data.get('walletAddress')
+        if 'theme' in data:
+            valid_themes = ['green', 'blue', 'purple', 'orange', 'pink', 'teal', 'red']
+            if data['theme'] in valid_themes:
+                user.theme = data['theme']
+        
+        db.session.commit()
+        
+        # Log the profile update activity
+        log_activity(
+            user_id=current_user_id,
+            action_type='profile_update',
+            action_category='profile',
+            description='Updated profile information',
+            target_id=str(current_user_id),
+            target_type='user',
+            target_name=f'{user.first_name} {user.last_name}',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success'
+        )
+        
+        logger.info(f"User {user.email} updated profile via /me endpoint")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Profile updated successfully',
+            'user': user.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating user: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to update profile'}), 500
+
 @bp.route('/<user_id>', methods=['GET'])
 @token_required
 def get_user_by_id(user_id):
@@ -65,7 +141,7 @@ def update_theme():
         theme = data['theme']
         
         # Validate theme
-        valid_themes = ['green', 'blue', 'purple', 'orange', 'pink', 'teal', 'red']
+        valid_themes = ['green', 'blue', 'purple', 'orange', 'pink', 'teal', 'red', 'indigo', 'cyan', 'rose', 'amber', 'slate']
         if theme not in valid_themes:
             return jsonify({'error': 'Invalid theme'}), 400
         
@@ -116,7 +192,7 @@ def update_profile():
             user.wallet_address = data['walletAddress']
             logger.info(f"User {user.email} updated wallet address to {data['walletAddress']}")
         if 'theme' in data:
-            valid_themes = ['green', 'blue', 'purple', 'orange', 'pink', 'teal', 'red']
+            valid_themes = ['green', 'blue', 'purple', 'orange', 'pink', 'teal', 'red', 'indigo', 'cyan', 'rose', 'amber', 'slate']
             if data['theme'] in valid_themes:
                 user.theme = data['theme']
         
@@ -149,6 +225,69 @@ def update_profile():
         db.session.rollback()
         logger.error(f"Error updating profile: {str(e)}")
         return jsonify({'error': 'Failed to update profile'}), 500
+
+@bp.route('/change-password', methods=['POST'])
+@token_required
+def change_password():
+    """Change user password - requires current password verification"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        current_password = data.get('currentPassword')
+        new_password = data.get('newPassword')
+        
+        if not current_password or not new_password:
+            return jsonify({'error': 'Current password and new password are required'}), 400
+        
+        if len(new_password) < 6:
+            return jsonify({'error': 'New password must be at least 6 characters'}), 400
+        
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Verify current password
+        if not user.check_password(current_password):
+            return jsonify({'error': 'Current password is incorrect'}), 401
+        
+        # Check that new password is different
+        if user.check_password(new_password):
+            return jsonify({'error': 'New password must be different from current password'}), 400
+        
+        # Set new password
+        user.set_password(new_password)
+        db.session.commit()
+        
+        # Log the password change activity
+        log_activity(
+            user_id=current_user_id,
+            action_type='password_change',
+            action_category='security',
+            description='Changed account password',
+            target_id=str(current_user_id),
+            target_type='user',
+            target_name=f'{user.first_name} {user.last_name}',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            status='success'
+        )
+        
+        logger.info(f"User {user.email} changed their password")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Password changed successfully'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error changing password: {str(e)}")
+        return jsonify({'error': 'Failed to change password'}), 500
 
 @bp.route('/institution', methods=['GET'])
 @token_required
@@ -193,6 +332,91 @@ def get_institution_users():
         return jsonify({
             'success': False, 
             'error': 'Failed to get institution users'
+        }), 500
+
+
+@bp.route('/search', methods=['GET'])
+@token_required
+def search_users():
+    """
+    Search users by name, email, unique_id, or phone number.
+    Query params:
+        - q: search query (required)
+        - limit: max results (default 10)
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        query = request.args.get('q', '').strip()
+        limit = min(int(request.args.get('limit', 10)), 50)  # Max 50 results
+        
+        if not query or len(query) < 2:
+            return jsonify({
+                'success': True,
+                'users': [],
+                'message': 'Query must be at least 2 characters'
+            }), 200
+        
+        # Search pattern for ILIKE (case-insensitive)
+        search_pattern = f'%{query}%'
+        
+        # Search users from the same institution
+        # Search by: first_name, last_name, email, unique_id, phone
+        from sqlalchemy import or_
+        users = User.query.filter(
+            User.institution_id == current_user.institution_id,
+            User.id != current_user_id,  # Exclude current user
+            User.status == 'active',
+            or_(
+                User.first_name.ilike(search_pattern),
+                User.last_name.ilike(search_pattern),
+                User.email.ilike(search_pattern),
+                User.unique_id.ilike(search_pattern),
+                User.phone.ilike(search_pattern),
+                # Also search full name by concatenating
+                db.func.concat(User.first_name, ' ', User.last_name).ilike(search_pattern)
+            )
+        ).limit(limit).all()
+        
+        # Format users for frontend
+        users_data = []
+        for user in users:
+            # Get department name if available
+            department_name = None
+            if user.department_id:
+                dept = Department.query.get(user.department_id)
+                department_name = dept.name if dept else None
+            
+            users_data.append({
+                'id': str(user.id),
+                'email': user.email,
+                'firstName': user.first_name,
+                'lastName': user.last_name,
+                'fullName': f"{user.first_name} {user.last_name}",
+                'uniqueId': user.unique_id,
+                'role': user.role,
+                'phone': user.phone,
+                'department': department_name,
+                'walletAddress': user.wallet_address
+            })
+        
+        logger.info(f"User {current_user.email} searched for '{query}', found {len(users_data)} results")
+        
+        return jsonify({
+            'success': True,
+            'users': users_data,
+            'count': len(users_data)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error searching users: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'error': 'Failed to search users'
         }), 500
 
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { WalletProvider, useWallet } from '../../contexts/WalletContext';
 import Settings from '../shared/Settings';
@@ -9,7 +9,10 @@ import DocumentApproval from '../shared/DocumentApproval';
 import VerificationTool from '../shared/VerificationTool';
 import ActivityLog from '../shared/ActivityLog';
 import BlockchainMonitor from '../shared/BlockchainMonitor';
+import HelpSupport from '../shared/HelpSupport';
 import Profile from '../../components/shared/Profile';
+import NotificationDropdown from '../../components/shared/NotificationDropdown';
+import GlobalSearch from '../../components/shared/GlobalSearch';
 import './FacultyDashboard.css';
 
 const FacultyDashboard = () => {
@@ -23,8 +26,57 @@ const FacultyDashboard = () => {
   // Sidebar badge counts
   const [chatCount, setChatCount] = useState(0);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  
+  // Dashboard stats state
+  const [dashboardStats, setDashboardStats] = useState({
+    documents: { total: 0, uploaded: 0, shared_with_me: 0 },
+    approvals: { pending: 0, approved: 0, rejected: 0, total: 0 },
+    students: { count: 0 },
+    generated: { count: 0 }
+  });
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+  // Fetch dashboard stats
+  const fetchDashboardStats = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      setStatsLoading(true);
+      
+      // Fetch dashboard stats
+      const statsRes = await fetch(`${API_URL}/dashboard/stats`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        if (statsData.success && statsData.stats) {
+          setDashboardStats(statsData.stats);
+        }
+      }
+
+      // Fetch recent activity
+      const activityRes = await fetch(`${API_URL}/dashboard/recent-activity?limit=5`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (activityRes.ok) {
+        const activityData = await activityRes.json();
+        setRecentActivity(activityData.activities || []);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [API_URL]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchDashboardStats();
+  }, [fetchDashboardStats]);
 
   // Fetch sidebar counts
   useEffect(() => {
@@ -42,13 +94,13 @@ const FacultyDashboard = () => {
           setChatCount(chatData.unread || 0);
         }
 
-        // Fetch pending approval requests count
-        const approvalRes = await fetch(`${API_URL}/documents/approval-requests/received`, {
+        // Fetch pending approval requests count using correct API route
+        const approvalRes = await fetch(`${API_URL}/approvals/my-tasks`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (approvalRes.ok) {
           const approvalData = await approvalRes.json();
-          const pendingCount = approvalData.requests?.filter(r => r.status === 'pending')?.length || 0;
+          const pendingCount = approvalData.pending?.length || 0;
           setPendingApprovalsCount(pendingCount);
         }
       } catch (error) {
@@ -449,7 +501,11 @@ const FacultyDashboard = () => {
               >
                 <i className="ri-settings-3-line"></i> <span>Settings</span>
               </a>
-              <a>
+              <a
+                className={currentPage === 'help-support' ? 'active' : ''}
+                onClick={() => setCurrentPage('help-support')}
+                style={{cursor: 'pointer'}}
+              >
                 <i className="ri-question-line"></i> <span>Help & Support</span>
               </a>
               <a onClick={logout}>
@@ -479,15 +535,13 @@ const FacultyDashboard = () => {
             {/* Connect Wallet Button */}
             <CustomWalletButton />
 
-            <div className="search">
-              <i className="ri-search-line"></i>
-              <input type="text" placeholder="Search documents, students, verification requests..." />
-            </div>
+            <GlobalSearch 
+              onNavigate={setCurrentPage} 
+              currentPage={currentPage}
+            />
 
             <div className="top-actions">
-              <button className="icon-btn has-alert">
-                <i className="ri-notification-3-line"></i>
-              </button>
+              <NotificationDropdown />
               
               <div className="profile" onClick={() => setProfileModalOpen(true)} style={{cursor: 'pointer'}}>
                 <div className="avatar">
@@ -505,6 +559,8 @@ const FacultyDashboard = () => {
           <div className={`content ${currentPage === 'chat' ? 'chat-content' : ''}`}>
             {currentPage === 'settings' ? (
               <Settings />
+            ) : currentPage === 'help-support' ? (
+              <HelpSupport />
             ) : currentPage === 'filemanager' ? (
               <FileManager />
             ) : currentPage === 'chat' ? (
@@ -530,18 +586,18 @@ const FacultyDashboard = () => {
             {/* First Row - Faculty Stats */}
             <div className="content-grid">
               <div className="card stat gradient">
-                <div className="value">47</div>
+                <div className="value">{statsLoading ? '...' : dashboardStats.documents?.total?.toLocaleString() || 0}</div>
                 <div className="top">
                   <div>My Documents</div>
                   <i className="ri-file-3-line upto"></i>
                 </div>
                 <div className="delta">
-                  <i className="ri-arrow-up-line"></i> +3 this week
+                  <i className="ri-file-line"></i> Total documents
                 </div>
               </div>
 
               <div className="card stat">
-                <div className="value">23</div>
+                <div className="value">{statsLoading ? '...' : dashboardStats.documents?.shared_with_me?.toLocaleString() || 0}</div>
                 <div className="top">
                   <div>Shared with Me</div>
                   <i className="ri-share-line upto"></i>
@@ -552,9 +608,9 @@ const FacultyDashboard = () => {
               </div>
 
               <div className="card stat">
-                <div className="value">12</div>
+                <div className="value">{statsLoading ? '...' : dashboardStats.approvals?.pending?.toLocaleString() || 0}</div>
                 <div className="top">
-                  <div>Verification Requests</div>
+                  <div>Pending Approvals</div>
                   <i className="ri-shield-check-line upto"></i>
                 </div>
                 <div className="delta" style={{background:'#fff7e5',color:'#a36b00',borderColor:'#fde4b6'}}>
@@ -563,7 +619,7 @@ const FacultyDashboard = () => {
               </div>
 
               <div className="card stat">
-                <div className="value">156</div>
+                <div className="value">{statsLoading ? '...' : dashboardStats.students?.count?.toLocaleString() || 0}</div>
                 <div className="top">
                   <div>My Students</div>
                   <i className="ri-graduation-cap-line upto"></i>
@@ -582,20 +638,20 @@ const FacultyDashboard = () => {
             {/* Document Status Overview Section */}
             <div className="content-grid">
               <div className="card stat">
-                <div className="value">35</div>
+                <div className="value">{statsLoading ? '...' : dashboardStats.approvals?.approved?.toLocaleString() || 0}</div>
                 <div className="top">
-                  <div>Verified Documents</div>
+                  <div>Approved Documents</div>
                   <i className="ri-checkbox-circle-line upto"></i>
                 </div>
                 <div className="delta" style={{background:'#edfff6',color:'#0f6d4f',borderColor:'#c0f0d7'}}>
-                  <i className="ri-check-line"></i> This semester
+                  <i className="ri-check-line"></i> Verified
                 </div>
               </div>
 
               <div className="card stat">
-                <div className="value">89</div>
+                <div className="value">{statsLoading ? '...' : dashboardStats.approvals?.total?.toLocaleString() || 0}</div>
                 <div className="top">
-                  <div>Total Verifications</div>
+                  <div>Total Approvals</div>
                   <i className="ri-shield-check-line upto"></i>
                 </div>
                 <div className="delta" style={{background:'#eef2ff',color:'#3949ab',borderColor:'#e5e7eb'}}>
@@ -604,24 +660,24 @@ const FacultyDashboard = () => {
               </div>
 
               <div className="card stat">
-                <div className="value">8</div>
+                <div className="value">{statsLoading ? '...' : dashboardStats.generated?.count?.toLocaleString() || 0}</div>
                 <div className="top">
-                  <div>Generated Certificates</div>
+                  <div>Generated Documents</div>
                   <i className="ri-award-line upto"></i>
                 </div>
                 <div className="delta" style={{background:'#fff7e5',color:'#a36b00',borderColor:'#fde4b6'}}>
-                  <i className="ri-calendar-line"></i> This month
+                  <i className="ri-calendar-line"></i> Certificates & more
                 </div>
               </div>
 
               <div className="card stat">
-                <div className="value">5</div>
+                <div className="value">{statsLoading ? '...' : dashboardStats.approvals?.rejected?.toLocaleString() || 0}</div>
                 <div className="top">
-                  <div>Active Collaborations</div>
-                  <i className="ri-team-line upto"></i>
+                  <div>Rejected</div>
+                  <i className="ri-close-circle-line upto"></i>
                 </div>
-                <div className="delta" style={{background:'#e9fff4',color:'#0f6d4f',borderColor:'#c0f0d7'}}>
-                  <i className="ri-links-line"></i> Research projects
+                <div className="delta" style={{background:'#ffe7e7',color:'#9b1c1c',borderColor:'#ffcaca'}}>
+                  <i className="ri-error-warning-line"></i> Declined
                 </div>
               </div>
             </div>
@@ -635,88 +691,114 @@ const FacultyDashboard = () => {
                     const btn = document.getElementById('refreshActivity');
                     btn.innerHTML = '<i class="ri-loader-line"></i> Loading...';
                     btn.disabled = true;
-                    setTimeout(() => {
+                    fetchDashboardStats().then(() => {
                       btn.innerHTML = '<i class="ri-refresh-line"></i> Refresh';
                       btn.disabled = false;
-                      alert('Activity feed refreshed!');
-                    }, 1000);
+                    });
                   }}>
                     <i className="ri-refresh-line"></i> Refresh
                   </button>
-                  <button className="btn btn-sm" id="viewAllActivity" onClick={() => {
-                    alert('Opening detailed activity log...\n\nThis would navigate to a comprehensive activity history page with filtering and search capabilities.');
-                  }}>
+                  <button className="btn btn-sm" id="viewAllActivity" onClick={() => setCurrentPage('activity-log')}>
                     <i className="ri-external-link-line"></i> View All
                   </button>
                 </div>
               </div>
 
               <div className="activity-feed" id="activityFeed">
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nDocument Verification Request\n\nThis would open a detailed view of the verification request with student information and document details.')}>
-                  <div className="activity-icon" style={{background: 'var(--g-200)', color: 'var(--g-700)'}}>
-                    <i className="ri-shield-check-line"></i>
+                {statsLoading ? (
+                  <div className="activity-item">
+                    <div className="activity-content">
+                      <div className="activity-title">Loading activities...</div>
+                    </div>
                   </div>
-                  <div className="activity-content">
-                    <div className="activity-title">Verification Request Received</div>
-                    <div className="activity-description">John Doe (CS2024001) submitted transcript for verification</div>
+                ) : recentActivity.length === 0 ? (
+                  <div className="activity-item">
+                    <div className="activity-icon" style={{background: 'var(--g-200)', color: 'var(--g-700)'}}>
+                      <i className="ri-information-line"></i>
+                    </div>
+                    <div className="activity-content">
+                      <div className="activity-title">No recent activity</div>
+                      <div className="activity-description">Your recent activities will appear here</div>
+                    </div>
                   </div>
-                  <div className="activity-time">2 hours ago</div>
-                </div>
+                ) : (
+                  recentActivity.map((activity) => {
+                    // Get icon and color based on activity type
+                    const getActivityIcon = (type) => {
+                      const icons = {
+                        'document_upload': 'ri-upload-cloud-line',
+                        'upload': 'ri-upload-cloud-line',
+                        'document_view': 'ri-eye-line',
+                        'document_download': 'ri-download-line',
+                        'document_share': 'ri-share-line',
+                        'share': 'ri-share-line',
+                        'document_approval': 'ri-checkbox-circle-line',
+                        'approve': 'ri-checkbox-circle-line',
+                        'document_generate': 'ri-file-add-line',
+                        'folder_create': 'ri-folder-add-line',
+                        'login': 'ri-login-box-line',
+                        'logout': 'ri-logout-box-line',
+                        'circular_create': 'ri-megaphone-line',
+                        'message_send': 'ri-chat-3-line',
+                        'approval_request': 'ri-shield-check-line',
+                        'request_approval': 'ri-shield-check-line',
+                        'approval_response': 'ri-checkbox-circle-line'
+                      };
+                      return icons[type] || 'ri-file-line';
+                    };
 
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nDocument Shared\n\nThis would show details about the document sharing activity and collaboration.')}>
-                  <div className="activity-icon" style={{background: 'var(--g-200)', color: 'var(--g-700)'}}>
-                    <i className="ri-share-line"></i>
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-title">Document Shared</div>
-                    <div className="activity-description">Shared research paper with Dr. Sarah Smith (Mathematics Dept)</div>
-                  </div>
-                  <div className="activity-time">5 hours ago</div>
-                </div>
+                    const getActivityColor = (type) => {
+                      const colors = {
+                        'document_upload': { bg: '#e0e7ff', text: '#3730a3' },
+                        'upload': { bg: '#e0e7ff', text: '#3730a3' },
+                        'document_view': { bg: '#ecfdf5', text: '#065f46' },
+                        'document_download': { bg: '#dbeafe', text: '#1e40af' },
+                        'document_share': { bg: '#fef3c7', text: '#92400e' },
+                        'share': { bg: '#fef3c7', text: '#92400e' },
+                        'document_approval': { bg: '#d1fae5', text: '#065f46' },
+                        'approve': { bg: '#d1fae5', text: '#065f46' },
+                        'document_generate': { bg: '#e0e7ff', text: '#3730a3' },
+                        'login': { bg: '#ecfdf5', text: '#065f46' },
+                        'logout': { bg: '#fee2e2', text: '#991b1b' },
+                        'circular_create': { bg: '#fef3c7', text: '#92400e' },
+                        'message_send': { bg: '#e0e7ff', text: '#3730a3' },
+                        'request_approval': { bg: '#dbeafe', text: '#1e40af' },
+                        'approval_request': { bg: '#dbeafe', text: '#1e40af' }
+                      };
+                      return colors[type] || { bg: 'var(--g-200)', text: 'var(--g-700)' };
+                    };
 
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nCertificate Generated\n\nThis would show details about the generated certificate and student information.')}>
-                  <div className="activity-icon" style={{background: '#e0e7ff', color: '#3730a3'}}>
-                    <i className="ri-award-line"></i>
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-title">Certificate Generated</div>
-                    <div className="activity-description">Course completion certificate for Alice Johnson (MATH2024001)</div>
-                  </div>
-                  <div className="activity-time">1 day ago</div>
-                </div>
+                    const formatTimeAgo = (timestamp) => {
+                      const now = new Date();
+                      const time = new Date(timestamp);
+                      const diffMs = now - time;
+                      const diffMins = Math.floor(diffMs / 60000);
+                      const diffHours = Math.floor(diffMs / 3600000);
+                      const diffDays = Math.floor(diffMs / 86400000);
 
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nChat Message\n\nThis would open the chat interface to view the conversation thread.')}>
-                  <div className="activity-icon" style={{background: '#fef3c7', color: '#92400e'}}>
-                    <i className="ri-chat-3-line"></i>
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-title">New Chat Message</div>
-                    <div className="activity-description">Message from student regarding assignment submission</div>
-                  </div>
-                  <div className="activity-time">2 days ago</div>
-                </div>
+                      if (diffMins < 1) return 'Just now';
+                      if (diffMins < 60) return `${diffMins} min ago`;
+                      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+                      if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+                      return time.toLocaleDateString();
+                    };
 
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nDocument Upload\n\nThis would show details about the uploaded document and its blockchain verification status.')}>
-                  <div className="activity-icon" style={{background: '#d1fae5', color: '#065f46'}}>
-                    <i className="ri-upload-cloud-line"></i>
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-title">Document Uploaded</div>
-                    <div className="activity-description">Uploaded lecture notes for Advanced Mathematics course</div>
-                  </div>
-                  <div className="activity-time">3 days ago</div>
-                </div>
-
-                <div className="activity-item" onClick={() => alert('Activity Details:\n\nCircular Published\n\nThis would show details about the published circular and its recipients.')}>
-                  <div className="activity-icon" style={{background: '#e0e7ff', color: '#3730a3'}}>
-                    <i className="ri-notification-4-line"></i>
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-title">Circular Published</div>
-                    <div className="activity-description">Published exam schedule circular to all students in section A & B</div>
-                  </div>
-                  <div className="activity-time">1 week ago</div>
-                </div>
+                    const color = getActivityColor(activity.activity_type);
+                    
+                    return (
+                      <div className="activity-item" key={activity.id}>
+                        <div className="activity-icon" style={{background: color.bg, color: color.text}}>
+                          <i className={getActivityIcon(activity.activity_type)}></i>
+                        </div>
+                        <div className="activity-content">
+                          <div className="activity-title">{activity.title || activity.activity_type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                          <div className="activity-description">{activity.description}</div>
+                        </div>
+                        <div className="activity-time">{formatTimeAgo(activity.created_at)}</div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
             </div>

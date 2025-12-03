@@ -5,7 +5,8 @@ from app.models.user import User
 from app.models.institution import Institution
 from app.models.folder import Folder
 from app.models.activity_log import log_activity
-from app.services.email_service import EmailService
+# Use Brevo email service instead of Resend
+from app.services.brevo_email_service import EmailService
 from datetime import datetime, timedelta
 from functools import wraps
 import random

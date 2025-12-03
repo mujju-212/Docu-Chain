@@ -1643,3 +1643,25 @@ div[id="recent"] .fm-recent-badge {
         grid-template-columns: 40px 1fr 80px;
     }
 }
+
+/* Highlight animation for search results */
+@keyframes highlightPulse {
+    0%, 100% {
+        background-color: transparent;
+        box-shadow: none;
+    }
+    50% {
+        background-color: rgba(16, 185, 129, 0.15);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
+    }
+}
+
+.highlight-search-result {
+    animation: highlightPulse 0.8s ease-in-out 3;
+    border-radius: 8px;
+}
+
+.fm-file-card.highlight-search-result,
+.fm-list-item.highlight-search-result {
+    animation: highlightPulse 0.8s ease-in-out 3;
+}

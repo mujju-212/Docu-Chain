@@ -676,6 +676,23 @@ const ChatInterface = () => {
         }
     }, [currentUser, fetchConversations]);
 
+    // Check for openConversationId from GlobalSearch and auto-select that conversation
+    useEffect(() => {
+        const openConversationId = sessionStorage.getItem('openConversationId');
+        if (openConversationId && conversations.length > 0) {
+            const conversationToOpen = conversations.find(c => c.id === parseInt(openConversationId) || c.id === openConversationId);
+            if (conversationToOpen) {
+                console.log('🔓 Auto-opening conversation from GlobalSearch:', conversationToOpen.id);
+                setSelectedChat(conversationToOpen.id);
+                setActiveTab('direct');
+                sessionStorage.removeItem('openConversationId');
+            } else {
+                // Conversation not found, maybe it was just created - clear anyway
+                sessionStorage.removeItem('openConversationId');
+            }
+        }
+    }, [conversations]);
+
     // Fetch circulars when switching to circulars tab
     useEffect(() => {
         if (activeTab === 'circulars' && currentUser) {

@@ -149,9 +149,32 @@ const FileManager = () => {
     return `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
   };
   
+  // Log document access to activity log
+  const logDocumentAccess = async (documentId, action = 'view') => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token || !documentId) return;
+      
+      await fetch(`${API_URL}/documents/${documentId}/log-access`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action })
+      });
+    } catch (error) {
+      console.log('Could not log document access:', error);
+    }
+  };
+  
   // Open IPFS preview in new tab
-  const openIpfsPreview = (ipfsHash, fileName) => {
+  const openIpfsPreview = (ipfsHash, fileName, documentId = null) => {
     if (!ipfsHash) return;
+    // Log the view action
+    if (documentId) {
+      logDocumentAccess(documentId, 'view');
+    }
     // Direct URL - files are uploaded with wrapWithDirectory: false
     window.open(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`, '_blank');
   };
@@ -173,6 +196,71 @@ const FileManager = () => {
       loadBlockchainData();
     }
   }, [isWalletConnectedGlobal, walletAddressGlobal]);
+
+  // Handle highlight document from search results (sessionStorage)
+  useEffect(() => {
+    const checkForHighlightDocument = () => {
+      const highlightData = sessionStorage.getItem('highlightDocument');
+      if (highlightData && fileSystem.length > 0) {
+        try {
+          const { documentId, folderId, folderPath } = JSON.parse(highlightData);
+          console.log('🔍 Highlight document request:', { documentId, folderId, folderPath });
+          
+          // Clear the sessionStorage immediately to prevent re-processing
+          sessionStorage.removeItem('highlightDocument');
+          
+          // If we're not in the correct folder, navigate there first
+          if (folderId && folderId !== currentFolderId) {
+            console.log('📂 Navigating to folder:', folderId);
+            // Navigate to the folder containing the document
+            if (folderPath && folderPath.length > 0) {
+              // Build the folder stack from the path
+              const newStack = [{id: null, name: 'Home', path: '/'}];
+              let pathSoFar = '/';
+              folderPath.forEach(folder => {
+                pathSoFar += folder.name + '/';
+                newStack.push({
+                  id: folder.id,
+                  name: folder.name,
+                  path: pathSoFar
+                });
+              });
+              setFolderStack(newStack);
+              setCurrentFolderId(folderId);
+              setCurrentPath(pathSoFar);
+            } else {
+              // Just set the folder ID if no path info
+              setCurrentFolderId(folderId);
+            }
+          }
+          
+          // Select and highlight the document
+          if (documentId) {
+            // Wait a bit for the folder content to load, then select the document
+            setTimeout(() => {
+              setSelectedFiles([documentId]);
+              // Scroll to the document if it exists
+              const element = document.querySelector(`[data-file-id="${documentId}"]`);
+              if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Add a highlight effect
+                element.classList.add('highlight-search-result');
+                setTimeout(() => {
+                  element.classList.remove('highlight-search-result');
+                }, 3000);
+              }
+              showNotification('info', 'Document Found', 'Document highlighted from search results');
+            }, 500);
+          }
+        } catch (error) {
+          console.error('Error processing highlight document:', error);
+        }
+      }
+    };
+    
+    // Check when fileSystem changes (files are loaded)
+    checkForHighlightDocument();
+  }, [fileSystem, currentFolderId]);
 
   // Close active menu when clicking outside
   useEffect(() => {
@@ -2108,6 +2196,12 @@ const FileManager = () => {
         documentId: file.documentId || file.document_id,
         ipfsHash: file.ipfsHash || file.ipfs_hash
       });
+      
+      // Log document view to activity log
+      if (file.id) {
+        logDocumentAccess(file.id, 'view');
+      }
+      
       setCurrentFile(file);
       setIsFileModalOpen(true);
     }
@@ -2146,6 +2240,12 @@ const FileManager = () => {
       documentId: file.documentId || file.document_id,
       ipfsHash: file.ipfsHash || file.ipfs_hash
     });
+    
+    // Log document view to activity log
+    if (file.id) {
+      logDocumentAccess(file.id, 'view');
+    }
+    
     setCurrentFile(file);
     setIsFileModalOpen(true);
   };
@@ -2211,6 +2311,11 @@ const FileManager = () => {
   const downloadFile = async (file) => {
     try {
       if (file.ipfsHash) {
+        // Log the download activity
+        if (file.id) {
+          logDocumentAccess(file.id, 'download');
+        }
+        
         // Download from IPFS - fetch as blob for actual download
         const url = getIpfsUrl(file.ipfsHash, file.fileName || file.name);
         showNotification('info', 'Downloading...', `Fetching ${file.name} from IPFS`);
@@ -3257,6 +3362,7 @@ const FileManager = () => {
                     {getProcessedFiles(getCurrentFiles()).map(file => (
                       <div 
                         key={file.id} 
+                        data-file-id={file.id}
                         className={`fm-card ${selectedFiles.includes(file.id) ? 'selected' : ''}`}
                         onClick={() => handleFileClick(file)}
                         onContextMenu={(e) => showContextMenu(e, file, file.type === 'folder' ? 'folder' : 'file')}>
@@ -3344,6 +3450,7 @@ const FileManager = () => {
                     {getProcessedFiles(getCurrentFiles()).map(file => (
                       <div 
                         key={file.id} 
+                        data-file-id={file.id}
                         className={`fm-row ${selectedFiles.includes(file.id) ? 'selected' : ''}`}
                         onClick={() => handleFileClick(file)}
                         onContextMenu={(e) => showContextMenu(e, file, file.type === 'folder' ? 'folder' : 'file')}>
@@ -3448,6 +3555,7 @@ const FileManager = () => {
                   {sharedWithMeItems.map(item => (
                     <div
                       key={item.id}
+                      data-file-id={item.id}
                       className="fm-list-item"
                       onClick={() => openFile(item)}
                       style={{

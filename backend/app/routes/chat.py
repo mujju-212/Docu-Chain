@@ -3,6 +3,7 @@ from app import db
 from app.models import User, Conversation, ConversationMember, Message, UserOnlineStatus, Document
 from app.models.chat import MessageLike, MessageComment, SavedPost
 from app.models.institution import Institution, Department
+from app.models.notification import create_notification
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from sqlalchemy import or_, and_, func
@@ -631,6 +632,58 @@ def send_message(conversation_id):
     conversation.last_message_at = datetime.utcnow()
     
     db.session.commit()
+    
+    # Create notifications for other members (for direct messages or smaller groups)
+    try:
+        # Get conversation type and members
+        if conversation.type == 'direct':
+            # For direct messages, notify the other person
+            other_member = ConversationMember.query.filter(
+                ConversationMember.conversation_id == conversation_id,
+                ConversationMember.user_id != current_user.id
+            ).first()
+            if other_member:
+                notif = create_notification(
+                    user_id=str(other_member.user_id),
+                    notification_type='message',
+                    title='New Message',
+                    message=f'{current_user.first_name} {current_user.last_name}: {content[:50]}{"..." if len(content) > 50 else ""}',
+                    sender_id=str(current_user_id),
+                    sender_name=f'{current_user.first_name} {current_user.last_name}',
+                    extra_data={
+                        'conversation_id': str(conversation_id),
+                        'message_id': str(message.id),
+                        'sender_id': str(current_user_id)
+                    }
+                )
+                print(f"Created message notification: {notif}")
+        elif conversation.type == 'group':
+            # For all groups, notify members (limit to prevent spam in large groups)
+            members = ConversationMember.query.filter(
+                ConversationMember.conversation_id == conversation_id,
+                ConversationMember.user_id != current_user.id,
+                ConversationMember.is_muted == False  # Don't notify muted members
+            ).limit(50).all()  # Limit to avoid spamming very large groups
+            for m in members:
+                notif = create_notification(
+                    user_id=str(m.user_id),
+                    notification_type='group_message',
+                    title=f'New Message in {conversation.name or "Group"}',
+                    message=f'{current_user.first_name}: {content[:50]}{"..." if len(content) > 50 else ""}',
+                    sender_id=str(current_user_id),
+                    sender_name=f'{current_user.first_name} {current_user.last_name}',
+                    extra_data={
+                        'conversation_id': str(conversation_id),
+                        'message_id': str(message.id),
+                        'sender_id': str(current_user_id),
+                        'group_name': conversation.name
+                    }
+                )
+            print(f"Created {len(members)} group message notifications for conversation {conversation.name}")
+    except Exception as notif_error:
+        print(f"Could not send message notification: {notif_error}")
+        import traceback
+        traceback.print_exc()
     
     return jsonify({'message': message.to_dict()}), 201
 
