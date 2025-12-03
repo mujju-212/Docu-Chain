@@ -7,10 +7,12 @@ import ChatInterface from '../shared/ChatInterface';
 import DocumentGenerator from '../shared/DocumentGenerator';
 import DocumentApproval from '../shared/DocumentApproval';
 import VerificationTool from '../shared/VerificationTool';
+import BlockchainMonitor from '../shared/BlockchainMonitor';
 import Profile from '../../components/shared/Profile';
 import AddUser from './AddUser';
 import UserManagement from './UserManagement';
 import InstitutionManagement from './InstitutionManagement';
+import AccountRequests from './AccountRequests';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -461,9 +463,12 @@ const AdminDashboard = () => {
               >
                 <i className="ri-user-line"></i> <span>User Management</span>
               </a>
-              <a>
+              <a
+                className={currentPage === 'account-requests' ? 'active' : ''}
+                onClick={() => setCurrentPage('account-requests')}
+                style={{cursor: 'pointer'}}
+              >
                 <i className="ri-user-settings-line"></i> <span>Account Requests</span>
-                <span className="badge alert">7</span>
               </a>
               <a 
                 className={currentPage === 'add-user' ? 'active' : ''}
@@ -479,7 +484,11 @@ const AdminDashboard = () => {
               >
                 <i className="ri-building-4-line"></i> <span>Institution Management</span>
               </a>
-              <a>
+              <a
+                className={currentPage === 'blockchain-monitor' ? 'active' : ''}
+                onClick={() => setCurrentPage('blockchain-monitor')}
+                style={{cursor: 'pointer'}}
+              >
                 <i className="ri-links-line"></i> <span>Blockchain Monitor</span>
               </a>
             </nav>
@@ -568,6 +577,10 @@ const AdminDashboard = () => {
               <UserManagement />
             ) : currentPage === 'institution-management' ? (
               <InstitutionManagement />
+            ) : currentPage === 'account-requests' ? (
+              <AccountRequests />
+            ) : currentPage === 'blockchain-monitor' ? (
+              <BlockchainMonitor userRole="admin" />
             ) : (
               <div className="dashboard-content">
             {/* Welcome Header */}

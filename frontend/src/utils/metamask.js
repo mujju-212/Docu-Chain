@@ -671,11 +671,17 @@ export const requestApprovalOnBlockchain = async (
             txHash: result.transactionHash
         });
         
+        // Extract gas information
+        const gasUsed = result.gasUsed ? result.gasUsed.toString() : null;
+        const effectiveGasPrice = result.effectiveGasPrice ? result.effectiveGasPrice.toString() : null;
+        
         return {
             success: true,
             requestId,
             transactionHash: result.transactionHash,
-            blockNumber: result.blockNumber
+            blockNumber: result.blockNumber ? Number(result.blockNumber) : null,
+            gasUsed: gasUsed,
+            gasPrice: effectiveGasPrice
         };
     } catch (error) {
         console.error('Blockchain approval request error:', error);
@@ -777,10 +783,16 @@ export const approveDocumentOnBlockchain = async (requestId, reason = '', signat
         
         console.log('✅ Document approved on blockchain:', result.transactionHash);
         
+        // Extract gas information
+        const gasUsed = result.gasUsed ? result.gasUsed.toString() : null;
+        const effectiveGasPrice = result.effectiveGasPrice ? result.effectiveGasPrice.toString() : null;
+        
         return {
             success: true,
             transactionHash: result.transactionHash,
-            blockNumber: result.blockNumber ? Number(result.blockNumber) : null
+            blockNumber: result.blockNumber ? Number(result.blockNumber) : null,
+            gasUsed: gasUsed,
+            gasPrice: effectiveGasPrice
         };
     } catch (error) {
         console.error('Blockchain approval error:', error);
@@ -833,10 +845,16 @@ export const rejectDocumentOnBlockchain = async (requestId, reason) => {
         
         console.log('✅ Document rejected on blockchain:', result.transactionHash);
         
+        // Extract gas information
+        const gasUsed = result.gasUsed ? result.gasUsed.toString() : null;
+        const effectiveGasPrice = result.effectiveGasPrice ? result.effectiveGasPrice.toString() : null;
+        
         return {
             success: true,
             transactionHash: result.transactionHash,
-            blockNumber: result.blockNumber
+            blockNumber: result.blockNumber ? Number(result.blockNumber) : null,
+            gasUsed: gasUsed,
+            gasPrice: effectiveGasPrice
         };
     } catch (error) {
         console.error('Blockchain rejection error:', error);
@@ -894,10 +912,16 @@ export const recordApprovedDocumentOnBlockchain = async (requestId, approvedDocu
         
         console.log('✅ Approved document recorded on blockchain:', result.transactionHash);
         
+        // Extract gas information
+        const gasUsed = result.gasUsed ? result.gasUsed.toString() : null;
+        const effectiveGasPrice = result.effectiveGasPrice ? result.effectiveGasPrice.toString() : null;
+        
         return {
             success: true,
             transactionHash: result.transactionHash,
-            blockNumber: result.blockNumber ? Number(result.blockNumber) : null
+            blockNumber: result.blockNumber ? Number(result.blockNumber) : null,
+            gasUsed: gasUsed,
+            gasPrice: effectiveGasPrice
         };
     } catch (error) {
         console.error('Blockchain record error:', error);

@@ -1730,6 +1730,10 @@ export default function DocumentGenerator() {
                   blockchainTxHash = approvalResult.transactionHash;
                 }
                 console.log('✅ Blockchain approval request created:', blockchainRequestId, 'TX:', blockchainTxHash);
+                // Store gas info for backend
+                var gasUsed = approvalResult.gasUsed;
+                var gasPrice = approvalResult.gasPrice;
+                var blockNumber = approvalResult.blockNumber;
               }
             } else {
               console.warn('⚠️ No approvers with wallet addresses, skipping blockchain approval request');
@@ -1751,7 +1755,10 @@ export default function DocumentGenerator() {
             ipfsHash: ipfsHash,
             blockchainTxHash: blockchainTxHash,
             blockchainRequestId: blockchainRequestId,
-            fileSize: pdfFileSize
+            fileSize: pdfFileSize,
+            gasUsed: gasUsed,
+            gasPrice: gasPrice,
+            blockNumber: blockNumber
           })
         });
 

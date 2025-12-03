@@ -6,6 +6,7 @@ from .recent_activity import RecentActivity
 from .approval import ApprovalRequest, ApprovalStep, ApprovedDocument, ApprovalHistory
 from .document_template import DocumentTemplate, GeneratedDocument
 from .chat import Conversation, ConversationMember, Message, UserOnlineStatus
+from .blockchain_transaction import BlockchainTransaction, WalletBalance
 
 __all__ = [
     'User', 
@@ -23,5 +24,7 @@ __all__ = [
     'Conversation',
     'ConversationMember',
     'Message',
-    'UserOnlineStatus'
+    'UserOnlineStatus',
+    'BlockchainTransaction',
+    'WalletBalance'
 ]

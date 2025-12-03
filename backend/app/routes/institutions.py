@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import get_jwt_identity
 from app import db
 from app.models.institution import Institution
 from app.models.user import User
@@ -121,6 +122,7 @@ def create_institution_with_admin():
     """Create a new institution along with its primary admin account"""
     try:
         data = request.get_json()
+        print(f"📝 Received institution creation request: {data}")
         
         # Validate required fields
         required_fields = [
@@ -132,6 +134,7 @@ def create_institution_with_admin():
         
         for field in required_fields:
             if not data.get(field):
+                print(f"❌ Missing required field: {field}")
                 return jsonify({
                     'success': False, 
                     'message': f'{field} is required'
@@ -143,9 +146,10 @@ def create_institution_with_admin():
         ).first()
         
         if existing_institution:
+            print(f"❌ Institution unique ID already exists: {data['institutionUniqueId']}")
             return jsonify({
                 'success': False, 
-                'message': 'Institution with this unique ID already exists'
+                'message': f"Institution with unique ID '{data['institutionUniqueId']}' already exists"
             }), 400
         
         # Check if institution email already exists  
@@ -154,9 +158,10 @@ def create_institution_with_admin():
         ).first()
         
         if existing_email:
+            print(f"❌ Institution email already exists: {data['institutionEmail']}")
             return jsonify({
                 'success': False,
-                'message': 'Institution with this email already exists'
+                'message': f"Institution with email '{data['institutionEmail']}' already exists"
             }), 400
         
         # Import User model here to avoid circular imports
@@ -166,9 +171,10 @@ def create_institution_with_admin():
         # Check if admin email already exists in users
         existing_admin = User.query.filter_by(email=data['adminEmail']).first()
         if existing_admin:
+            print(f"❌ Admin email already exists: {data['adminEmail']}")
             return jsonify({
                 'success': False,
-                'message': 'Admin email already exists'
+                'message': f"User with email '{data['adminEmail']}' already exists"
             }), 400
         
         # Create institution
@@ -180,7 +186,7 @@ def create_institution_with_admin():
             email=data['institutionEmail'],
             phone=data.get('institutionCountryCode', '+91') + data['institutionPhone'],
             website=data.get('institutionWebsite', ''),
-            status='pending'  # Institution needs approval
+            status='approved'  # Auto-approve institution for now (can add system admin approval later)
         )
         
         # Add and flush to get the ID
@@ -188,6 +194,7 @@ def create_institution_with_admin():
         db.session.flush()
         
         # Create admin user for this institution
+        # The founding admin is auto-approved since they created the institution
         admin_user = User(
             email=data['adminEmail'],
             password_hash=generate_password_hash(data['adminPassword']),
@@ -196,8 +203,8 @@ def create_institution_with_admin():
             role='admin',
             unique_id=data['adminId'],
             phone=data.get('adminCountryCode', '+91') + data['adminPhone'],
-            institution_id=str(new_institution.id),
-            is_approved=False  # Admin needs approval
+            institution_id=new_institution.id,
+            status='active'  # Founding admin is auto-approved
         )
         
         db.session.add(admin_user)
@@ -223,11 +230,15 @@ def create_institution_with_admin():
 # INSTITUTION MANAGEMENT ENDPOINTS (Admin)
 # ==========================================
 
-@bp.route('/details', methods=['GET'])
+@bp.route('/details', methods=['GET', 'OPTIONS'])
 @token_required
-def get_institution_details(current_user):
+def get_institution_details():
     """Get details of the current user's institution"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         if not current_user.institution_id:
             return jsonify({'success': False, 'error': 'No institution associated with user'}), 404
         
@@ -255,11 +266,15 @@ def get_institution_details(current_user):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@bp.route('/update', methods=['PUT'])
+@bp.route('/update', methods=['PUT', 'OPTIONS'])
 @token_required
-def update_institution(current_user):
+def update_institution():
     """Update institution details (admin only)"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         if current_user.role != 'admin':
             return jsonify({'success': False, 'error': 'Only admins can update institution details'}), 403
         
@@ -309,11 +324,15 @@ def update_institution(current_user):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@bp.route('/departments', methods=['GET'])
+@bp.route('/departments', methods=['GET', 'OPTIONS'])
 @token_required
-def get_departments_with_sections(current_user):
+def get_departments_with_sections():
     """Get all departments with their sections for admin's institution"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         if not current_user.institution_id:
             return jsonify({'success': False, 'error': 'No institution associated'}), 404
         
@@ -380,11 +399,15 @@ def get_departments_with_sections(current_user):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@bp.route('/departments', methods=['POST'])
+@bp.route('/departments', methods=['POST', 'OPTIONS'])
 @token_required
-def create_department(current_user):
+def create_department():
     """Create a new department"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         if current_user.role != 'admin':
             return jsonify({'success': False, 'error': 'Only admins can create departments'}), 403
         
@@ -441,11 +464,15 @@ def create_department(current_user):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@bp.route('/departments/<dept_id>', methods=['PUT'])
+@bp.route('/departments/<dept_id>', methods=['PUT', 'OPTIONS'])
 @token_required
-def update_department(current_user, dept_id):
+def update_department(dept_id):
     """Update a department"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         if current_user.role != 'admin':
             return jsonify({'success': False, 'error': 'Only admins can update departments'}), 403
         
@@ -495,11 +522,15 @@ def update_department(current_user, dept_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@bp.route('/departments/<dept_id>', methods=['DELETE'])
+@bp.route('/departments/<dept_id>', methods=['DELETE', 'OPTIONS'])
 @token_required
-def delete_department(current_user, dept_id):
+def delete_department(dept_id):
     """Delete a department and its sections"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         if current_user.role != 'admin':
             return jsonify({'success': False, 'error': 'Only admins can delete departments'}), 403
         
@@ -537,11 +568,15 @@ def delete_department(current_user, dept_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@bp.route('/sections', methods=['POST'])
+@bp.route('/sections', methods=['POST', 'OPTIONS'])
 @token_required
-def create_section(current_user):
+def create_section():
     """Create a new section in a department"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         if current_user.role != 'admin':
             return jsonify({'success': False, 'error': 'Only admins can create sections'}), 403
         
@@ -612,11 +647,15 @@ def create_section(current_user):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@bp.route('/sections/<section_id>', methods=['PUT'])
+@bp.route('/sections/<section_id>', methods=['PUT', 'OPTIONS'])
 @token_required
-def update_section(current_user, section_id):
+def update_section(section_id):
     """Update a section"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         if current_user.role != 'admin':
             return jsonify({'success': False, 'error': 'Only admins can update sections'}), 403
         
@@ -667,11 +706,15 @@ def update_section(current_user, section_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@bp.route('/sections/<section_id>', methods=['DELETE'])
+@bp.route('/sections/<section_id>', methods=['DELETE', 'OPTIONS'])
 @token_required
-def delete_section(current_user, section_id):
+def delete_section(section_id):
     """Delete a section"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         if current_user.role != 'admin':
             return jsonify({'success': False, 'error': 'Only admins can delete sections'}), 403
         
@@ -708,9 +751,13 @@ def delete_section(current_user, section_id):
 
 @bp.route('/search-users', methods=['GET'])
 @token_required
-def search_users_for_assignment(current_user):
+def search_users_for_assignment():
     """Search users for HOD/Class Teacher assignment"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         search = request.args.get('search', '').strip()
         role_filter = request.args.get('role', '')  # optional: filter by role
         

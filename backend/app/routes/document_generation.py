@@ -480,6 +480,29 @@ def submit_document(doc_id):
         
         db.session.commit()
         
+        # Record blockchain transaction if hash provided
+        if submitted_tx_hash:
+            try:
+                from app.models.blockchain_transaction import BlockchainTransaction
+                existing_tx = BlockchainTransaction.query.filter_by(
+                    transaction_hash=submitted_tx_hash
+                ).first()
+                if not existing_tx:
+                    blockchain_tx_record = BlockchainTransaction(
+                        transaction_hash=submitted_tx_hash,
+                        user_id=current_user_id,
+                        transaction_type='request_approval',
+                        gas_used=data.get('gasUsed'),
+                        gas_price=data.get('gasPrice'),
+                        block_number=data.get('blockNumber'),
+                        status='confirmed'
+                    )
+                    db.session.add(blockchain_tx_record)
+                    db.session.commit()
+                    logger.info(f"Recorded blockchain transaction for approval request: {submitted_tx_hash}")
+            except Exception as tx_error:
+                logger.warning(f"Could not record blockchain transaction: {tx_error}")
+        
         # Send chat messages to all recipients about the approval request
         try:
             from app.routes.chat import create_approval_request_message, create_digital_signature_request_message

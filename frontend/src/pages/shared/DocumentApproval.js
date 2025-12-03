@@ -1086,6 +1086,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         // Step: Approve on blockchain
         const result = await approveDocumentOnBlockchain(request.requestId, '', signatureHash);
         txHash = result.transactionHash;
+        // Store gas info for backend
+        var gasUsed = result.gasUsed;
+        var gasPrice = result.gasPrice;
+        var blockNumber = result.blockNumber;
       }
       
       setTxProgress(50);
@@ -1106,7 +1110,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
           blockchainTxHash: txHash,
           isDigitalSignature: isDigitalSignature,
           digitalSignatureData: digitalSignatureData,
-          isLegacyRequest: isLegacyRequest // Tell backend this is a legacy request
+          isLegacyRequest: isLegacyRequest, // Tell backend this is a legacy request
+          gasUsed: gasUsed,
+          gasPrice: gasPrice,
+          blockNumber: blockNumber
         })
       });
       
@@ -1405,6 +1412,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         setTxCurrentStep(1); // Blockchain
         const result = await rejectDocumentOnBlockchain(request.requestId, reason);
         txHash = result.transactionHash;
+        // Store gas info for backend
+        var gasUsed = result.gasUsed;
+        var gasPrice = result.gasPrice;
+        var blockNumber = result.blockNumber;
       } else {
         if (isWalletMismatch) {
           console.log('📋 Processing as wallet mismatch (database-only) rejection');
@@ -1429,7 +1440,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         body: JSON.stringify({
           reason: reason,
           blockchainTxHash: txHash,
-          isLegacyRequest: isLegacyRequest
+          isLegacyRequest: isLegacyRequest,
+          gasUsed: gasUsed,
+          gasPrice: gasPrice,
+          blockNumber: blockNumber
         })
       });
       

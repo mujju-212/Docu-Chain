@@ -8,6 +8,7 @@ import DocumentGenerator from '../shared/DocumentGenerator';
 import DocumentApproval from '../shared/DocumentApproval';
 import VerificationTool from '../shared/VerificationTool';
 import ActivityLog from '../shared/ActivityLog';
+import BlockchainMonitor from '../shared/BlockchainMonitor';
 import Profile from '../../components/shared/Profile';
 import './FacultyDashboard.css';
 
@@ -435,6 +436,13 @@ const FacultyDashboard = () => {
                 <i className="ri-file-list-3-line"></i> <span>Activity Log</span>
               </a>
               <a
+                onClick={() => setCurrentPage('blockchain-monitor')}
+                className={currentPage === 'blockchain-monitor' ? 'active' : ''}
+                style={{cursor: 'pointer'}}
+              >
+                <i className="ri-links-line"></i> <span>Blockchain Monitor</span>
+              </a>
+              <a
                 className={currentPage === 'settings' ? 'active' : ''}
                 onClick={() => setCurrentPage('settings')}
                 style={{cursor: 'pointer'}}
@@ -509,6 +517,8 @@ const FacultyDashboard = () => {
               <VerificationTool />
             ) : currentPage === 'activity-log' ? (
               <ActivityLog />
+            ) : currentPage === 'blockchain-monitor' ? (
+              <BlockchainMonitor userRole="faculty" />
             ) : (
               <div className="dashboard-content">
             {/* Welcome Header */}

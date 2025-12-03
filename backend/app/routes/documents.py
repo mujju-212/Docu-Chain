@@ -3,6 +3,7 @@ from app import db
 from app.models.user import User
 from app.models.document import Document, DocumentShare, DocumentVersion
 from app.models.folder import Folder
+from app.models.blockchain_transaction import BlockchainTransaction
 from app.routes.auth import token_required
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
@@ -183,6 +184,26 @@ def upload_document():
         # Save to database
         db.session.add(document)
         db.session.commit()
+        
+        # Record blockchain transaction for monitoring
+        if data.get('transaction_hash'):
+            try:
+                blockchain_tx = BlockchainTransaction(
+                    transaction_hash=data.get('transaction_hash'),
+                    block_number=data.get('block_number'),
+                    user_id=current_user_id,
+                    transaction_type='upload',
+                    document_id=document.id,
+                    gas_used=data.get('gas_used'),
+                    gas_price=data.get('gas_price'),
+                    status='confirmed'
+                )
+                db.session.add(blockchain_tx)
+                db.session.commit()
+                print(f"✅ Blockchain transaction recorded: {data.get('transaction_hash')}")
+            except Exception as tx_error:
+                print(f"⚠️ Could not record blockchain transaction: {tx_error}")
+                # Don't fail the upload if transaction recording fails
         
         # Update parent folder's updated_at timestamp
         if document.folder_id:
@@ -438,6 +459,32 @@ def update_document(document_id):
                 new_folder.updated_at = datetime.utcnow()
         
         db.session.commit()
+        
+        # Record blockchain transaction for monitoring (if transaction_hash is provided)
+        if data.get('transaction_hash'):
+            try:
+                # Check if this transaction is already recorded
+                existing_tx = BlockchainTransaction.query.filter_by(
+                    transaction_hash=data.get('transaction_hash')
+                ).first()
+                
+                if not existing_tx:
+                    blockchain_tx = BlockchainTransaction(
+                        transaction_hash=data.get('transaction_hash'),
+                        block_number=data.get('block_number'),
+                        user_id=current_user_id,
+                        transaction_type='upload',
+                        document_id=document.id,
+                        gas_used=int(data.get('gas_used')) if data.get('gas_used') else None,
+                        gas_price=int(data.get('gas_price')) if data.get('gas_price') else None,
+                        status='confirmed'
+                    )
+                    db.session.add(blockchain_tx)
+                    db.session.commit()
+                    print(f"✅ Blockchain transaction recorded: {data.get('transaction_hash')}")
+            except Exception as tx_error:
+                print(f"⚠️ Could not record blockchain transaction: {tx_error}")
+                # Don't fail the update if transaction recording fails
         
         return jsonify({
             'success': True,

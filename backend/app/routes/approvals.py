@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models import User, ApprovalRequest, ApprovalStep, ApprovedDocument, ApprovalHistory
 from app.models.approval import generate_verification_code
+from app.models.blockchain_transaction import BlockchainTransaction
 from app.services.pdf_stamping import pdf_stamping_service
 from app.services.approval_folder_service import approval_folder_service
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -157,6 +158,34 @@ def create_approval_request():
             logger.info(f"Added document to approval folders for request {approval_request.request_id}")
         except Exception as folder_error:
             logger.warning(f"Could not add to approval folders: {folder_error}")
+        
+        # Record blockchain transaction for monitoring
+        blockchain_tx_hash = data.get('blockchainTxHash')
+        if blockchain_tx_hash:
+            try:
+                existing_tx = BlockchainTransaction.query.filter_by(
+                    transaction_hash=blockchain_tx_hash
+                ).first()
+                
+                if not existing_tx:
+                    gas_used = data.get('gasUsed')
+                    gas_price = data.get('gasPrice')
+                    
+                    blockchain_tx = BlockchainTransaction(
+                        transaction_hash=blockchain_tx_hash,
+                        block_number=data.get('blockNumber'),
+                        user_id=current_user_id,
+                        transaction_type='request_approval',
+                        document_id=None,
+                        gas_used=int(gas_used) if gas_used else None,
+                        gas_price=int(gas_price) if gas_price else None,
+                        status='confirmed'
+                    )
+                    db.session.add(blockchain_tx)
+                    db.session.commit()
+                    logger.info(f"✅ Request approval blockchain transaction recorded: {blockchain_tx_hash}")
+            except Exception as tx_error:
+                logger.warning(f"Could not record request approval blockchain transaction: {tx_error}")
         
         return jsonify({'success': True, 'data': approval_request.to_dict_detailed()}), 201
         
@@ -377,6 +406,35 @@ def approve_document(request_id):
         except Exception as folder_error:
             logger.warning(f"Could not update approval folders: {folder_error}")
         
+        # Record blockchain transaction for monitoring
+        blockchain_tx_hash = data.get('blockchainTxHash')
+        if blockchain_tx_hash:
+            try:
+                existing_tx = BlockchainTransaction.query.filter_by(
+                    transaction_hash=blockchain_tx_hash
+                ).first()
+                
+                if not existing_tx:
+                    tx_type = 'approve' if not is_digital_signature else 'digital_sign'
+                    gas_used = data.get('gasUsed')
+                    gas_price = data.get('gasPrice')
+                    
+                    blockchain_tx = BlockchainTransaction(
+                        transaction_hash=blockchain_tx_hash,
+                        block_number=data.get('blockNumber'),
+                        user_id=current_user_id,
+                        transaction_type=tx_type,
+                        document_id=None,  # Approval doesn't have a document UUID reference
+                        gas_used=int(gas_used) if gas_used else None,
+                        gas_price=int(gas_price) if gas_price else None,
+                        status='confirmed'
+                    )
+                    db.session.add(blockchain_tx)
+                    db.session.commit()
+                    logger.info(f"✅ Approval blockchain transaction recorded: {blockchain_tx_hash}")
+            except Exception as tx_error:
+                logger.warning(f"Could not record approval blockchain transaction: {tx_error}")
+        
         return jsonify({'success': True, 'data': approval_request.to_dict_detailed()}), 200
         
     except Exception as e:
@@ -466,6 +524,34 @@ def reject_document(request_id):
             logger.info(f"Updated approval folders on rejection")
         except Exception as folder_error:
             logger.warning(f"Could not update approval folders: {folder_error}")
+        
+        # Record blockchain transaction for monitoring
+        blockchain_tx_hash = data.get('blockchainTxHash')
+        if blockchain_tx_hash:
+            try:
+                existing_tx = BlockchainTransaction.query.filter_by(
+                    transaction_hash=blockchain_tx_hash
+                ).first()
+                
+                if not existing_tx:
+                    gas_used = data.get('gasUsed')
+                    gas_price = data.get('gasPrice')
+                    
+                    blockchain_tx = BlockchainTransaction(
+                        transaction_hash=blockchain_tx_hash,
+                        block_number=data.get('blockNumber'),
+                        user_id=current_user_id,
+                        transaction_type='reject',
+                        document_id=None,
+                        gas_used=int(gas_used) if gas_used else None,
+                        gas_price=int(gas_price) if gas_price else None,
+                        status='confirmed'
+                    )
+                    db.session.add(blockchain_tx)
+                    db.session.commit()
+                    logger.info(f"✅ Rejection blockchain transaction recorded: {blockchain_tx_hash}")
+            except Exception as tx_error:
+                logger.warning(f"Could not record rejection blockchain transaction: {tx_error}")
         
         return jsonify({'success': True, 'data': approval_request.to_dict_detailed()}), 200
         

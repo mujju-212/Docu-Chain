@@ -569,14 +569,16 @@ def send_email_verification():
     try:
         data = request.get_json()
         email = data.get('email')
+        skip_user_check = data.get('skipUserCheck', False)  # For institution registration
         
         if not email:
             return jsonify({'success': False, 'message': 'Email is required'}), 400
         
-        # Check if email already exists in the system
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            return jsonify({'success': False, 'message': 'Email already registered'}), 400
+        # Check if email already exists in the system (skip for institution email verification)
+        if not skip_user_check:
+            existing_user = User.query.filter_by(email=email).first()
+            if existing_user:
+                return jsonify({'success': False, 'message': 'Email already registered'}), 400
         
         # Generate OTP
         otp = generate_otp()

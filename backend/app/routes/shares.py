@@ -3,6 +3,7 @@ from app import db
 from app.models.document import Document, DocumentShare
 from app.models.user import User
 from app.models.folder import Folder
+from app.models.blockchain_transaction import BlockchainTransaction
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from sqlalchemy import or_
@@ -152,6 +153,33 @@ def share_document(document_id):
             })
         
         db.session.commit()
+        
+        # Record blockchain transaction for monitoring
+        if transaction_hash:
+            try:
+                existing_tx = BlockchainTransaction.query.filter_by(
+                    transaction_hash=transaction_hash
+                ).first()
+                
+                if not existing_tx:
+                    gas_used = data.get('gas_used')
+                    gas_price = data.get('gas_price')
+                    
+                    blockchain_tx = BlockchainTransaction(
+                        transaction_hash=transaction_hash,
+                        block_number=block_number,
+                        user_id=current_user_id,
+                        transaction_type='share',
+                        document_id=document.id,
+                        gas_used=int(gas_used) if gas_used else None,
+                        gas_price=int(gas_price) if gas_price else None,
+                        status='confirmed'
+                    )
+                    db.session.add(blockchain_tx)
+                    db.session.commit()
+                    print(f"✅ Share blockchain transaction recorded: {transaction_hash}")
+            except Exception as tx_error:
+                print(f"⚠️ Could not record share blockchain transaction: {tx_error}")
         
         return jsonify({
             'success': True,

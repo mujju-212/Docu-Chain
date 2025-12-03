@@ -71,6 +71,7 @@ function Register() {
   const [success, setSuccess] = useState('');
   const [isInstitutionFlow, setIsInstitutionFlow] = useState(false);
   const [institutionStep, setInstitutionStep] = useState(1); // For institution registration flow
+  const [showUserPreview, setShowUserPreview] = useState(false); // For user registration preview
   
   // Email verification states
   const [emailVerificationSent, setEmailVerificationSent] = useState(false);
@@ -80,6 +81,12 @@ function Register() {
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [otpValue, setOtpValue] = useState('');
   const [emailVerificationError, setEmailVerificationError] = useState('');
+  
+  // Admin email verification states (for institution registration step 2)
+  const [adminEmailVerificationLoading, setAdminEmailVerificationLoading] = useState(false);
+  const [adminEmailVerified, setAdminEmailVerified] = useState(false);
+  const [showAdminOtpInput, setShowAdminOtpInput] = useState(false);
+  const [adminOtpValue, setAdminOtpValue] = useState('');
   
   // Dynamic dropdown state
   const [institutions, setInstitutions] = useState([]);
@@ -204,6 +211,9 @@ function Register() {
       return;
     }
 
+    // Use institution email if in institution flow, otherwise use regular email
+    const emailToVerify = isInstitutionFlow ? formData.institutionEmail : formData.email;
+
     try {
       setOtpVerificationLoading(true);
       setEmailVerificationError('');
@@ -214,7 +224,7 @@ function Register() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: formData.email,
+          email: emailToVerify,
           otp: otpValue
         }),
       });
@@ -330,6 +340,27 @@ function Register() {
     setCurrentRole(role);
     setError('');
     setSuccess('');
+    setShowUserPreview(false); // Reset preview when changing role
+  };
+
+  // Helper functions to get display names from IDs
+  const getDepartmentName = () => {
+    const dept = departments.find(d => d.id === formData.department || d.id === parseInt(formData.department));
+    return dept?.name || formData.department || 'Not Selected';
+  };
+
+  const getSectionName = () => {
+    const section = sections.find(s => s.id === formData.section || s.id === parseInt(formData.section));
+    return section?.name || formData.section || 'Not Selected';
+  };
+
+  const handleShowPreview = () => {
+    if (!validateForm()) return;
+    setShowUserPreview(true);
+  };
+
+  const handleBackFromPreview = () => {
+    setShowUserPreview(false);
   };
 
   const handleInputChange = (field, value) => {
@@ -550,7 +581,8 @@ function Register() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: formData.institutionEmail
+          email: formData.institutionEmail,
+          skipUserCheck: true  // Institution email doesn't need user check
         }),
       });
 
@@ -569,6 +601,83 @@ function Register() {
       setError('Failed to send verification email. Please try again.');
     } finally {
       setEmailVerificationLoading(false);
+    }
+  };
+
+  // Admin Email Verification (for institution registration step 2)
+  const handleAdminEmailVerification = async () => {
+    if (!formData.institutionAdminEmail || !isEmail(formData.institutionAdminEmail)) {
+      setError('Please enter a valid admin email address.');
+      return;
+    }
+
+    try {
+      setAdminEmailVerificationLoading(true);
+      setError('');
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/send-email-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.institutionAdminEmail,
+          skipUserCheck: true  // New admin account, skip user check
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setShowAdminOtpInput(true);
+        setSuccess('Verification code sent to admin email!');
+        console.log('Admin OTP (for development):', data.otp);
+      } else {
+        setError(data.message || 'Failed to send verification email.');
+      }
+    } catch (error) {
+      console.error('Admin email verification error:', error);
+      setError('Failed to send verification email. Please try again.');
+    } finally {
+      setAdminEmailVerificationLoading(false);
+    }
+  };
+
+  const handleAdminOtpVerification = async () => {
+    if (!adminOtpValue || adminOtpValue.length !== 6) {
+      setError('Please enter a valid 6-digit OTP.');
+      return;
+    }
+
+    try {
+      setAdminEmailVerificationLoading(true);
+      setError('');
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/verify-email-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.institutionAdminEmail,
+          otp: adminOtpValue
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setAdminEmailVerified(true);
+        setShowAdminOtpInput(false);
+        setSuccess('Admin email verified successfully!');
+      } else {
+        setError(data.message || 'Invalid OTP. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error verifying admin OTP:', error);
+      setError('Failed to verify OTP. Please try again.');
+    } finally {
+      setAdminEmailVerificationLoading(false);
     }
   };
 
@@ -719,8 +828,8 @@ function Register() {
           </div>
 
           {/* Form for Student, Staff, Admin */}
-          {!isInstitutionFlow && (
-            <form id="regForm" className={`show-${currentRole}`} onSubmit={handleSubmit} noValidate>
+          {!isInstitutionFlow && !showUserPreview && (
+            <form id="regForm" className={`show-${currentRole}`} onSubmit={(e) => { e.preventDefault(); handleShowPreview(); }} noValidate>
               {/* Student Fields - New Structure */}
               {currentRole === 'student' && (
                 <div className="role-student">
@@ -1412,23 +1521,125 @@ function Register() {
               )}
 
 
-              <button className="btn primary" type="submit" disabled={loading}>
-                {loading ? (
-                  <>
-                    <div className="spinner"></div>
-                    Creating Account...
-                  </>
-                ) : (
-                  <>
-                    <i className="ri-user-add-line"></i> Create Account
-                  </>
-                )}
+              <button className="btn primary" type="button" onClick={handleShowPreview} disabled={loading}>
+                <i className="ri-eye-line"></i> Preview & Submit
               </button>
               
               <div className="foot">
                 Already have an account? <Link to="/login" style={{color:'var(--b-700)'}}>Sign In</Link>
               </div>
             </form>
+          )}
+
+          {/* User Registration Preview */}
+          {!isInstitutionFlow && showUserPreview && (
+            <div id="userPreviewSection" style={{display: 'grid', gap: '20px'}}>
+              <h3 style={{color: 'var(--b-600)', marginBottom: '10px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}>
+                <i className="ri-eye-line"></i> Preview Your Details
+              </h3>
+              <p className="sub" style={{marginBottom: '20px', textAlign: 'center'}}>
+                Review all your information before submitting
+              </p>
+              
+              <div style={{backgroundColor: 'var(--b-50)', padding: '20px', borderRadius: '12px', marginBottom: '20px', textAlign: 'left', border: '1px solid var(--b-200)'}}>
+                {/* Personal Information */}
+                <h4 style={{color: 'var(--b-700)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <i className="ri-user-line"></i> Personal Information
+                </h4>
+                <div style={{display: 'grid', gap: '10px', marginLeft: '24px', marginBottom: '20px'}}>
+                  <p style={{margin: 0}}>
+                    <strong>Full Name:</strong> {
+                      currentRole === 'student' ? `${formData.studentFirstName} ${formData.studentLastName}` :
+                      currentRole === 'staff' ? `${formData.staffFirstName} ${formData.staffLastName}` :
+                      `${formData.adminFirstName} ${formData.adminLastName}`
+                    }
+                  </p>
+                  <p style={{margin: 0}}>
+                    <strong>{currentRole === 'student' ? 'Student' : currentRole === 'staff' ? 'Staff' : 'Admin'} ID:</strong> {
+                      currentRole === 'student' ? formData.studentId :
+                      currentRole === 'staff' ? formData.staffId :
+                      formData.adminId
+                    }
+                  </p>
+                  <p style={{margin: 0}}>
+                    <strong>Role:</strong> {currentRole.charAt(0).toUpperCase() + currentRole.slice(1)}
+                  </p>
+                </div>
+
+                <hr style={{margin: '20px 0', border: 'none', borderTop: '1px solid var(--b-200)'}} />
+
+                {/* Institution & Academic Info */}
+                <h4 style={{color: 'var(--b-700)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <i className="ri-building-2-line"></i> Institution & Academic Info
+                </h4>
+                <div style={{display: 'grid', gap: '10px', marginLeft: '24px', marginBottom: '20px'}}>
+                  <p style={{margin: 0}}><strong>Institution:</strong> {selectedInstitution?.name || 'Not Selected'}</p>
+                  <p style={{margin: 0}}><strong>Institution ID:</strong> {selectedInstitution?.unique_id || 'N/A'}</p>
+                  <p style={{margin: 0}}><strong>Department:</strong> {getDepartmentName()}</p>
+                  {currentRole === 'student' && (
+                    <p style={{margin: 0}}><strong>Section:</strong> {getSectionName()}</p>
+                  )}
+                </div>
+
+                <hr style={{margin: '20px 0', border: 'none', borderTop: '1px solid var(--b-200)'}} />
+
+                {/* Contact Information */}
+                <h4 style={{color: 'var(--b-700)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <i className="ri-contacts-line"></i> Contact Information
+                </h4>
+                <div style={{display: 'grid', gap: '10px', marginLeft: '24px', marginBottom: '20px'}}>
+                  <p style={{margin: 0}}>
+                    <strong>Email:</strong> {formData.email} {emailVerified && <span style={{color: 'var(--success-color)', fontSize: '12px'}}>✓ Verified</span>}
+                  </p>
+                  <p style={{margin: 0}}><strong>Phone:</strong> {formData.countryCode} {formData.phone}</p>
+                </div>
+
+                <hr style={{margin: '20px 0', border: 'none', borderTop: '1px solid var(--b-200)'}} />
+
+                {/* Security Information */}
+                <h4 style={{color: 'var(--b-700)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <i className="ri-shield-keyhole-line"></i> Security
+                </h4>
+                <div style={{display: 'grid', gap: '10px', marginLeft: '24px'}}>
+                  <p style={{margin: 0}}><strong>Password:</strong> {'•'.repeat(formData.password?.length || 8)}</p>
+                  {formData.wallet && (
+                    <p style={{margin: 0}}><strong>Wallet Address:</strong> {formData.wallet.slice(0, 6)}...{formData.wallet.slice(-4)}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid-2" style={{gap: '16px'}}>
+                <button 
+                  type="button" 
+                  className="btn secondary"
+                  onClick={handleBackFromPreview}
+                  style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}
+                >
+                  <i className="ri-arrow-left-line"></i> Edit Details
+                </button>
+                <button 
+                  type="button" 
+                  className="btn primary" 
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}
+                >
+                  {loading ? (
+                    <>
+                      <div className="spinner"></div> Creating Account...
+                    </>
+                  ) : (
+                    <>
+                      <i className="ri-user-add-line"></i> Submit Registration
+                    </>
+                  )}
+                </button>
+              </div>
+              
+              <div className="foot">
+                Already have an account? <Link to="/login" style={{color:'var(--b-700)'}}>Sign In</Link>
+              </div>
+            </div>
           )}
           
           {/* Institution Registration Form - Dual Structure */}
@@ -1646,15 +1857,44 @@ function Register() {
                         value={formData.institutionAdminEmail}
                         onChange={(e) => handleInputChange('institutionAdminEmail', e.target.value)}
                         required
+                        disabled={adminEmailVerified}
                       />
-                      <button 
-                        type="button" 
-                        className="verify-email-btn"
-                        onClick={() => {/* Handle admin email verification */}}
-                      >
-                        Verify
-                      </button>
+                      {!adminEmailVerified && !showAdminOtpInput && (
+                        <button 
+                          type="button" 
+                          className="verify-email-btn"
+                          onClick={handleAdminEmailVerification}
+                          disabled={adminEmailVerificationLoading}
+                        >
+                          {adminEmailVerificationLoading ? 'Sending...' : 'Verify'}
+                        </button>
+                      )}
+                      {adminEmailVerified && (
+                        <span className="verified-badge">✓ Verified</span>
+                      )}
                     </div>
+                    {/* Admin OTP Input */}
+                    {showAdminOtpInput && !adminEmailVerified && (
+                      <div className="otp-verification-section">
+                        <div className="otp-input-group">
+                          <input
+                            type="text"
+                            placeholder="Enter 6-digit OTP"
+                            value={adminOtpValue}
+                            onChange={(e) => setAdminOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            maxLength={6}
+                          />
+                          <button 
+                            type="button" 
+                            className="verify-otp-btn"
+                            onClick={handleAdminOtpVerification}
+                            disabled={adminEmailVerificationLoading || adminOtpValue.length !== 6}
+                          >
+                            {adminEmailVerificationLoading ? 'Verifying...' : 'Verify OTP'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Admin Phone */}
@@ -1733,23 +1973,41 @@ function Register() {
               {institutionStep === 3 && (
                 <div id="institutionFinalStep" style={{textAlign: 'center'}}>
                   <h3 style={{color: 'var(--b-600)', marginBottom: '20px'}}>
-                    Complete Registration
+                    <i className="ri-eye-line" style={{marginRight: '8px'}}></i>
+                    Preview & Confirm
                   </h3>
                   <p className="sub" style={{marginBottom: '30px'}}>
-                    Review your information and complete the registration process
+                    Review all your information before submitting
                   </p>
                   
-                  <div style={{backgroundColor: 'var(--b-50)', padding: '20px', borderRadius: '8px', marginBottom: '20px', textAlign: 'left'}}>
-                    <h4 style={{color: 'var(--b-700)', marginBottom: '15px'}}>Institution Details:</h4>
-                    <p><strong>Name:</strong> {formData.institutionName}</p>
-                    <p><strong>Type:</strong> {formData.institutionType}</p>
-                    <p><strong>Unique ID:</strong> {formData.institutionUniqueId}</p>
-                    <p><strong>Email:</strong> {formData.institutionEmail}</p>
+                  <div style={{backgroundColor: 'var(--b-50)', padding: '20px', borderRadius: '12px', marginBottom: '20px', textAlign: 'left', border: '1px solid var(--b-200)'}}>
+                    <h4 style={{color: 'var(--b-700)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                      <i className="ri-building-2-line"></i> Institution Details
+                    </h4>
+                    <div style={{display: 'grid', gap: '10px', marginLeft: '24px'}}>
+                      <p style={{margin: 0}}><strong>Name:</strong> {formData.institutionName}</p>
+                      <p style={{margin: 0}}><strong>Type:</strong> {formData.institutionType?.charAt(0).toUpperCase() + formData.institutionType?.slice(1)}</p>
+                      <p style={{margin: 0}}><strong>Unique ID:</strong> {formData.institutionUniqueId}</p>
+                      <p style={{margin: 0}}><strong>Address:</strong> {formData.institutionAddress}</p>
+                      <p style={{margin: 0}}><strong>Email:</strong> {formData.institutionEmail} <span style={{color: 'var(--success-color)', fontSize: '12px'}}>✓ Verified</span></p>
+                      <p style={{margin: 0}}><strong>Phone:</strong> {formData.institutionCountryCode} {formData.institutionPhone}</p>
+                      {formData.institutionWebsite && (
+                        <p style={{margin: 0}}><strong>Website:</strong> {formData.institutionWebsite}</p>
+                      )}
+                    </div>
                     
-                    <h4 style={{color: 'var(--b-700)', marginTop: '20px', marginBottom: '15px'}}>Admin Details:</h4>
-                    <p><strong>Name:</strong> {formData.institutionAdminFirstName} {formData.institutionAdminLastName}</p>
-                    <p><strong>Admin ID:</strong> {formData.institutionAdminId}</p>
-                    <p><strong>Email:</strong> {formData.institutionAdminEmail}</p>
+                    <hr style={{margin: '20px 0', border: 'none', borderTop: '1px solid var(--b-200)'}} />
+                    
+                    <h4 style={{color: 'var(--b-700)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                      <i className="ri-admin-line"></i> Admin Account Details
+                    </h4>
+                    <div style={{display: 'grid', gap: '10px', marginLeft: '24px'}}>
+                      <p style={{margin: 0}}><strong>Full Name:</strong> {formData.institutionAdminFirstName} {formData.institutionAdminLastName}</p>
+                      <p style={{margin: 0}}><strong>Admin ID:</strong> {formData.institutionAdminId}</p>
+                      <p style={{margin: 0}}><strong>Email:</strong> {formData.institutionAdminEmail} {adminEmailVerified && <span style={{color: 'var(--success-color)', fontSize: '12px'}}>✓ Verified</span>}</p>
+                      <p style={{margin: 0}}><strong>Phone:</strong> {formData.institutionAdminCountryCode} {formData.institutionAdminPhone}</p>
+                      <p style={{margin: 0}}><strong>Password:</strong> {'•'.repeat(formData.institutionAdminPassword?.length || 8)}</p>
+                    </div>
                   </div>
                   
                   <div className="grid-2">
@@ -1760,8 +2018,21 @@ function Register() {
                     >
                       <i className="ri-arrow-left-line"></i> Edit Details
                     </button>
-                    <button className="btn primary" type="submit">
-                      <i className="ri-building-line"></i> Create Institution & Admin
+                    <button 
+                      type="button" 
+                      className="btn primary" 
+                      onClick={handleCreateInstitutionAndAdmin}
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <>
+                          <i className="ri-loader-4-line ri-spin"></i> Creating...
+                        </>
+                      ) : (
+                        <>
+                          <i className="ri-building-line"></i> Submit Registration
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>

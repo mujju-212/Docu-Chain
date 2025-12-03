@@ -2729,7 +2729,10 @@ const ChatInterface = () => {
                         blockchainTxHash: result.transactionHash,
                         reason: request.isDigitalSig ? 'Digitally signed' : 'Approved',
                         signatureHash: signatureHash,
-                        isDigitalSignature: request.isDigitalSig
+                        isDigitalSignature: request.isDigitalSig,
+                        gasUsed: result.gasUsed,
+                        gasPrice: result.gasPrice,
+                        blockNumber: result.blockNumber
                     })
                 });
 
@@ -2759,7 +2762,10 @@ const ChatInterface = () => {
                     },
                     body: JSON.stringify({
                         blockchainTxHash: result.transactionHash,
-                        reason: rejectionReason
+                        reason: rejectionReason,
+                        gasUsed: result.gasUsed,
+                        gasPrice: result.gasPrice,
+                        blockNumber: result.blockNumber
                     })
                 });
 

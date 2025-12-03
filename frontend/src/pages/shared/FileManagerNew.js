@@ -1853,13 +1853,14 @@ const FileManager = () => {
           throw new Error(`Failed to store ${file.name} on blockchain: ${blockchainResult.error}`);
         }
 
-        // Step 3.5: Update database with blockchain documentId (bytes32 hash)
+        // Step 3.5: Update database with blockchain documentId (bytes32 hash) and record transaction
         console.log('💾 Step 3.5: Saving blockchain documentId to database');
         setTxCurrentStep(4); // Finalizing
         setTxMessage(`Finalizing ${file.name}...`);
         
         const documentId = blockchainResult.documentId; // This is the bytes32 hash
         console.log('📝 Blockchain documentId (bytes32):', documentId);
+        console.log('⛽ Gas info:', { gasUsed: blockchainResult.gasUsed, gasPrice: blockchainResult.gasPrice });
         
         try {
           const token = localStorage.getItem('token');
@@ -1867,7 +1868,11 @@ const FileManager = () => {
             `http://localhost:5000/api/documents/${result.document.id}`,
             {
               document_id: documentId, // Backend expects 'document_id' not 'blockchain_document_id'
-              ipfs_hash: ipfsResult.ipfsHash
+              ipfs_hash: ipfsResult.ipfsHash,
+              transaction_hash: blockchainResult.transactionHash,
+              block_number: blockchainResult.blockNumber,
+              gas_used: blockchainResult.gasUsed,
+              gas_price: blockchainResult.gasPrice
             },
             {
               headers: {
@@ -1876,7 +1881,7 @@ const FileManager = () => {
               }
             }
           );
-          console.log('✅ Database updated with blockchain documentId');
+          console.log('✅ Database updated with blockchain documentId and gas info');
         } catch (dbError) {
           console.error('⚠️ Failed to update database with blockchain ID:', dbError);
           // Don't fail the upload, just warn

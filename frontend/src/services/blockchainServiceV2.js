@@ -200,6 +200,7 @@ class BlockchainServiceV2 {
       console.log('⏳ Transaction sent:', tx.hash);
       const receipt = await tx.wait();
       console.log('✅ Transaction confirmed:', receipt.hash);
+      console.log('⛽ Gas used:', receipt.gasUsed?.toString());
 
       // Get document ID from event
       const event = receipt.logs.find(log => {
@@ -213,12 +214,18 @@ class BlockchainServiceV2 {
 
       const documentId = event ? contract.interface.parseLog(event).args.documentId : null;
 
+      // Extract gas information
+      const gasUsed = receipt.gasUsed ? receipt.gasUsed.toString() : null;
+      const gasPrice = receipt.gasPrice ? receipt.gasPrice.toString() : (tx.gasPrice ? tx.gasPrice.toString() : null);
+
       return {
         success: true,
         transactionHash: receipt.hash,
         blockNumber: receipt.blockNumber,
         documentId: documentId,
-        uploadedByWallet: this.currentWallet
+        uploadedByWallet: this.currentWallet,
+        gasUsed: gasUsed,
+        gasPrice: gasPrice
       };
     } catch (error) {
       console.error('❌ Error uploading document:', error);
@@ -273,12 +280,19 @@ class BlockchainServiceV2 {
       console.log('⏳ Transaction sent:', tx.hash);
       const receipt = await tx.wait();
       console.log('✅ Transaction confirmed:', receipt.hash);
+      console.log('⛽ Gas used:', receipt.gasUsed?.toString());
+
+      // Extract gas information
+      const gasUsed = receipt.gasUsed ? receipt.gasUsed.toString() : null;
+      const gasPrice = receipt.gasPrice ? receipt.gasPrice.toString() : (tx.gasPrice ? tx.gasPrice.toString() : null);
 
       return {
         success: true,
         transactionHash: receipt.hash,
         blockNumber: receipt.blockNumber,
-        sharedWithWallet: recipientWallet
+        sharedWithWallet: recipientWallet,
+        gasUsed: gasUsed,
+        gasPrice: gasPrice
       };
     } catch (error) {
       console.error('❌ Error sharing document:', error);

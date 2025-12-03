@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './InstitutionManagement.css';
 
 const InstitutionManagement = () => {
-  const [activeTab, setActiveTab] = useState('institution');
+  // Tab state - like ChatInterface
+  const [activeTab, setActiveTab] = useState('details');
+  
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [notification, setNotification] = useState(null);
@@ -17,18 +19,20 @@ const InstitutionManagement = () => {
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState(null);
   const [deptForm, setDeptForm] = useState({ name: '', hodId: '' });
+  const [activeDeptMenu, setActiveDeptMenu] = useState(null);
   
   // Sections state
-  const [expandedDept, setExpandedDept] = useState(null);
+  const [selectedDeptForSections, setSelectedDeptForSections] = useState('');
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [editingSection, setEditingSection] = useState(null);
   const [sectionForm, setSectionForm] = useState({ name: '', classTeacherId: '', departmentId: '' });
+  const [activeSectionMenu, setActiveSectionMenu] = useState(null);
   
   // User search for HOD/Class Teacher
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
-  const [searchFor, setSearchFor] = useState(''); // 'hod' or 'teacher'
+  const [searchFor, setSearchFor] = useState('');
   
   // Confirmation modal
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -47,23 +51,40 @@ const InstitutionManagement = () => {
     { value: 'academy', label: 'Academy' }
   ];
 
+  // Close menus on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (activeDeptMenu && !event.target.closest('.im-menu-container')) {
+        setActiveDeptMenu(null);
+      }
+      if (activeSectionMenu && !event.target.closest('.im-menu-container')) {
+        setActiveSectionMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeDeptMenu, activeSectionMenu]);
+
   // Show notification
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Fetch institution details
+  // Fetch institution details - FIXED URL
   const fetchInstitution = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/institution/details`, {
+      const response = await fetch(`${API_URL}/institutions/details`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
+      console.log('Institution fetch response:', data);
       if (data.success) {
         setInstitution(data.institution);
         setInstitutionForm(data.institution);
+      } else {
+        console.error('Failed to fetch institution:', data.error);
       }
     } catch (err) {
       console.error('Error fetching institution:', err);
@@ -71,14 +92,15 @@ const InstitutionManagement = () => {
     }
   }, [API_URL]);
 
-  // Fetch departments with sections
+  // Fetch departments with sections - FIXED URL
   const fetchDepartments = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/institution/departments`, {
+      const response = await fetch(`${API_URL}/institutions/departments`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
+      console.log('Departments fetch response:', data);
       if (data.success) {
         setDepartments(data.departments || []);
       }
@@ -98,18 +120,17 @@ const InstitutionManagement = () => {
     loadData();
   }, [fetchInstitution, fetchDepartments]);
 
-  // Search users (for HOD/Class Teacher assignment)
+  // Search users - FIXED URL
   const searchUsers = async (term, role = '') => {
     if (!term || term.length < 2) {
       setUserSearchResults([]);
       return;
     }
-    
     setSearchingUsers(true);
     try {
       const token = localStorage.getItem('token');
       const roleParam = role ? `&role=${role}` : '';
-      const response = await fetch(`${API_URL}/institution/search-users?search=${encodeURIComponent(term)}${roleParam}`, {
+      const response = await fetch(`${API_URL}/institutions/search-users?search=${encodeURIComponent(term)}${roleParam}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -134,12 +155,12 @@ const InstitutionManagement = () => {
     return () => clearTimeout(timer);
   }, [userSearchTerm, searchFor]);
 
-  // Update institution
+  // Update institution - FIXED URL
   const updateInstitution = async () => {
     setActionLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/institution/update`, {
+      const response = await fetch(`${API_URL}/institutions/update`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -163,19 +184,18 @@ const InstitutionManagement = () => {
     }
   };
 
-  // Create/Update department
+  // Save department - FIXED URL
   const saveDepartment = async () => {
     if (!deptForm.name.trim()) {
       showNotification('Department name is required', 'error');
       return;
     }
-    
     setActionLoading(true);
     try {
       const token = localStorage.getItem('token');
       const url = editingDepartment 
-        ? `${API_URL}/institution/departments/${editingDepartment.id}`
-        : `${API_URL}/institution/departments`;
+        ? `${API_URL}/institutions/departments/${editingDepartment.id}`
+        : `${API_URL}/institutions/departments`;
       
       const response = await fetch(url, {
         method: editingDepartment ? 'PUT' : 'POST',
@@ -194,31 +214,32 @@ const InstitutionManagement = () => {
         showNotification(data.error || 'Failed to save department', 'error');
       }
     } catch (err) {
-      console.error('Error saving department:', err);
       showNotification('Failed to save department', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Delete department
+  // Delete department - FIXED URL
   const deleteDepartment = async (deptId) => {
     setActionLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/institution/departments/${deptId}`, {
+      const response = await fetch(`${API_URL}/institutions/departments/${deptId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
       if (data.success) {
         await fetchDepartments();
+        if (selectedDeptForSections === deptId.toString()) {
+          setSelectedDeptForSections('');
+        }
         showNotification('Department deleted successfully');
       } else {
         showNotification(data.error || 'Failed to delete department', 'error');
       }
     } catch (err) {
-      console.error('Error deleting department:', err);
       showNotification('Failed to delete department', 'error');
     } finally {
       setActionLoading(false);
@@ -226,19 +247,18 @@ const InstitutionManagement = () => {
     }
   };
 
-  // Create/Update section
+  // Save section - FIXED URL
   const saveSection = async () => {
     if (!sectionForm.name.trim()) {
       showNotification('Section name is required', 'error');
       return;
     }
-    
     setActionLoading(true);
     try {
       const token = localStorage.getItem('token');
       const url = editingSection 
-        ? `${API_URL}/institution/sections/${editingSection.id}`
-        : `${API_URL}/institution/sections`;
+        ? `${API_URL}/institutions/sections/${editingSection.id}`
+        : `${API_URL}/institutions/sections`;
       
       const response = await fetch(url, {
         method: editingSection ? 'PUT' : 'POST',
@@ -257,19 +277,18 @@ const InstitutionManagement = () => {
         showNotification(data.error || 'Failed to save section', 'error');
       }
     } catch (err) {
-      console.error('Error saving section:', err);
       showNotification('Failed to save section', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Delete section
+  // Delete section - FIXED URL
   const deleteSection = async (sectionId) => {
     setActionLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/institution/sections/${sectionId}`, {
+      const response = await fetch(`${API_URL}/institutions/sections/${sectionId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -281,7 +300,6 @@ const InstitutionManagement = () => {
         showNotification(data.error || 'Failed to delete section', 'error');
       }
     } catch (err) {
-      console.error('Error deleting section:', err);
       showNotification('Failed to delete section', 'error');
     } finally {
       setActionLoading(false);
@@ -297,6 +315,7 @@ const InstitutionManagement = () => {
     setUserSearchResults([]);
     setSearchFor('hod');
     setShowDeptModal(true);
+    setActiveDeptMenu(null);
   };
 
   const closeDeptModal = () => {
@@ -307,8 +326,9 @@ const InstitutionManagement = () => {
     setUserSearchResults([]);
   };
 
-  const openSectionModal = (deptId, section = null) => {
+  const openSectionModal = (section = null) => {
     setEditingSection(section);
+    const deptId = section ? section.departmentId : selectedDeptForSections;
     setSectionForm(section 
       ? { name: section.name, classTeacherId: section.classTeacherId || '', departmentId: section.departmentId, teacherName: section.teacherName || '' }
       : { name: '', classTeacherId: '', departmentId: deptId, teacherName: '' }
@@ -317,6 +337,7 @@ const InstitutionManagement = () => {
     setUserSearchResults([]);
     setSearchFor('teacher');
     setShowSectionModal(true);
+    setActiveSectionMenu(null);
   };
 
   const closeSectionModal = () => {
@@ -327,7 +348,6 @@ const InstitutionManagement = () => {
     setUserSearchResults([]);
   };
 
-  // Confirmation handlers
   const showConfirmation = (title, message, action) => {
     setConfirmTitle(title);
     setConfirmMessage(message);
@@ -339,7 +359,6 @@ const InstitutionManagement = () => {
     if (confirmAction) confirmAction();
   };
 
-  // Select user for HOD/Teacher
   const selectUser = (user) => {
     if (searchFor === 'hod') {
       setDeptForm(prev => ({ ...prev, hodId: user.id, hodName: `${user.firstName} ${user.lastName}` }));
@@ -348,6 +367,13 @@ const InstitutionManagement = () => {
     }
     setUserSearchTerm('');
     setUserSearchResults([]);
+  };
+
+  // Get sections for selected department
+  const getFilteredSections = () => {
+    if (!selectedDeptForSections) return [];
+    const dept = departments.find(d => d.id.toString() === selectedDeptForSections);
+    return dept?.sections || [];
   };
 
   if (loading) {
@@ -373,296 +399,338 @@ const InstitutionManagement = () => {
 
       {/* Header */}
       <div className="im-header">
-        <div className="im-header-content">
-          <h1><i className="ri-building-4-line"></i> Institution Management</h1>
-          <p>Manage your institution details, departments, and sections</p>
-        </div>
+        <h1><i className="ri-building-4-line"></i> Institution Management</h1>
+        <p>Manage your institution profile, departments, and sections</p>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="im-tabs">
+      {/* Slide Tabs - Like ChatInterface */}
+      <div className="im-tabs" data-active={activeTab}>
         <button 
-          className={`im-tab ${activeTab === 'institution' ? 'active' : ''}`}
-          onClick={() => setActiveTab('institution')}
+          className={`im-tab ${activeTab === 'details' ? 'active' : ''}`}
+          onClick={() => setActiveTab('details')}
         >
-          <i className="ri-building-line"></i>
           Institution Details
         </button>
         <button 
           className={`im-tab ${activeTab === 'departments' ? 'active' : ''}`}
           onClick={() => setActiveTab('departments')}
         >
-          <i className="ri-organization-chart"></i>
-          Departments & Sections
+          Departments
+        </button>
+        <button 
+          className={`im-tab ${activeTab === 'sections' ? 'active' : ''}`}
+          onClick={() => setActiveTab('sections')}
+        >
+          Sections
         </button>
       </div>
 
       {/* Tab Content */}
       <div className="im-content">
-        {activeTab === 'institution' ? (
-          <div className="im-institution-tab">
-            <div className="im-card">
-              <div className="im-card-header">
-                <div className="im-card-title">
-                  <i className="ri-information-line"></i>
-                  <h2>Institution Profile</h2>
-                </div>
-                {!isEditingInstitution && (
-                  <button className="im-btn primary" onClick={() => setIsEditingInstitution(true)}>
-                    <i className="ri-edit-line"></i> Edit Details
-                  </button>
-                )}
-              </div>
-              
-              <div className="im-card-body">
-                {isEditingInstitution ? (
-                  <div className="im-form">
-                    <div className="im-form-grid">
-                      <div className="im-form-group">
-                        <label>Institution Name *</label>
-                        <input
-                          type="text"
-                          value={institutionForm.name || ''}
-                          onChange={(e) => setInstitutionForm(prev => ({ ...prev, name: e.target.value }))}
-                          placeholder="Enter institution name"
-                        />
-                      </div>
-                      
-                      <div className="im-form-group">
-                        <label>Institution Type *</label>
-                        <select
-                          value={institutionForm.type || ''}
-                          onChange={(e) => setInstitutionForm(prev => ({ ...prev, type: e.target.value }))}
-                        >
-                          <option value="">Select Type</option>
-                          {institutionTypes.map(type => (
-                            <option key={type.value} value={type.value}>{type.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      <div className="im-form-group">
-                        <label>Unique ID</label>
-                        <input
-                          type="text"
-                          value={institutionForm.uniqueId || ''}
-                          disabled
-                          className="im-input-disabled"
-                        />
-                        <span className="im-field-hint">Institution ID cannot be changed</span>
-                      </div>
-                      
-                      <div className="im-form-group">
-                        <label>Email Address</label>
-                        <input
-                          type="email"
-                          value={institutionForm.email || ''}
-                          onChange={(e) => setInstitutionForm(prev => ({ ...prev, email: e.target.value }))}
-                          placeholder="Enter email address"
-                        />
-                      </div>
-                      
-                      <div className="im-form-group">
-                        <label>Phone Number</label>
-                        <input
-                          type="text"
-                          value={institutionForm.phone || ''}
-                          onChange={(e) => setInstitutionForm(prev => ({ ...prev, phone: e.target.value }))}
-                          placeholder="Enter phone number"
-                        />
-                      </div>
-                      
-                      <div className="im-form-group">
-                        <label>Website</label>
-                        <input
-                          type="url"
-                          value={institutionForm.website || ''}
-                          onChange={(e) => setInstitutionForm(prev => ({ ...prev, website: e.target.value }))}
-                          placeholder="https://www.example.com"
-                        />
-                      </div>
-                      
-                      <div className="im-form-group full-width">
-                        <label>Address</label>
-                        <textarea
-                          value={institutionForm.address || ''}
-                          onChange={(e) => setInstitutionForm(prev => ({ ...prev, address: e.target.value }))}
-                          placeholder="Enter full address"
-                          rows="3"
-                        />
-                      </div>
+        {/* Institution Details Tab */}
+        {activeTab === 'details' && (
+          <div className="im-tab-content">
+            <div className="im-details-card">
+              {isEditingInstitution ? (
+                <div className="im-edit-form">
+                  <div className="im-form-row">
+                    <div className="im-form-group">
+                      <label>Institution Name *</label>
+                      <input
+                        type="text"
+                        value={institutionForm.name || ''}
+                        onChange={(e) => setInstitutionForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Enter institution name"
+                      />
                     </div>
-                    
-                    <div className="im-form-actions">
-                      <button className="im-btn primary" onClick={updateInstitution} disabled={actionLoading}>
-                        {actionLoading ? <span className="im-btn-spinner"></span> : <i className="ri-save-line"></i>}
-                        Save Changes
-                      </button>
-                      <button className="im-btn secondary" onClick={() => {
-                        setInstitutionForm(institution);
-                        setIsEditingInstitution(false);
-                      }}>
-                        Cancel
-                      </button>
+                    <div className="im-form-group">
+                      <label>Institution Type *</label>
+                      <select
+                        value={institutionForm.type || ''}
+                        onChange={(e) => setInstitutionForm(prev => ({ ...prev, type: e.target.value }))}
+                      >
+                        <option value="">Select Type</option>
+                        {institutionTypes.map(type => (
+                          <option key={type.value} value={type.value}>{type.label}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                ) : (
-                  <div className="im-profile-view">
-                    <div className="im-profile-header">
-                      <div className="im-profile-avatar">
-                        <i className="ri-building-4-fill"></i>
-                      </div>
-                      <div className="im-profile-info">
-                        <h3>{institution?.name}</h3>
-                        <span className="im-badge">{institutionTypes.find(t => t.value === institution?.type)?.label || institution?.type}</span>
-                        <span className={`im-status ${institution?.status}`}>{institution?.status}</span>
+
+                  <div className="im-form-row">
+                    <div className="im-form-group">
+                      <label>Email Address</label>
+                      <input
+                        type="email"
+                        value={institutionForm.email || ''}
+                        onChange={(e) => setInstitutionForm(prev => ({ ...prev, email: e.target.value }))}
+                        placeholder="institution@example.com"
+                      />
+                    </div>
+                    <div className="im-form-group">
+                      <label>Phone Number</label>
+                      <input
+                        type="text"
+                        value={institutionForm.phone || ''}
+                        onChange={(e) => setInstitutionForm(prev => ({ ...prev, phone: e.target.value }))}
+                        placeholder="+91 XXXXX XXXXX"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="im-form-group full-width">
+                    <label>Website</label>
+                    <input
+                      type="url"
+                      value={institutionForm.website || ''}
+                      onChange={(e) => setInstitutionForm(prev => ({ ...prev, website: e.target.value }))}
+                      placeholder="https://www.example.com"
+                    />
+                  </div>
+
+                  <div className="im-form-group full-width">
+                    <label>Address</label>
+                    <textarea
+                      value={institutionForm.address || ''}
+                      onChange={(e) => setInstitutionForm(prev => ({ ...prev, address: e.target.value }))}
+                      placeholder="Enter full address"
+                      rows="3"
+                    />
+                  </div>
+
+                  <div className="im-form-actions">
+                    <button className="im-btn secondary" onClick={() => {
+                      setInstitutionForm(institution);
+                      setIsEditingInstitution(false);
+                    }}>
+                      <i className="ri-close-line"></i> Cancel
+                    </button>
+                    <button className="im-btn primary" onClick={updateInstitution} disabled={actionLoading}>
+                      {actionLoading ? <span className="im-btn-spinner"></span> : <i className="ri-save-line"></i>}
+                      Save Changes
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="im-details-grid">
+                    <div className="im-detail-item">
+                      <div className="im-detail-icon"><i className="ri-building-4-line"></i></div>
+                      <div className="im-detail-content">
+                        <span className="im-detail-label">Institution Name</span>
+                        <span className="im-detail-value">{institution?.name || '-'}</span>
                       </div>
                     </div>
                     
-                    <div className="im-detail-grid">
-                      <div className="im-detail-item">
-                        <span className="im-detail-label"><i className="ri-fingerprint-line"></i> Institution ID</span>
-                        <span className="im-detail-value">{institution?.uniqueId || '-'}</span>
+                    <div className="im-detail-item">
+                      <div className="im-detail-icon"><i className="ri-price-tag-3-line"></i></div>
+                      <div className="im-detail-content">
+                        <span className="im-detail-label">Type</span>
+                        <span className="im-detail-value">{institutionTypes.find(t => t.value === institution?.type)?.label || institution?.type || '-'}</span>
                       </div>
-                      <div className="im-detail-item">
-                        <span className="im-detail-label"><i className="ri-mail-line"></i> Email</span>
+                    </div>
+                    
+                    <div className="im-detail-item">
+                      <div className="im-detail-icon"><i className="ri-fingerprint-line"></i></div>
+                      <div className="im-detail-content">
+                        <span className="im-detail-label">Institution ID</span>
+                        <span className="im-detail-value id-value">{institution?.uniqueId || '-'}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="im-detail-item">
+                      <div className="im-detail-icon"><i className="ri-mail-line"></i></div>
+                      <div className="im-detail-content">
+                        <span className="im-detail-label">Email</span>
                         <span className="im-detail-value">{institution?.email || '-'}</span>
                       </div>
-                      <div className="im-detail-item">
-                        <span className="im-detail-label"><i className="ri-phone-line"></i> Phone</span>
+                    </div>
+                    
+                    <div className="im-detail-item">
+                      <div className="im-detail-icon"><i className="ri-phone-line"></i></div>
+                      <div className="im-detail-content">
+                        <span className="im-detail-label">Phone</span>
                         <span className="im-detail-value">{institution?.phone || '-'}</span>
                       </div>
-                      <div className="im-detail-item">
-                        <span className="im-detail-label"><i className="ri-global-line"></i> Website</span>
+                    </div>
+                    
+                    <div className="im-detail-item">
+                      <div className="im-detail-icon"><i className="ri-global-line"></i></div>
+                      <div className="im-detail-content">
+                        <span className="im-detail-label">Website</span>
                         <span className="im-detail-value">
                           {institution?.website ? (
-                            <a href={institution.website} target="_blank" rel="noopener noreferrer">
-                              {institution.website}
-                            </a>
+                            <a href={institution.website} target="_blank" rel="noopener noreferrer">{institution.website}</a>
                           ) : '-'}
                         </span>
                       </div>
-                      <div className="im-detail-item full-width">
-                        <span className="im-detail-label"><i className="ri-map-pin-line"></i> Address</span>
-                        <span className="im-detail-value">{institution?.address || '-'}</span>
-                      </div>
-                      <div className="im-detail-item">
-                        <span className="im-detail-label"><i className="ri-calendar-line"></i> Created</span>
-                        <span className="im-detail-value">
-                          {institution?.created_at ? new Date(institution.created_at).toLocaleDateString() : '-'}
-                        </span>
-                      </div>
-                      <div className="im-detail-item">
-                        <span className="im-detail-label"><i className="ri-refresh-line"></i> Last Updated</span>
-                        <span className="im-detail-value">
-                          {institution?.updated_at ? new Date(institution.updated_at).toLocaleDateString() : '-'}
-                        </span>
-                      </div>
                     </div>
                     
-                    <div className="im-usage-notice">
-                      <i className="ri-information-line"></i>
-                      <p>These details are used in document templates, circulars, and official communications.</p>
+                    <div className="im-detail-item full-width">
+                      <div className="im-detail-icon"><i className="ri-map-pin-line"></i></div>
+                      <div className="im-detail-content">
+                        <span className="im-detail-label">Address</span>
+                        <span className="im-detail-value">{institution?.address || '-'}</span>
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
+                  
+                  <div className="im-edit-btn-wrapper">
+                    <button className="im-btn primary" onClick={() => setIsEditingInstitution(true)}>
+                      <i className="ri-edit-line"></i> Edit Details
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        ) : (
-          <div className="im-departments-tab">
-            {/* Create Department Button */}
-            <div className="im-dept-actions">
+        )}
+
+        {/* Departments Tab */}
+        {activeTab === 'departments' && (
+          <div className="im-tab-content">
+            <div className="im-section-header">
+              <div className="im-section-info">
+                <span className="im-count-badge">{departments.length}</span>
+                <span>Total Departments</span>
+              </div>
               <button className="im-btn primary" onClick={() => openDeptModal()}>
-                <i className="ri-add-line"></i> Create Department
+                <i className="ri-add-line"></i> Add Department
+              </button>
+            </div>
+            
+            {departments.length === 0 ? (
+              <div className="im-empty-state">
+                <i className="ri-building-2-line"></i>
+                <h3>No Departments</h3>
+                <p>Add your first department to organize your institution</p>
+                <button className="im-btn primary" onClick={() => openDeptModal()}>
+                  <i className="ri-add-line"></i> Add Department
+                </button>
+              </div>
+            ) : (
+              <div className="im-list">
+                {departments.map(dept => (
+                  <div key={dept.id} className="im-list-item">
+                    <div className="im-list-item-icon">
+                      <i className="ri-building-2-line"></i>
+                    </div>
+                    <div className="im-list-item-info">
+                      <span className="im-list-item-name">{dept.name}</span>
+                      <div className="im-list-item-meta">
+                        <span><i className="ri-user-star-line"></i> {dept.hodName || 'No HOD assigned'}</span>
+                        <span className="im-separator">•</span>
+                        <span><i className="ri-layout-grid-line"></i> {dept.sections?.length || 0} sections</span>
+                      </div>
+                    </div>
+                    <div className="im-menu-container">
+                      <button 
+                        className="im-menu-trigger"
+                        onClick={() => setActiveDeptMenu(activeDeptMenu === dept.id ? null : dept.id)}
+                      >
+                        <i className="ri-more-2-fill"></i>
+                      </button>
+                      {activeDeptMenu === dept.id && (
+                        <div className="im-dropdown-menu">
+                          <button onClick={() => openDeptModal(dept)}>
+                            <i className="ri-edit-line"></i> Edit
+                          </button>
+                          <button className="danger" onClick={() => {
+                            setActiveDeptMenu(null);
+                            showConfirmation('Delete Department', `Delete "${dept.name}"? All sections in this department will also be deleted.`, () => deleteDepartment(dept.id));
+                          }}>
+                            <i className="ri-delete-bin-line"></i> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Sections Tab */}
+        {activeTab === 'sections' && (
+          <div className="im-tab-content">
+            <div className="im-section-header">
+              <div className="im-filter-group">
+                <label>Filter by Department</label>
+                <select
+                  value={selectedDeptForSections}
+                  onChange={(e) => setSelectedDeptForSections(e.target.value)}
+                  className="im-filter-select"
+                >
+                  <option value="">-- All Departments --</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+              <button 
+                className="im-btn primary" 
+                onClick={() => openSectionModal()}
+                disabled={!selectedDeptForSections}
+                title={!selectedDeptForSections ? 'Select a department first' : ''}
+              >
+                <i className="ri-add-line"></i> Add Section
               </button>
             </div>
 
-            {/* Departments List */}
-            <div className="im-dept-list">
-              {departments.length === 0 ? (
-                <div className="im-empty-state">
-                  <i className="ri-organization-chart"></i>
-                  <h3>No Departments Yet</h3>
-                  <p>Create your first department to organize your institution</p>
-                  <button className="im-btn primary" onClick={() => openDeptModal()}>
-                    <i className="ri-add-line"></i> Create Department
-                  </button>
-                </div>
-              ) : (
-                departments.map(dept => (
-                  <div key={dept.id} className="im-dept-card">
-                    <div className="im-dept-header" onClick={() => setExpandedDept(expandedDept === dept.id ? null : dept.id)}>
-                      <div className="im-dept-info">
-                        <div className="im-dept-icon">
-                          <i className="ri-building-2-line"></i>
-                        </div>
-                        <div className="im-dept-details">
-                          <h3>{dept.name}</h3>
-                          <div className="im-dept-meta">
-                            <span><i className="ri-user-star-line"></i> HOD: {dept.hodName || 'Not Assigned'}</span>
-                            <span><i className="ri-group-line"></i> {dept.sections?.length || 0} Sections</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="im-dept-actions-inline">
-                        <button className="im-icon-btn" onClick={(e) => { e.stopPropagation(); openDeptModal(dept); }} title="Edit Department">
-                          <i className="ri-edit-line"></i>
-                        </button>
-                        <button className="im-icon-btn danger" onClick={(e) => { 
-                          e.stopPropagation(); 
-                          showConfirmation('Delete Department', `Are you sure you want to delete "${dept.name}"? All sections will also be deleted.`, () => deleteDepartment(dept.id));
-                        }} title="Delete Department">
-                          <i className="ri-delete-bin-line"></i>
-                        </button>
-                        <i className={`ri-arrow-${expandedDept === dept.id ? 'up' : 'down'}-s-line im-expand-icon`}></i>
+            {!selectedDeptForSections ? (
+              <div className="im-empty-state">
+                <i className="ri-filter-line"></i>
+                <h3>Select a Department</h3>
+                <p>Choose a department from the dropdown to view and manage its sections</p>
+              </div>
+            ) : getFilteredSections().length === 0 ? (
+              <div className="im-empty-state">
+                <i className="ri-layout-grid-line"></i>
+                <h3>No Sections</h3>
+                <p>Add sections to this department</p>
+                <button className="im-btn primary" onClick={() => openSectionModal()}>
+                  <i className="ri-add-line"></i> Add Section
+                </button>
+              </div>
+            ) : (
+              <div className="im-list">
+                {getFilteredSections().map(section => (
+                  <div key={section.id} className="im-list-item">
+                    <div className="im-list-item-icon">
+                      <i className="ri-layout-grid-line"></i>
+                    </div>
+                    <div className="im-list-item-info">
+                      <span className="im-list-item-name">{section.name}</span>
+                      <div className="im-list-item-meta">
+                        <span><i className="ri-user-line"></i> {section.teacherName || 'No Class Teacher assigned'}</span>
                       </div>
                     </div>
-                    
-                    {expandedDept === dept.id && (
-                      <div className="im-dept-content">
-                        <div className="im-sections-header">
-                          <h4><i className="ri-layout-grid-line"></i> Sections</h4>
-                          <button className="im-btn small primary" onClick={() => openSectionModal(dept.id)}>
-                            <i className="ri-add-line"></i> Add Section
+                    <div className="im-menu-container">
+                      <button 
+                        className="im-menu-trigger"
+                        onClick={() => setActiveSectionMenu(activeSectionMenu === section.id ? null : section.id)}
+                      >
+                        <i className="ri-more-2-fill"></i>
+                      </button>
+                      {activeSectionMenu === section.id && (
+                        <div className="im-dropdown-menu">
+                          <button onClick={() => openSectionModal(section)}>
+                            <i className="ri-edit-line"></i> Edit
+                          </button>
+                          <button className="danger" onClick={() => {
+                            setActiveSectionMenu(null);
+                            showConfirmation('Delete Section', `Delete section "${section.name}"?`, () => deleteSection(section.id));
+                          }}>
+                            <i className="ri-delete-bin-line"></i> Delete
                           </button>
                         </div>
-                        
-                        {dept.sections && dept.sections.length > 0 ? (
-                          <div className="im-sections-grid">
-                            {dept.sections.map(section => (
-                              <div key={section.id} className="im-section-card">
-                                <div className="im-section-info">
-                                  <h5>{section.name}</h5>
-                                  <span className="im-section-teacher">
-                                    <i className="ri-user-line"></i> 
-                                    {section.teacherName || 'No Class Teacher'}
-                                  </span>
-                                </div>
-                                <div className="im-section-actions">
-                                  <button className="im-icon-btn small" onClick={() => openSectionModal(dept.id, section)} title="Edit Section">
-                                    <i className="ri-edit-line"></i>
-                                  </button>
-                                  <button className="im-icon-btn small danger" onClick={() => 
-                                    showConfirmation('Delete Section', `Are you sure you want to delete section "${section.name}"?`, () => deleteSection(section.id))
-                                  } title="Delete Section">
-                                    <i className="ri-delete-bin-line"></i>
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="im-no-sections">
-                            <p>No sections in this department</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -672,7 +740,7 @@ const InstitutionManagement = () => {
         <div className="im-modal-overlay" onClick={closeDeptModal}>
           <div className="im-modal" onClick={(e) => e.stopPropagation()}>
             <div className="im-modal-header">
-              <h2><i className="ri-building-2-line"></i> {editingDepartment ? 'Edit Department' : 'Create Department'}</h2>
+              <h2>{editingDepartment ? 'Edit Department' : 'Add Department'}</h2>
               <button className="im-modal-close" onClick={closeDeptModal}>
                 <i className="ri-close-line"></i>
               </button>
@@ -699,7 +767,8 @@ const InstitutionManagement = () => {
                       </button>
                     </div>
                   ) : (
-                    <>
+                    <div className="im-search-input">
+                      <i className="ri-search-line"></i>
                       <input
                         type="text"
                         value={userSearchTerm}
@@ -707,19 +776,15 @@ const InstitutionManagement = () => {
                         placeholder="Search by name or email..."
                       />
                       {searchingUsers && <div className="im-search-spinner"></div>}
-                    </>
+                    </div>
                   )}
                   
                   {userSearchResults.length > 0 && !deptForm.hodName && (
-                    <div className="im-search-results">
+                    <div className="im-search-dropdown">
                       {userSearchResults.map(user => (
-                        <div key={user.id} className="im-search-result" onClick={() => selectUser(user)}>
-                          <div className="im-result-avatar">{user.firstName?.[0]}{user.lastName?.[0]}</div>
-                          <div className="im-result-info">
-                            <span className="im-result-name">{user.firstName} {user.lastName}</span>
-                            <span className="im-result-email">{user.email}</span>
-                          </div>
-                          <span className="im-result-role">{user.role}</span>
+                        <div key={user.id} className="im-search-item" onClick={() => selectUser(user)}>
+                          <span className="im-item-name">{user.firstName} {user.lastName}</span>
+                          <span className="im-item-email">{user.email}</span>
                         </div>
                       ))}
                     </div>
@@ -730,8 +795,8 @@ const InstitutionManagement = () => {
             <div className="im-modal-footer">
               <button className="im-btn secondary" onClick={closeDeptModal}>Cancel</button>
               <button className="im-btn primary" onClick={saveDepartment} disabled={actionLoading}>
-                {actionLoading ? <span className="im-btn-spinner"></span> : <i className="ri-save-line"></i>}
-                {editingDepartment ? 'Update Department' : 'Create Department'}
+                {actionLoading ? <span className="im-btn-spinner"></span> : null}
+                {editingDepartment ? 'Update' : 'Create'}
               </button>
             </div>
           </div>
@@ -743,7 +808,7 @@ const InstitutionManagement = () => {
         <div className="im-modal-overlay" onClick={closeSectionModal}>
           <div className="im-modal" onClick={(e) => e.stopPropagation()}>
             <div className="im-modal-header">
-              <h2><i className="ri-layout-grid-line"></i> {editingSection ? 'Edit Section' : 'Create Section'}</h2>
+              <h2>{editingSection ? 'Edit Section' : 'Add Section'}</h2>
               <button className="im-modal-close" onClick={closeSectionModal}>
                 <i className="ri-close-line"></i>
               </button>
@@ -755,12 +820,12 @@ const InstitutionManagement = () => {
                   type="text"
                   value={sectionForm.name}
                   onChange={(e) => setSectionForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g., Section A, 1st Year, Batch 2024"
+                  placeholder="e.g., Section A, 1st Year"
                 />
               </div>
               
               <div className="im-form-group">
-                <label>Class Teacher (Faculty Only)</label>
+                <label>Class Teacher</label>
                 <div className="im-user-search">
                   {sectionForm.teacherName ? (
                     <div className="im-selected-user">
@@ -770,27 +835,24 @@ const InstitutionManagement = () => {
                       </button>
                     </div>
                   ) : (
-                    <>
+                    <div className="im-search-input">
+                      <i className="ri-search-line"></i>
                       <input
                         type="text"
                         value={userSearchTerm}
                         onChange={(e) => setUserSearchTerm(e.target.value)}
-                        placeholder="Search faculty by name or email..."
+                        placeholder="Search faculty by name..."
                       />
                       {searchingUsers && <div className="im-search-spinner"></div>}
-                    </>
+                    </div>
                   )}
                   
                   {userSearchResults.length > 0 && !sectionForm.teacherName && (
-                    <div className="im-search-results">
+                    <div className="im-search-dropdown">
                       {userSearchResults.map(user => (
-                        <div key={user.id} className="im-search-result" onClick={() => selectUser(user)}>
-                          <div className="im-result-avatar">{user.firstName?.[0]}{user.lastName?.[0]}</div>
-                          <div className="im-result-info">
-                            <span className="im-result-name">{user.firstName} {user.lastName}</span>
-                            <span className="im-result-email">{user.email}</span>
-                          </div>
-                          <span className="im-result-role">{user.role}</span>
+                        <div key={user.id} className="im-search-item" onClick={() => selectUser(user)}>
+                          <span className="im-item-name">{user.firstName} {user.lastName}</span>
+                          <span className="im-item-email">{user.email}</span>
                         </div>
                       ))}
                     </div>
@@ -801,8 +863,8 @@ const InstitutionManagement = () => {
             <div className="im-modal-footer">
               <button className="im-btn secondary" onClick={closeSectionModal}>Cancel</button>
               <button className="im-btn primary" onClick={saveSection} disabled={actionLoading}>
-                {actionLoading ? <span className="im-btn-spinner"></span> : <i className="ri-save-line"></i>}
-                {editingSection ? 'Update Section' : 'Create Section'}
+                {actionLoading ? <span className="im-btn-spinner"></span> : null}
+                {editingSection ? 'Update' : 'Create'}
               </button>
             </div>
           </div>
@@ -813,7 +875,7 @@ const InstitutionManagement = () => {
       {showConfirmModal && (
         <div className="im-modal-overlay" onClick={() => setShowConfirmModal(false)}>
           <div className="im-modal im-confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="im-confirm-icon danger">
+            <div className="im-confirm-icon">
               <i className="ri-error-warning-line"></i>
             </div>
             <h3>{confirmTitle}</h3>
@@ -821,7 +883,8 @@ const InstitutionManagement = () => {
             <div className="im-confirm-actions">
               <button className="im-btn secondary" onClick={() => setShowConfirmModal(false)}>Cancel</button>
               <button className="im-btn danger" onClick={handleConfirm} disabled={actionLoading}>
-                {actionLoading ? <span className="im-btn-spinner"></span> : 'Delete'}
+                {actionLoading ? <span className="im-btn-spinner"></span> : null}
+                Delete
               </button>
             </div>
           </div>
