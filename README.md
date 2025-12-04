@@ -1,10 +1,10 @@
 <div align="center">
   
-<img src="assets/logo.png" alt="DocuChain Logo" width="200"/>
+<img src="assets/logo.png" alt="DocuChain Logo" width="180"/>
 
-# DocuChain
+# 🔗 DocuChain
 
-### Blockchain-Powered Document Management & Verification System
+### **Revolutionizing Document Verification with Blockchain Technology**
 
 [![React](https://img.shields.io/badge/React-18.3.1-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://reactjs.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.0.0-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
@@ -15,110 +15,328 @@
 
 <br/>
 
-**A decentralized document management platform for educational institutions with blockchain verification, IPFS storage, and multi-level approval workflows.**
+🚀 **A next-generation decentralized document management platform** designed for educational institutions, combining the power of **Ethereum blockchain**, **IPFS decentralized storage**, and **smart contract-based approval workflows** to create an unbreakable chain of trust for your documents.
 
-[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [API](#-api-endpoints) • [Contributing](#-contributing)
+<br/>
+
+[🎯 Overview](#-project-overview) • [✨ Features](#-key-features) • [🛠️ Tech Stack](#%EF%B8%8F-technology-stack) • [🚀 Installation](#-quick-start) • [📖 Usage](#-how-it-works) • [🤝 Contributing](#-contributing)
+
+<br/>
+
+---
+
+</div>
+
+## 🎯 Project Overview
+
+### The Problem We Solve
+
+In today's digital world, **document fraud** is a growing concern, especially in educational institutions:
+
+| Problem | Impact |
+|:--------|:-------|
+| 📄 **Fake Certificates** | Employers struggle to verify authentic credentials |
+| ⏰ **Slow Verification** | Manual verification takes days or weeks |
+| 🔓 **Centralized Storage** | Single point of failure, vulnerable to hacks |
+| 📝 **Paper Approvals** | Inefficient, hard to track, easily lost |
+| ❌ **No Audit Trail** | Impossible to track document history |
+
+### Our Solution
+
+**DocuChain** transforms document management through blockchain technology:
+
+```
+📄 Document → 🔐 Hash Generated → ⛓️ Stored on Ethereum → 🌐 File on IPFS → ✅ Instant Verification
+```
+
+<div align="center">
+
+| Before DocuChain | After DocuChain |
+|:-----------------|:----------------|
+| ❌ Documents can be forged | ✅ Cryptographically secured on blockchain |
+| ❌ Verification takes days | ✅ Instant QR code verification |
+| ❌ Files stored on central servers | ✅ Decentralized IPFS storage |
+| ❌ Paper-based approvals | ✅ Smart contract workflows |
+| ❌ No proof of authenticity | ✅ Immutable blockchain proof |
 
 </div>
 
 ---
 
-## 🎯 What is DocuChain?
+## ✨ Key Features
 
-DocuChain solves the problem of document authenticity and verification in educational institutions. Traditional document systems are vulnerable to forgery and tampering. DocuChain provides:
+### 📁 Smart Document Management
 
-- **Tamper-Proof Records** - Document hashes stored on Ethereum blockchain
-- **Decentralized Storage** - Files stored on IPFS, not centralized servers
-- **Instant Verification** - QR codes for anyone to verify document authenticity
-- **Approval Workflows** - Multi-step approval processes with digital signatures
+<table>
+<tr>
+<td width="50%">
+
+**Organize & Manage**
+- 📂 Create folders and subfolders
+- ⭐ Star important documents
+- 🔍 Advanced search & filters
+- 📋 Bulk operations (move, delete, share)
+- 📊 Version history tracking
+
+</td>
+<td width="50%">
+
+**Secure Storage**
+- 🔐 End-to-end encryption
+- 🌐 IPFS decentralized storage
+- ♾️ Permanent availability
+- 🔗 Content-addressed files
+- 💾 Automatic backups
+
+</td>
+</tr>
+</table>
+
+### ⛓️ Blockchain-Powered Security
+
+Every document uploaded to DocuChain gets:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│   📄 Your Document                                              │
+│        ↓                                                        │
+│   🔐 SHA-256 Hash Generated                                     │
+│        ↓                                                        │
+│   ⛓️ Hash Stored on Ethereum Blockchain                        │
+│        ↓                                                        │
+│   📝 Smart Contract Records:                                    │
+│      • Document Hash                                            │
+│      • Timestamp                                                │
+│      • Owner Address                                            │
+│      • IPFS Content ID                                          │
+│        ↓                                                        │
+│   ✅ Immutable Proof of Existence                               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Why Blockchain?**
+- 🔒 **Immutable** - Once stored, cannot be altered or deleted
+- 🌍 **Decentralized** - No single entity controls your documents
+- ⏱️ **Timestamped** - Proof of when document was created
+- 🔍 **Transparent** - Anyone can verify authenticity
+- 🛡️ **Tamper-Proof** - Any modification is immediately detectable
+
+### ✅ Instant QR Verification
+
+<table>
+<tr>
+<td width="60%">
+
+**How It Works:**
+1. 📤 Upload & store document on blockchain
+2. 📱 System generates unique QR code
+3. 🔗 QR links to verification portal
+4. ✅ Anyone can scan to verify authenticity
+
+**No Login Required!**
+- Employers can verify credentials instantly
+- Universities can confirm transcripts
+- Anyone can check document authenticity
+
+</td>
+<td width="40%">
+
+```
+┌──────────────────┐
+│    ▄▄▄▄▄▄▄▄▄    │
+│    █ ▄▄▄ █ █    │
+│    █ ███ █ █    │
+│    █▄▄▄▄▄█▄█    │
+│    ▄▄▄▄▄ ▄▄▄    │
+│    █ ▄▄▄ █ █    │
+│    █▄▄▄▄▄█▄█    │
+│                  │
+│   Scan to Verify │
+└──────────────────┘
+```
+
+</td>
+</tr>
+</table>
+
+### 📝 Smart Approval Workflows
+
+Replace paper-based approvals with blockchain-powered workflows:
+
+```
+Student                    Faculty                     HOD                      Verified
+   │                          │                         │                          │
+   │  ① Request Approval      │                         │                          │
+   │─────────────────────────►│                         │                          │
+   │                          │  ② Review & Approve     │                          │
+   │                          │─────────────────────────►│                         │
+   │                          │                         │  ③ Final Approval        │
+   │                          │                         │─────────────────────────►│
+   │                          │                         │                          │
+   │◄─────────────────────────────────────────────────────────────────────────────│
+   │                    ④ Document Verified on Blockchain                         │
+```
+
+**Features:**
+- 🔄 Sequential & parallel approval chains
+- ✍️ Digital signatures on blockchain
+- ⏰ Deadline tracking & reminders
+- 📧 Automatic notifications
+- 📊 Complete audit trail
+
+### 👥 Role-Based Access Control
+
+<table>
+<tr>
+<th>👨‍🎓 Student</th>
+<th>👨‍🏫 Faculty</th>
+<th>👨‍💼 Admin</th>
+</tr>
+<tr>
+<td>
+
+- Upload documents
+- Request approvals
+- Share with peers
+- Track approval status
+- Generate QR codes
+- View blockchain proof
+
+</td>
+<td>
+
+- All student features
+- Approve/reject documents
+- Manage class documents
+- Bulk verifications
+- Department announcements
+- View approval history
+
+</td>
+<td>
+
+- Full system access
+- User management
+- Institution settings
+- Post circulars
+- Analytics dashboard
+- System configuration
+
+</td>
+</tr>
+</table>
+
+### 💬 Built-in Communication
+
+<table>
+<tr>
+<td width="50%">
+
+**Messaging**
+- 💬 Direct messages
+- 👥 Group chats
+- 📎 Share documents in chat
+- 🔔 Real-time notifications
+
+</td>
+<td width="50%">
+
+**Announcements**
+- 📢 Institution-wide circulars
+- 📋 Department notices
+- 📌 Pinned announcements
+- 📧 Email notifications
+
+</td>
+</tr>
+</table>
 
 ---
 
-## ✨ Features
+## 🛠️ Technology Stack
 
-### 📁 Document Management
-- Upload, organize, and manage documents in folders
-- Version control with complete history
-- Star/favorite documents for quick access
-- Bulk operations (move, delete, share)
-- Advanced search and filtering
+### Architecture Overview
 
-### 🔗 Blockchain Integration
-- Document hash stored on Ethereum Sepolia testnet
-- Immutable proof of document existence and timestamp
-- Smart contract-based access permissions
-- On-chain approval workflows
-- Complete transaction audit trail
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           FRONTEND (React 18)                               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│  │  Dashboard   │  │ File Manager │  │  Approvals   │  │   Verify     │    │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘    │
+│                              │                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    Web3.js / Ethers.js (MetaMask)                    │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────┬────────────────────────────────────────┘
+                                     │
+         ┌───────────────────────────┼───────────────────────────┐
+         │                           │                           │
+         ▼                           ▼                           ▼
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────────┐
+│   Flask API     │       │    Ethereum     │       │       IPFS          │
+│   (Backend)     │       │    (Sepolia)    │       │     (Pinata)        │
+│                 │       │                 │       │                     │
+│ • Auth/JWT      │       │ • Document Hash │       │ • File Storage      │
+│ • File Upload   │       │ • Approvals     │       │ • Content Addr.     │
+│ • User Mgmt     │       │ • Permissions   │       │ • Decentralized     │
+└────────┬────────┘       └─────────────────┘       └─────────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│   PostgreSQL    │
+│   (Database)    │
+│                 │
+│ • Users         │
+│ • Documents     │
+│ • Approvals     │
+│ • Chat/Messages │
+└─────────────────┘
+```
 
-### 🌐 IPFS Storage
-- Decentralized file storage via Pinata
-- Content-addressable storage (CID)
-- Permanent document availability
-- No single point of failure
+### Technology Details
 
-### ✅ Verification System
-- QR code generation for each document
-- Public verification portal (no login required)
-- Hash comparison verification
-- Blockchain transaction proof
-
-### 👥 Role-Based Access
-
-| Role | Capabilities |
-|:-----|:-------------|
-| **Student** | Upload documents, request approvals, share with peers |
-| **Faculty** | All student features + approve documents, manage classes |
-| **Admin** | Full access + user management, institution settings |
-
-### 💬 Communication
-- Direct messaging between users
-- Group chats and channels
-- Circular announcements (admin)
-- Share documents in chat
-
-### 📝 Approval Workflows
-- Sequential approval chains
-- Parallel approval requests
-- Digital signatures on blockchain
-- Deadline tracking & notifications
-
----
-
-## 🛠 Tech Stack
-
-| Layer | Technology |
-|:------|:-----------|
-| **Frontend** | React 18, React Router 6, Ethers.js, Web3.js, Axios |
-| **Backend** | Flask 3.0, SQLAlchemy, Flask-JWT-Extended, Flask-SocketIO |
-| **Database** | PostgreSQL 15 |
-| **Blockchain** | Solidity 0.8.19, Hardhat, Ethereum Sepolia |
-| **Storage** | IPFS via Pinata |
-| **Auth** | JWT tokens, bcrypt password hashing |
+| Layer | Technology | Purpose |
+|:------|:-----------|:--------|
+| **Frontend** | React 18.3.1 | Modern UI with hooks & context |
+| **Routing** | React Router 6 | Client-side navigation |
+| **Web3** | Ethers.js, Web3.js | Blockchain interaction |
+| **Styling** | Material-UI, CSS | Beautiful, responsive design |
+| **Backend** | Flask 3.0 | RESTful API server |
+| **ORM** | SQLAlchemy | Database operations |
+| **Auth** | Flask-JWT-Extended | Secure authentication |
+| **Realtime** | Flask-SocketIO | Live notifications |
+| **Database** | PostgreSQL 15 | Reliable data storage |
+| **Blockchain** | Solidity 0.8.19 | Smart contracts |
+| **Dev Tools** | Hardhat | Contract development |
+| **Network** | Ethereum Sepolia | Test network |
+| **Storage** | IPFS (Pinata) | Decentralized files |
 
 ---
 
-## 📋 Prerequisites
+## 🚀 Quick Start
 
-Before installation, ensure you have:
+### Prerequisites
 
-- **Node.js** >= 18.0.0
-- **Python** >= 3.9
-- **PostgreSQL** >= 13
-- **MetaMask** browser extension
-- **Git**
+Before you begin, ensure you have:
 
----
+- ✅ **Node.js** v18.0.0 or higher
+- ✅ **Python** 3.9 or higher
+- ✅ **PostgreSQL** 13 or higher
+- ✅ **MetaMask** browser extension
+- ✅ **Git** installed
 
-## 🚀 Installation
+### Installation Steps
 
-### 1️⃣ Clone the Repository
+#### 1️⃣ Clone the Repository
 
 ```bash
 git clone https://github.com/mujju-212/Docu-Chain.git
 cd Docu-Chain
 ```
 
-### 2️⃣ Database Setup
+#### 2️⃣ Database Setup
 
 ```bash
 # Create PostgreSQL database
@@ -127,42 +345,46 @@ CREATE DATABASE docuchain;
 \q
 ```
 
-### 3️⃣ Backend Setup
+#### 3️⃣ Backend Setup
 
 ```bash
 cd backend
 
-# Create virtual environment
+# Create & activate virtual environment
 python -m venv venv
 
-# Activate virtual environment
-# Windows:
+# Windows
 .\venv\Scripts\activate
-# Linux/Mac:
+
+# Linux/Mac
 source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Create .env file (copy from example)
+# Configure environment
 cp .env.example .env
-# Edit .env with your database credentials
+# Edit .env with your credentials
 
-# Initialize database tables
+# Initialize database
 python init_db.py
 
-# Start the server
+# Start server
 python run.py
 ```
 
-**Backend `.env` Configuration:**
+<details>
+<summary>📝 Backend .env Configuration</summary>
+
 ```env
 DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/docuchain
-JWT_SECRET_KEY=your-secret-key-here
+JWT_SECRET_KEY=your-super-secret-key-here
 FLASK_ENV=development
 ```
 
-### 4️⃣ Frontend Setup
+</details>
+
+#### 4️⃣ Frontend Setup
 
 ```bash
 cd frontend
@@ -170,7 +392,7 @@ cd frontend
 # Install dependencies
 npm install
 
-# Create .env file
+# Configure environment
 cp .env.example .env
 # Edit .env with your configuration
 
@@ -178,144 +400,269 @@ cp .env.example .env
 npm start
 ```
 
-**Frontend `.env` Configuration:**
+<details>
+<summary>📝 Frontend .env Configuration</summary>
+
 ```env
 REACT_APP_API_URL=http://localhost:5000/api
 
-# Pinata IPFS (Get keys from https://pinata.cloud)
+# Pinata IPFS (Get from https://pinata.cloud)
 REACT_APP_PINATA_API_KEY=your-pinata-api-key
 REACT_APP_PINATA_SECRET_KEY=your-pinata-secret-key
 REACT_APP_PINATA_JWT=your-pinata-jwt
 REACT_APP_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs/
 
-# Blockchain (Sepolia)
+# Blockchain (Sepolia Testnet)
 REACT_APP_CONTRACT_ADDRESS=0xb19f78B9c32dceaA01DE778Fa46784F5437DF373
 REACT_APP_APPROVAL_CONTRACT_ADDRESS=0x8E1626654e1B04ADF941EbbcEc7E92728327aA54
 REACT_APP_CHAIN_ID=11155111
 REACT_APP_RPC_URL=https://sepolia.infura.io/v3/your-infura-key
 ```
 
-### 5️⃣ MetaMask Setup
+</details>
 
-1. Install [MetaMask](https://metamask.io/) browser extension
-2. Add Sepolia testnet network
+#### 5️⃣ MetaMask Setup
+
+1. Install [MetaMask](https://metamask.io/) extension
+2. Add Sepolia network (Chain ID: 11155111)
 3. Get test ETH from [Sepolia Faucet](https://sepoliafaucet.com/)
 
 ---
 
-## 📖 Usage
+## 📖 How It Works
 
-### Quick Start
+### User Journey
 
-1. **Register** - Create account and select your institution
-2. **Connect Wallet** - Link MetaMask to enable blockchain features
-3. **Upload Documents** - Files are stored on IPFS automatically
-4. **Store on Blockchain** - Click "Store on Blockchain" for permanent verification
-5. **Share & Verify** - Generate QR codes for instant verification
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   1️⃣ REGISTER              2️⃣ CONNECT WALLET         3️⃣ UPLOAD DOCUMENT    │
+│   ───────────              ─────────────────         ─────────────────     │
+│   Create account           Link MetaMask             Files stored on       │
+│   Select role              Enable blockchain         IPFS automatically    │
+│                                                                             │
+│         │                        │                         │                │
+│         └────────────────────────┼─────────────────────────┘                │
+│                                  │                                          │
+│                                  ▼                                          │
+│                                                                             │
+│   4️⃣ BLOCKCHAIN STORAGE    5️⃣ GENERATE QR           6️⃣ SHARE & VERIFY     │
+│   ────────────────────     ────────────             ───────────────        │
+│   Hash stored on           Unique QR code           Anyone can verify      │
+│   Ethereum Sepolia         for verification         authenticity           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-### User Workflows
+### Workflow Examples
 
-**Student Flow:**
-```
-Register → Login → Upload Document → Request Approval → Track Status → Share
-```
+<details>
+<summary>👨‍🎓 <b>Student: Upload & Get Certificate Verified</b></summary>
 
-**Faculty Flow:**
-```
-Login → View Pending Approvals → Review Document → Approve/Reject → Notify
-```
+1. **Login** to your DocuChain account
+2. **Navigate** to File Manager
+3. **Upload** your certificate (PDF, image, etc.)
+4. **Click** "Store on Blockchain" button
+5. **Confirm** MetaMask transaction
+6. **Wait** for blockchain confirmation
+7. **Generate** QR code for sharing
+8. **Share** with employers or institutions
 
-**Admin Flow:**
-```
-Login → Manage Users → Configure Settings → Post Circulars → Monitor Activity
-```
+</details>
+
+<details>
+<summary>👨‍🏫 <b>Faculty: Approve Student Documents</b></summary>
+
+1. **Login** with faculty credentials
+2. **View** pending approval requests
+3. **Review** document details & IPFS content
+4. **Verify** student identity
+5. **Approve** or **Reject** with comments
+6. **Sign** on blockchain (MetaMask)
+7. **Student** receives notification automatically
+
+</details>
+
+<details>
+<summary>✅ <b>Employer: Verify a Certificate</b></summary>
+
+1. **Scan** QR code on certificate
+2. **View** verification page (no login needed)
+3. **Check** blockchain transaction proof
+4. **Verify** document hash matches
+5. **See** approval chain & timestamps
+6. **Confirm** authenticity instantly
+
+</details>
 
 ---
 
-## 📡 API Endpoints
+## 📡 API Reference
 
 ### Authentication
+
 | Method | Endpoint | Description |
 |:-------|:---------|:------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | User login |
-| POST | `/api/auth/logout` | User logout |
-| GET | `/api/auth/me` | Get current user |
+| `POST` | `/api/auth/register` | Register new user |
+| `POST` | `/api/auth/login` | User login |
+| `POST` | `/api/auth/logout` | User logout |
+| `GET` | `/api/auth/me` | Get current user |
 
 ### Documents
+
 | Method | Endpoint | Description |
 |:-------|:---------|:------------|
-| GET | `/api/documents` | List user documents |
-| POST | `/api/documents` | Upload document |
-| GET | `/api/documents/:id` | Get document details |
-| DELETE | `/api/documents/:id` | Delete document |
-| POST | `/api/documents/:id/share` | Share document |
-| GET | `/api/documents/:id/verify` | Verify document |
+| `GET` | `/api/documents` | List all documents |
+| `POST` | `/api/documents` | Upload document |
+| `GET` | `/api/documents/:id` | Get document details |
+| `DELETE` | `/api/documents/:id` | Delete document |
+| `POST` | `/api/documents/:id/share` | Share document |
+| `GET` | `/api/documents/:id/verify` | Verify authenticity |
 
 ### Approvals
+
 | Method | Endpoint | Description |
 |:-------|:---------|:------------|
-| GET | `/api/approvals` | List approval requests |
-| POST | `/api/approvals` | Create approval request |
-| POST | `/api/approvals/:id/approve` | Approve document |
-| POST | `/api/approvals/:id/reject` | Reject document |
+| `GET` | `/api/approvals` | List approval requests |
+| `POST` | `/api/approvals` | Create approval request |
+| `POST` | `/api/approvals/:id/approve` | Approve document |
+| `POST` | `/api/approvals/:id/reject` | Reject document |
 
 ---
 
-## 🔗 Smart Contracts
+## 📜 Smart Contracts
 
-### DocumentManagerV2
-Handles document storage and sharing on blockchain.
+### Deployed on Ethereum Sepolia
 
-**Key Functions:**
-- `uploadDocument()` - Store document hash
-- `shareDocument()` - Grant access permissions
-- `getDocument()` - Retrieve document data
-- `verifyDocument()` - Verify document authenticity
+| Contract | Address |
+|:---------|:--------|
+| **DocumentManagerV2** | `0xb19f78B9c32dceaA01DE778Fa46784F5437DF373` |
+| **DocumentApprovalManager** | `0x8E1626654e1B04ADF941EbbcEc7E92728327aA54` |
 
-### DocumentApprovalManager
-Manages approval workflows on blockchain.
+### Contract Functions
 
-**Key Functions:**
-- `requestApproval()` - Create approval request
-- `approveDocument()` - Approve with signature
-- `rejectDocument()` - Reject with reason
-- `getApprovalStatus()` - Check approval status
+<details>
+<summary><b>DocumentManagerV2</b></summary>
+
+```solidity
+// Store document hash on blockchain
+function uploadDocument(bytes32 _hash, string _ipfsHash) external
+
+// Share document with another address
+function shareDocument(uint256 _docId, address _recipient) external
+
+// Verify document authenticity
+function verifyDocument(uint256 _docId) external view returns (bool)
+
+// Get document details
+function getDocument(uint256 _docId) external view returns (Document)
+```
+
+</details>
+
+<details>
+<summary><b>DocumentApprovalManager</b></summary>
+
+```solidity
+// Request document approval
+function requestApproval(uint256 _docId, address[] _approvers) external
+
+// Approve document with digital signature
+function approveDocument(uint256 _requestId) external
+
+// Reject document with reason
+function rejectDocument(uint256 _requestId, string _reason) external
+
+// Check approval status
+function getApprovalStatus(uint256 _requestId) external view returns (Status)
+```
+
+</details>
+
+---
+
+## 📁 Project Structure
+
+```
+Docu-Chain/
+│
+├── 📂 frontend/                    # React Frontend Application
+│   ├── 📂 public/                  # Static assets
+│   │   └── docuchain-logo.png      # Application logo
+│   └── 📂 src/
+│       ├── 📂 components/          # Reusable UI components
+│       ├── 📂 contexts/            # React Context providers
+│       ├── 📂 pages/               # Page components
+│       ├── 📂 services/            # API & blockchain services
+│       └── 📂 utils/               # Helper functions
+│
+├── 📂 backend/                     # Flask Backend API
+│   ├── 📂 app/
+│   │   ├── 📂 models/              # SQLAlchemy models
+│   │   ├── 📂 routes/              # API endpoints
+│   │   └── 📂 services/            # Business logic
+│   ├── requirements.txt            # Python dependencies
+│   └── run.py                      # Application entry point
+│
+├── 📂 blockchain/                  # Smart Contracts
+│   ├── 📂 contracts/               # Solidity source files
+│   ├── 📂 scripts/                 # Deployment scripts
+│   └── hardhat.config.js           # Hardhat configuration
+│
+├── 📂 assets/                      # Repository assets
+│   └── logo.png                    # Logo for README
+│
+└── 📂 database/                    # Database setup
+    └── setup_database.sql          # Initial schema
+```
+
+---
+
+## 🔒 Security Features
+
+| Feature | Implementation |
+|:--------|:---------------|
+| 🔐 **Authentication** | JWT tokens with secure httpOnly cookies |
+| 🔑 **Password Security** | bcrypt hashing with salt |
+| 🛡️ **API Protection** | Rate limiting & input validation |
+| 📝 **Smart Contract Security** | Access control modifiers |
+| 🔒 **Environment Variables** | Secrets never in code |
+| ✅ **Blockchain Verification** | Immutable proof of documents |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Here's how you can help:
+We welcome contributions! Here's how to get started:
 
-### Fork & Clone
+### 1. Fork & Clone
 
 ```bash
-# Fork the repo on GitHub, then:
 git clone https://github.com/YOUR_USERNAME/Docu-Chain.git
 cd Docu-Chain
 git remote add upstream https://github.com/mujju-212/Docu-Chain.git
 ```
 
-### Create a Branch
+### 2. Create Branch
 
 ```bash
-git checkout -b feature/your-feature-name
+git checkout -b feature/amazing-feature
 ```
 
-### Make Changes & Commit
+### 3. Make Changes & Commit
 
 ```bash
 git add .
-git commit -m "feat: add your feature description"
+git commit -m "feat: add amazing feature"
 ```
 
-### Push & Create PR
+### 4. Push & Create PR
 
 ```bash
-git push origin feature/your-feature-name
-# Then open a Pull Request on GitHub
+git push origin feature/amazing-feature
 ```
+
+Then open a Pull Request on GitHub!
 
 ### Commit Convention
 
@@ -331,60 +678,34 @@ git push origin feature/your-feature-name
 
 ---
 
-## 📁 Project Structure
-
-```
-Docu-Chain/
-├── frontend/                 # React frontend
-│   ├── public/              # Static assets
-│   └── src/
-│       ├── components/      # Reusable UI components
-│       ├── contexts/        # React contexts
-│       ├── pages/           # Page components
-│       ├── services/        # API & blockchain services
-│       └── utils/           # Helper functions
-│
-├── backend/                  # Flask API
-│   └── app/
-│       ├── models/          # Database models
-│       ├── routes/          # API endpoints
-│       └── services/        # Business logic
-│
-├── blockchain/               # Smart contracts
-│   ├── contracts/           # Solidity contracts
-│   └── scripts/             # Deployment scripts
-│
-└── database/                 # DB setup scripts
-```
-
----
-
-## 🔒 Security
-
-- JWT authentication with secure token handling
-- Passwords hashed with bcrypt
-- Environment variables for all secrets
-- Smart contract access controls
-- Input validation & sanitization
-
----
-
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 👤 Author
+## 👨‍💻 Author
 
-**Mujju** - [@mujju-212](https://github.com/mujju-212)
+<div align="center">
+
+**Mujju**
+
+[![GitHub](https://img.shields.io/badge/GitHub-mujju--212-181717?style=for-the-badge&logo=github)](https://github.com/mujju-212)
+
+</div>
 
 ---
 
 <div align="center">
 
-**⭐ Star this repo if you find it helpful!**
+### ⭐ Star this repository if you find it helpful!
 
-Made with ❤️ for secure document management
+<br/>
+
+**DocuChain** - *Securing Documents with Blockchain Technology*
+
+<br/>
+
+Made with ❤️ for secure, transparent, and tamper-proof document management
 
 </div>
