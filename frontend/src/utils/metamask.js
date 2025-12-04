@@ -246,22 +246,44 @@ const APPROVAL_MANAGER_ABI = [
 const CONTRACT_ABI = DOCUMENT_MANAGER_ABI;
 const CONTRACT_ADDRESS = DOCUMENT_MANAGER_ADDRESS;
 
-// Initialize MetaMask
+// Initialize MetaMask - only sets up listeners, does NOT prompt user
 export const initializeMetaMask = async () => {
-    if (typeof window.ethereum !== 'undefined') {
+    // Don't initialize if ethereum is not available
+    if (typeof window.ethereum === 'undefined') {
+        return false;
+    }
+    
+    // Don't initialize if MetaMask is not ready
+    if (!window.ethereum.isMetaMask) {
+        return false;
+    }
+
+    try {
+        // Import Web3 dynamically - wrap in try-catch to handle connection errors
+        const Web3 = (await import('web3')).default;
+        
+        // Create Web3 instance without triggering connection
+        web3 = new Web3(window.ethereum);
+        
+        // Only check existing accounts (non-prompting) - don't request new connection
+        // eth_accounts doesn't prompt user, just returns already-connected accounts
         try {
-            // Import Web3 dynamically
-            const Web3 = (await import('web3')).default;
-            web3 = new Web3(window.ethereum);
-            
-            // Check if already connected
             const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-            if (accounts.length > 0) {
+            if (accounts && accounts.length > 0) {
                 userAccount = accounts[0];
-                await switchToSepolia();
+                // Only switch network if already connected
+                try {
+                    await switchToSepolia();
+                } catch (networkError) {
+                    // Ignore network switch errors during init
+                }
             }
-            
-            // Listen for account changes
+        } catch (accountError) {
+            // Silently fail - user may not have connected yet
+        }
+        
+        // Set up event listeners (these don't prompt either)
+        if (window.ethereum.on) {
             window.ethereum.on('accountsChanged', (accounts) => {
                 if (accounts.length === 0) {
                     userAccount = null;
@@ -270,16 +292,14 @@ export const initializeMetaMask = async () => {
                 }
             });
             
-            // Listen for chain changes
             window.ethereum.on('chainChanged', (chainId) => {
                 window.location.reload();
             });
-            
-            return true;
-        } catch (error) {
-            return false;
         }
-    } else {
+        
+        return true;
+    } catch (error) {
+        // Silently fail - don't show errors to user who hasn't tried to connect
         return false;
     }
 };

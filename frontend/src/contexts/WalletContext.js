@@ -111,32 +111,40 @@ export const WalletProvider = ({ children }) => {
         return false;
     };
 
-    // Initialize MetaMask on mount
+    // Initialize MetaMask on mount - silent initialization, no prompts
     useEffect(() => {
         const initialize = async () => {
-            // Check if MetaMask is installed (with retry for async injection)
-            const isInstalled = await detectMetaMask();
-            dispatch({ type: walletActions.SET_METAMASK_INSTALLED, payload: isInstalled });
+            try {
+                // Check if MetaMask is installed (with retry for async injection)
+                const isInstalled = await detectMetaMask();
+                dispatch({ type: walletActions.SET_METAMASK_INSTALLED, payload: isInstalled });
 
-            if (isInstalled) {
-                try {
-                    await initializeMetaMask();
+                if (isInstalled) {
+                    // Silent initialization - won't prompt user or show errors
+                    const initResult = await initializeMetaMask();
                     
-                    // Check if already connected
-                    const currentAddress = getCurrentWalletAddress();
-                    if (currentAddress && isWalletConnected()) {
-                        dispatch({ 
-                            type: walletActions.SET_CONNECTED, 
-                            payload: { address: currentAddress }
-                        });
-                        
-                        // Get network info
-                        const networkInfo = await getNetworkInfo();
-                        dispatch({ type: walletActions.SET_NETWORK_INFO, payload: networkInfo });
+                    if (initResult) {
+                        // Check if already connected (user previously connected)
+                        const currentAddress = getCurrentWalletAddress();
+                        if (currentAddress && isWalletConnected()) {
+                            dispatch({ 
+                                type: walletActions.SET_CONNECTED, 
+                                payload: { address: currentAddress }
+                            });
+                            
+                            // Get network info silently
+                            try {
+                                const networkInfo = await getNetworkInfo();
+                                dispatch({ type: walletActions.SET_NETWORK_INFO, payload: networkInfo });
+                            } catch (networkError) {
+                                // Ignore network info errors
+                            }
+                        }
                     }
-                } catch (error) {
-                    // Initialization error - wallet may not be ready
                 }
+            } catch (error) {
+                // Silently ignore all initialization errors
+                // User hasn't tried to connect yet, so don't show errors
             }
         };
 
