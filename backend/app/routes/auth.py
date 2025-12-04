@@ -643,24 +643,17 @@ def send_email_verification():
         # Send verification email using Brevo
         success, response = EmailService.send_verification_email(email, otp)
         if success:
-            response_data = {
+            return jsonify({
                 'success': True, 
-                'message': 'Verification OTP sent to your email',
-                'otp': otp  # Always include OTP in response for now (fallback if email fails to deliver)
-            }
-            return jsonify(response_data), 200
+                'message': 'Verification OTP sent to your email'
+            }), 200
         else:
-            # Email sending failed - but still return OTP so user can proceed
-            # This is a fallback while email service is being configured
+            # Email sending failed
             print(f"[EMAIL WARNING] Failed to send email to {email}: {response}")
-            response_data = {
-                'success': True, 
-                'message': 'OTP generated. If you do not receive the email, use the code shown below.',
-                'otp': otp,
-                'email_status': 'pending',
-                'note': 'Email delivery may be delayed. Your OTP is shown for convenience.'
-            }
-            return jsonify(response_data), 200
+            return jsonify({
+                'success': False, 
+                'message': 'Failed to send verification email. Please try again.'
+            }), 500
         
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
