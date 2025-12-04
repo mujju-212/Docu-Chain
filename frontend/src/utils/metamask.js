@@ -409,7 +409,8 @@ const updateWalletConnection = async () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
             
-            const response = await fetch('http://localhost:5000/api/users/profile', {
+            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+            const response = await fetch(`${apiUrl}/users/profile`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

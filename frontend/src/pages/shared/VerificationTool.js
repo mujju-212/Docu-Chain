@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import jsQR from 'jsqr';
 import './VerificationTool.css';
 
-const API_URL = 'http://localhost:5000';
+// Remove /api suffix since we add it in calls
+const API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
 
 export default function VerificationTool() {
   // States

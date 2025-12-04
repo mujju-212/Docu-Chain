@@ -12,8 +12,9 @@ import {
 import Web3 from 'web3';
 import './ChatInterface.css';
 
-const API_URL = 'http://localhost:5000/api';
-const SOCKET_URL = 'http://localhost:5000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// For socket, remove /api suffix
+const SOCKET_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
 
 // Helper function to format timestamp properly with local timezone
 const formatMessageTime = (timestamp) => {

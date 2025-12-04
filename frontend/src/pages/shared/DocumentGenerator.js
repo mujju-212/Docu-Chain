@@ -5,7 +5,8 @@ import pinataService from '../../services/pinataService';
 import { connectWallet, uploadDocumentToBlockchain, isWalletConnected, getCurrentWalletAddress, requestApprovalOnBlockchain } from '../../utils/metamask';
 import html2pdf from 'html2pdf.js';
 
-const API_URL = 'http://localhost:5000';
+// Remove /api suffix since we add it in calls
+const API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
 
 export default function DocumentGenerator() {
   // State

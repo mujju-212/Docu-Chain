@@ -9,6 +9,8 @@ import { toggleStarDocument, toggleStarFolder, getStarredDocuments, getStarredFo
 import TransactionLoader from '../../components/shared/TransactionLoader';
 import './FileManagerNew.css';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
 const FileManager = () => {
   const { currentTheme } = useTheme();
   
@@ -943,12 +945,12 @@ const FileManager = () => {
       const authToken = localStorage.getItem('token');
       
       // Load trashed folders
-      const foldersResponse = await axios.get('http://localhost:5000/api/folders/trash', {
+      const foldersResponse = await axios.get(`${API_URL}/folders/trash`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       
       // Load trashed documents
-      const docsResponse = await axios.get('http://localhost:5000/api/documents/trash', {
+      const docsResponse = await axios.get(`${API_URL}/documents/trash`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       
@@ -988,7 +990,7 @@ const FileManager = () => {
       
       console.log('📥 Loading documents shared with me...');
       
-      const response = await axios.get('http://localhost:5000/api/shares/shared-with-me', {
+      const response = await axios.get(`${API_URL}/shares/shared-with-me`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       
@@ -1328,7 +1330,7 @@ const FileManager = () => {
         if (item.type === 'folder') {
           if (clipboard.action === 'copy') {
             // Copy folder - create new folder with same name
-            const response = await axios.post('http://localhost:5000/api/folders/', {
+            const response = await axios.post(`${API_URL}/folders/`, {
               name: `${item.name} (Copy)`,
               parent_id: currentFolderId,
               path: currentPath
@@ -1338,7 +1340,7 @@ const FileManager = () => {
             console.log('Folder copied:', response.data);
           } else if (clipboard.action === 'move') {
             // Move folder - update parent_id
-            const response = await axios.put(`http://localhost:5000/api/folders/${item.id}`, {
+            const response = await axios.put(`${API_URL}/folders/${item.id}`, {
               parent_id: currentFolderId,
               path: currentPath
             }, {
@@ -1350,7 +1352,7 @@ const FileManager = () => {
           // Handle file copy/move
           if (clipboard.action === 'move') {
             // Move file - update folder_id
-            const response = await axios.put(`http://localhost:5000/api/documents/${item.id}`, {
+            const response = await axios.put(`${API_URL}/documents/${item.id}`, {
               folder_id: currentFolderId
             }, {
               headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -1358,7 +1360,7 @@ const FileManager = () => {
             console.log('File moved:', response.data);
           } else if (clipboard.action === 'copy') {
             // Copy file - use copy endpoint
-            const response = await axios.post(`http://localhost:5000/api/documents/${item.id}/copy`, {
+            const response = await axios.post(`${API_URL}/documents/${item.id}/copy`, {
               folder_id: currentFolderId
             }, {
               headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -1405,7 +1407,7 @@ const FileManager = () => {
     try {
       if (deleteItem.type === 'folder') {
         // Delete folder via backend API
-        const response = await axios.delete(`http://localhost:5000/api/folders/${deleteItem.id}`, {
+        const response = await axios.delete(`${API_URL}/folders/${deleteItem.id}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         
@@ -1416,7 +1418,7 @@ const FileManager = () => {
         }
       } else {
         // Delete file via backend API
-        const response = await axios.delete(`http://localhost:5000/api/documents/${deleteItem.id}`, {
+        const response = await axios.delete(`${API_URL}/documents/${deleteItem.id}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         
@@ -1451,7 +1453,7 @@ const FileManager = () => {
       
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `http://localhost:5000/api/documents/${file.id}/versions`,
+        `${API_URL}/documents/${file.id}/versions`,
         {
           headers: { 'Authorization': `Bearer ${token}` }
         }
@@ -1661,7 +1663,7 @@ const FileManager = () => {
           }
           
           const updateResponse = await axios.put(
-            `http://localhost:5000/api/documents/${file.id}`,
+            `${API_URL}/documents/${file.id}`,
             updatePayload,
             {
               headers: {
@@ -1739,7 +1741,7 @@ const FileManager = () => {
     try {
       if (renameItem.type === 'folder') {
         // Rename folder via backend API
-        const response = await axios.put(`http://localhost:5000/api/folders/${renameItem.id}`, {
+        const response = await axios.put(`${API_URL}/folders/${renameItem.id}`, {
           name: newName.trim()
         }, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -1751,7 +1753,7 @@ const FileManager = () => {
         }
       } else {
         // Rename file via backend API
-        const response = await axios.put(`http://localhost:5000/api/documents/${renameItem.id}`, {
+        const response = await axios.put(`${API_URL}/documents/${renameItem.id}`, {
           name: newName.trim()
         }, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -1953,7 +1955,7 @@ const FileManager = () => {
         try {
           const token = localStorage.getItem('token');
           await axios.put(
-            `http://localhost:5000/api/documents/${result.document.id}`,
+            `${API_URL}/documents/${result.document.id}`,
             {
               document_id: documentId, // Backend expects 'document_id' not 'blockchain_document_id'
               ipfs_hash: ipfsResult.ipfsHash,
@@ -2478,8 +2480,7 @@ const FileManager = () => {
         return;
       }
 
-      const apiUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/users/institution`;
-      const response = await fetch(apiUrl, {
+      const response = await fetch(`${API_URL}/users/institution`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -2694,7 +2695,7 @@ const FileManager = () => {
               setTxMessage('Saving to database...');
               try {
                 const shareResponse = await axios.post(
-                  `http://localhost:5000/api/shares/document/${fileId}`,
+                  `${API_URL}/shares/document/${fileId}`,
                   {
                     recipients: [{
                       user_id: recipient.id,

@@ -9,7 +9,10 @@ import pinataService from './pinataService.js';
 
 class HybridFileManagerService {
   constructor() {
-    this.apiBaseUrl = 'http://localhost:5000'; // Updated to match backend port
+    // Use environment variable for API URL, fallback to localhost for development
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+    // Remove /api suffix since we append it in the calls
+    this.apiBaseUrl = apiUrl.replace(/\/api\/?$/, '');
     this.isInitialized = false;
     this.userAccount = null;
     this.authToken = null;

@@ -162,8 +162,8 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   const [notification, setNotification] = useState(null);
   const [currentDraftId, setCurrentDraftId] = useState(null);
 
-  // API Configuration
-  const API_URL = 'http://localhost:5000';
+  // API Configuration - Remove /api suffix since we add it in calls
+  const API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
   const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${localStorage.getItem('token')}`
