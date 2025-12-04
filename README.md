@@ -1,6 +1,8 @@
 <div align="center">
   
-# 📄 DocuChain
+<img src="assets/logo.png" alt="DocuChain Logo" width="200"/>
+
+# DocuChain
 
 ### Blockchain-Powered Document Management & Verification System
 
