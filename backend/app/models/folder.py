@@ -72,8 +72,7 @@ class Folder(db.Model):
                         DocumentShare.shared_with_id == self.owner_id,
                         Document.is_active == True
                     ).scalar() or 0
-                except Exception as e:
-                    print(f"Error counting shared documents for Received folder: {e}")
+                except Exception:
                     document_count = 0
             
             # Special handling for "Sent" folder under Shared - count documents shared BY owner
@@ -88,8 +87,7 @@ class Folder(db.Model):
                         DocumentShare.shared_by_id == self.owner_id,
                         Document.is_active == True
                     ).scalar() or 0
-                except Exception as e:
-                    print(f"Error counting shared documents for Sent folder: {e}")
+                except Exception:
                     document_count = 0
             
             else:

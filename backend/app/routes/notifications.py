@@ -54,7 +54,6 @@ def get_notifications():
         }), 200
         
     except Exception as e:
-        print(f"Error getting notifications: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -92,7 +91,6 @@ def get_notification_count():
         }), 200
         
     except Exception as e:
-        print(f"Error getting notification count: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -123,7 +121,6 @@ def mark_as_read(notification_id):
         }), 200
         
     except Exception as e:
-        print(f"Error marking notification as read: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -151,7 +148,6 @@ def mark_all_as_read():
         }), 200
         
     except Exception as e:
-        print(f"Error marking all notifications as read: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -181,7 +177,6 @@ def delete_notification(notification_id):
         }), 200
         
     except Exception as e:
-        print(f"Error deleting notification: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -206,5 +201,4 @@ def clear_read_notifications():
         }), 200
         
     except Exception as e:
-        print(f"Error clearing read notifications: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500

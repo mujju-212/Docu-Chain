@@ -1,5 +1,9 @@
 import os
 from datetime import timedelta
+from dotenv import load_dotenv
+
+# Load .env file at import time
+load_dotenv()
 
 class Config:
     """Base configuration"""
@@ -12,8 +16,12 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=1)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
     
-    # CORS
-    CORS_ORIGINS = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:5173', 'http://localhost:8080']
+    # CORS - Get from environment or use defaults for development
+    _cors_env = os.getenv('CORS_ORIGINS', '')
+    CORS_ORIGINS = _cors_env.split(',') if _cors_env else ['http://localhost:3000', 'http://localhost:5173']
+    
+    # Frontend URL (for verification links, QR codes, etc.)
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
     
     # File Upload
     MAX_CONTENT_LENGTH = int(os.getenv('MAX_FILE_SIZE', 52428800))  # 50MB default

@@ -122,7 +122,6 @@ def create_institution_with_admin():
     """Create a new institution along with its primary admin account"""
     try:
         data = request.get_json()
-        print(f"📝 Received institution creation request: {data}")
         
         # Validate required fields
         required_fields = [
@@ -134,7 +133,6 @@ def create_institution_with_admin():
         
         for field in required_fields:
             if not data.get(field):
-                print(f"❌ Missing required field: {field}")
                 return jsonify({
                     'success': False, 
                     'message': f'{field} is required'
@@ -146,7 +144,6 @@ def create_institution_with_admin():
         ).first()
         
         if existing_institution:
-            print(f"❌ Institution unique ID already exists: {data['institutionUniqueId']}")
             return jsonify({
                 'success': False, 
                 'message': f"Institution with unique ID '{data['institutionUniqueId']}' already exists"
@@ -158,7 +155,6 @@ def create_institution_with_admin():
         ).first()
         
         if existing_email:
-            print(f"❌ Institution email already exists: {data['institutionEmail']}")
             return jsonify({
                 'success': False,
                 'message': f"Institution with email '{data['institutionEmail']}' already exists"
@@ -171,7 +167,6 @@ def create_institution_with_admin():
         # Check if admin email already exists in users
         existing_admin = User.query.filter_by(email=data['adminEmail']).first()
         if existing_admin:
-            print(f"❌ Admin email already exists: {data['adminEmail']}")
             return jsonify({
                 'success': False,
                 'message': f"User with email '{data['adminEmail']}' already exists"
@@ -219,7 +214,6 @@ def create_institution_with_admin():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error creating institution and admin: {str(e)}")
         return jsonify({
             'success': False, 
             'message': 'Failed to create institution and admin account. Please try again.'
@@ -262,7 +256,6 @@ def get_institution_details():
         }), 200
         
     except Exception as e:
-        print(f"Error fetching institution: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -320,7 +313,6 @@ def update_institution():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error updating institution: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -395,7 +387,6 @@ def get_departments_with_sections():
         }), 200
         
     except Exception as e:
-        print(f"Error fetching departments: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -460,7 +451,6 @@ def create_department():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error creating department: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -518,7 +508,6 @@ def update_department(dept_id):
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error updating department: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -564,7 +553,6 @@ def delete_department(dept_id):
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error deleting department: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -643,7 +631,6 @@ def create_section():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error creating section: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -702,7 +689,6 @@ def update_section(section_id):
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error updating section: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -745,7 +731,6 @@ def delete_section(section_id):
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error deleting section: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -805,5 +790,4 @@ def search_users_for_assignment():
         }), 200
         
     except Exception as e:
-        print(f"Error searching users: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500

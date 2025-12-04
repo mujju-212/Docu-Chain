@@ -1,609 +1,518 @@
-# 🔗 DocuChain - Blockchain Document Management System
+<p align="center">
+  <img src="frontend/public/logo192.png" alt="DocuChain Logo" width="120" height="120">
+</p>
 
-A comprehensive blockchain-based document management system designed for educational institutions with role-based access control, IPFS storage, and Ethereum smart contracts.
+<h1 align="center">📄 DocuChain</h1>
 
-## 📋 Table of Contents
+<p align="center">
+  <strong>Blockchain-Powered Document Management & Verification System</strong>
+</p>
 
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Quick Start](#quick-start)
-- [Documentation](#documentation)
-- [Testing](#testing)
-- [User Roles](#user-roles)
-- [Core Features](#core-features)
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#usage">Usage</a> •
+  <a href="#api-documentation">API</a> •
+  <a href="#contributing">Contributing</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/React-18.3.1-61DAFB?style=flat-square&logo=react" alt="React">
+  <img src="https://img.shields.io/badge/Flask-3.0.0-000000?style=flat-square&logo=flask" alt="Flask">
+  <img src="https://img.shields.io/badge/Solidity-0.8.19-363636?style=flat-square&logo=solidity" alt="Solidity">
+  <img src="https://img.shields.io/badge/PostgreSQL-15-336791?style=flat-square&logo=postgresql" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/Ethereum-Sepolia-3C3C3D?style=flat-square&logo=ethereum" alt="Ethereum">
+</p>
+
+---
 
 ## 🎯 Overview
 
-DocuChain is a decentralized document management platform that enables educational institutions to:
-- Securely store documents on IPFS
-- Verify document authenticity using blockchain
-- Manage multi-role access (Admin, Faculty, Students)
-- Enable document approval workflows with digital signatures
-- Generate institutional documents from templates
-- Track document version history on blockchain
+**DocuChain** is a decentralized document management system designed for educational institutions. It combines blockchain technology with IPFS storage to provide tamper-proof document verification, secure sharing, and multi-level approval workflows.
+
+### Why DocuChain?
+
+- 🔐 **Immutable Records**: Documents are hashed and stored on Ethereum blockchain
+- 📁 **Decentralized Storage**: Files stored on IPFS via Pinata for censorship resistance
+- ✅ **Instant Verification**: QR codes for instant document authenticity verification
+- 👥 **Role-Based Access**: Student, Faculty, and Admin roles with granular permissions
+- 📝 **Approval Workflows**: Sequential and parallel document approval processes
+- 💬 **Real-Time Chat**: Built-in messaging with document sharing capabilities
+
+---
 
 ## ✨ Features
 
-### 🔐 Authentication & Authorization
-- MetaMask wallet integration
-- Email/OTP verification
-- Three-tier role system (Admin, Faculty, Student)
-- Institution-specific unique ID system
+### 📄 Document Management
+- Upload, organize, and manage documents in folders
+- Version control with complete history tracking
+- Star/favorite documents for quick access
+- Bulk operations (move, delete, share)
 
-### 📁 File Management
-- IPFS decentralized storage via Pinata
-- Folder organization with drag-and-drop
-- File sharing with granular permissions
-- Version control on blockchain
-- Trash system with 30-day recovery
+### 🔗 Blockchain Integration
+- Document hash storage on Ethereum Sepolia testnet
+- Smart contract-based sharing permissions
+- On-chain approval workflows
+- Transaction history and audit trail
+
+### 🌐 IPFS Storage
+- Decentralized file storage via Pinata
+- Content-addressable storage (CID)
+- Permanent document availability
+- Gateway access for downloads
+
+### ✅ Verification System
+- QR code generation for each document
+- Public verification portal
+- Hash comparison verification
+- Blockchain transaction proof
+
+### 👥 Multi-Role System
+| Role | Capabilities |
+|------|-------------|
+| **Student** | Upload documents, request approvals, share with peers |
+| **Faculty** | All student features + approve documents, manage classes |
+| **Admin** | Full access + user management, institution settings |
 
 ### 💬 Communication
-- Real-time chat with file sharing
-- Department and section group chats
-- Institution-wide circular system
-- Notification system
+- Direct messaging between users
+- Group chats and channels
+- Circular announcements
+- Document sharing in chat
 
-### ✅ Document Approval Workflow
-- Multi-signature approval process
-- Sequential and parallel approval modes
-- Digital signature integration
-- QR code verification
-- Approval status tracking
+### 📝 Approval Workflows
+- Sequential approval chains
+- Parallel approval requests
+- Digital signatures
+- Deadline tracking
+- Status notifications
 
-### 📄 Document Generation
-- Pre-defined institutional templates
-- Auto-fill institution details
-- Draft system with blockchain storage
-- Circular generation tool
+---
 
-### 🔍 Verification Tool
-- Document authenticity checking
-- QR code scanning
-- Tamper detection
-- Ownership verification
-
-### 👥 User Management (Admin)
-- Account approval system
-- User CRUD operations
-- Department and section management
-- Analytics dashboard
-
-## 🏗️ Architecture
-
-```
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│   Frontend   │◄────►│   Backend    │◄────►│   Database   │
-│   (React)    │      │   (Flask)    │      │  (PostgreSQL)│
-└──────┬───────┘      └──────┬───────┘      └──────────────┘
-       │                     │
-       │                     │
-       ▼                     ▼
-┌──────────────┐      ┌──────────────┐
-│   MetaMask   │      │ IPFS/Pinata  │
-│   Wallet     │      │   Gateway    │
-└──────┬───────┘      └──────────────┘
-       │
-       ▼
-┌──────────────┐
-│  Ethereum    │
-│   Sepolia    │
-└──────────────┘
-```
-
-## 🛠️ Tech Stack
+## 🛠 Tech Stack
 
 ### Frontend
-- **Framework**: React 18 + Vite
-- **Styling**: Tailwind CSS
-- **State Management**: Context API + React Query
-- **Routing**: React Router v6
-- **Blockchain**: Web3.js, ethers.js
-- **UI Components**: Custom + Headless UI
+| Technology | Purpose |
+|------------|---------|
+| React 18.3 | UI Framework |
+| React Router 6 | Navigation |
+| Ethers.js 6 | Blockchain interaction |
+| Web3.js 4 | MetaMask integration |
+| Axios | API communication |
+| Socket.IO Client | Real-time features |
 
 ### Backend
-- **Framework**: Flask 2.3+
-- **Database**: PostgreSQL (production), SQLite (dev)
-- **ORM**: SQLAlchemy
-- **Authentication**: Flask-JWT-Extended
-- **Real-time**: Socket.IO
-- **Storage**: Pinata IPFS API
+| Technology | Purpose |
+|------------|---------|
+| Flask 3.0 | Web framework |
+| SQLAlchemy | ORM |
+| PostgreSQL | Database |
+| Flask-JWT-Extended | Authentication |
+| Flask-SocketIO | WebSocket support |
+| Flask-Mail | Email notifications |
 
 ### Blockchain
-- **Network**: Ethereum Sepolia Testnet
-- **Smart Contracts**: Solidity 0.8.x
-- **Development**: Hardhat
-- **Testing**: Chai, Mocha
-- **Wallet**: MetaMask integration
+| Technology | Purpose |
+|------------|---------|
+| Solidity 0.8.19 | Smart contracts |
+| Hardhat | Development framework |
+| Ethereum Sepolia | Test network |
+| OpenZeppelin | Security standards |
 
-## 📂 Project Structure
+### Storage
+| Technology | Purpose |
+|------------|---------|
+| Pinata | IPFS pinning service |
+| IPFS Gateway | File retrieval |
 
-```
-Docu-Chain/
-├── frontend/                 # React application
-│   ├── src/
-│   │   ├── components/      # Reusable UI components
-│   │   │   ├── common/      # Buttons, Modals, etc.
-│   │   │   ├── layout/      # Header, Sidebar, Footer
-│   │   │   ├── dashboard/   # Dashboard widgets
-│   │   │   └── file/        # File-related components
-│   │   ├── pages/           # Route pages
-│   │   │   ├── auth/        # Login, Register, CreateInstitution
-│   │   │   ├── admin/       # Admin dashboard & tools
-│   │   │   ├── faculty/     # Faculty dashboard
-│   │   │   └── student/     # Student dashboard
-│   │   ├── services/        # API calls
-│   │   │   ├── api.js       # Axios instance
-│   │   │   ├── auth.js      # Auth endpoints
-│   │   │   ├── documents.js # Document endpoints
-│   │   │   └── blockchain.js# Web3 interactions
-│   │   ├── contexts/        # React contexts
-│   │   │   ├── AuthContext.jsx
-│   │   │   ├── Web3Context.jsx
-│   │   │   └── ThemeContext.jsx
-│   │   ├── hooks/           # Custom React hooks
-│   │   ├── utils/           # Helper functions
-│   │   └── App.jsx          # Root component
-│   ├── public/              # Static assets
-│   ├── package.json
-│   └── vite.config.js
-│
-├── backend/                 # Flask application
-│   ├── app/
-│   │   ├── __init__.py      # App factory
-│   │   ├── routes/          # API routes
-│   │   │   ├── auth.py      # Authentication routes
-│   │   │   ├── documents.py # Document management
-│   │   │   ├── users.py     # User management
-│   │   │   ├── approvals.py # Approval workflow
-│   │   │   └── chat.py      # Chat & messaging
-│   │   ├── models/          # Database models
-│   │   │   ├── user.py
-│   │   │   ├── institution.py
-│   │   │   ├── document.py
-│   │   │   └── approval.py
-│   │   ├── services/        # Business logic
-│   │   │   ├── ipfs_service.py
-│   │   │   ├── blockchain_service.py
-│   │   │   ├── email_service.py
-│   │   │   └── pdf_service.py
-│   │   └── utils/           # Helper functions
-│   │       ├── security.py  # Password hashing
-│   │       ├── validators.py
-│   │       └── decorators.py
-│   ├── migrations/          # Alembic migrations
-│   ├── config.py            # Configuration
-│   ├── run.py               # Entry point
-│   ├── requirements.txt     # Python dependencies
-│   └── .env.example         # Environment template
-│
-├── blockchain/              # Smart contracts
-│   ├── contracts/
-│   │   ├── DocumentManager.sol     # Main contract
-│   │   ├── ApprovalWorkflow.sol    # Approval logic
-│   │   ├── InstitutionRegistry.sol # Institution management
-│   │   └── AccessControl.sol       # Role management
-│   ├── scripts/
-│   │   ├── deploy.js        # Deployment script
-│   │   └── verify.js        # Contract verification
-│   ├── test/                # Contract tests
-│   ├── hardhat.config.js    # Hardhat configuration
-│   └── package.json
-│
-├── docs/                    # 📚 Documentation
-│   ├── features/           # Feature documentation
-│   ├── development/        # Development guides
-│   ├── testing/            # Testing documentation
-│   └── README.md           # Documentation index
-│
-├── tests/                   # 🧪 Test Scripts
-│   ├── test_*.py           # Python test scripts
-│   ├── test_*.ps1          # PowerShell test scripts
-│   └── README.md           # Testing guide
-│
-├── .gitignore
-├── package.json             # Root package.json
-├── README.md
-└── .env.example             # Global environment template
-```
-
-## 🚀 Quick Start
-
-Get DocuChain running in minutes:
-
-1. **Clone & Setup**
-   ```bash
-   git clone https://github.com/mujju-212/Docu-Chain.git
-   cd Docu-Chain
-   ```
-
-2. **Backend Setup**
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   python init_db.py
-   python run.py
-   ```
-
-3. **Frontend Setup**
-   ```bash
-   cd frontend
-   npm install
-   npm start
-   ```
-
-4. **Access Application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:5000
-
-## 📚 Documentation
-
-Comprehensive documentation is organized in the `/docs` folder:
-
-- **[Setup Guide](docs/SETUP.md)** - Detailed installation instructions
-- **[Quick Start](docs/QUICKSTART.md)** - Get running immediately  
-- **[Login Credentials](docs/LOGIN_CREDENTIALS.md)** - Test account access
-- **[Features](docs/features/)** - Feature-specific documentation
-- **[Development](docs/development/)** - Development guides and analysis
-
-## 🧪 Testing
-
-Test scripts are available in the `/tests` folder:
-
-- **Authentication Tests** - Complete auth flow validation
-- **Email System Tests** - Professional email template testing  
-- **API Tests** - Backend endpoint validation
-- **Frontend Tests** - UI and error handling tests
-
-Run tests with: `python tests/test_all_fixes.py`
+---
 
 ## 📋 Prerequisites
 
-Before installation, ensure you have:
+Before you begin, ensure you have the following installed:
 
 - **Node.js** >= 18.0.0
 - **Python** >= 3.9
-- **PostgreSQL** >= 14 (or SQLite for development)
+- **PostgreSQL** >= 13
 - **MetaMask** browser extension
 - **Git**
-- **Pinata Account** (for IPFS)
-- **Infura Account** (for Ethereum RPC)
+
+---
 
 ## 🚀 Installation
 
 ### 1. Clone the Repository
 
-```powershell
+```bash
 git clone https://github.com/mujju-212/Docu-Chain.git
 cd Docu-Chain
 ```
 
-### 2. Install All Dependencies
+### 2. Database Setup
 
-```powershell
-# Install root dependencies
-npm install
+```bash
+# Create PostgreSQL database
+psql -U postgres
+CREATE DATABASE docuchain;
+\q
 
-# Install frontend dependencies
-cd frontend
-npm install
-cd ..
+# Or use the setup script (Windows)
+cd database
+.\setup.ps1
+```
 
-# Install blockchain dependencies
-cd blockchain
-npm install
-cd ..
+### 3. Backend Setup
 
-# Install backend dependencies (Windows)
+```bash
 cd backend
+
+# Create virtual environment
 python -m venv venv
+
+# Activate virtual environment
+# Windows:
 .\venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
-cd ..
-```
 
-## ⚙️ Configuration
+# Create environment file
+copy .env.example .env
+# Edit .env with your configuration
 
-### 1. Backend Environment (.env in backend/)
+# Initialize database
+python init_db.py
 
-```env
-# Flask Configuration
-FLASK_APP=run.py
-FLASK_ENV=development
-SECRET_KEY=your-super-secret-key-change-in-production
-JWT_SECRET_KEY=your-jwt-secret-key
-
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/docuchain
-# Or for development:
-# DATABASE_URL=sqlite:///docuchain.db
-
-# IPFS/Pinata
-PINATA_API_KEY=your-pinata-api-key
-PINATA_SECRET_KEY=your-pinata-secret-key
-PINATA_JWT=your-pinata-jwt
-
-# Blockchain
-CONTRACT_ADDRESS=0x1203dc6f5d10556449e194c0c14f167bb3d72208
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
-CHAIN_ID=11155111
-
-# Email (for OTP)
-EMAILJS_SERVICE_ID=your-emailjs-service-id
-EMAILJS_TEMPLATE_ID=your-emailjs-template-id
-EMAILJS_PUBLIC_KEY=your-emailjs-public-key
-
-# CORS
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-```
-
-### 2. Frontend Environment (.env in frontend/)
-
-```env
-VITE_API_URL=http://localhost:5000/api
-VITE_CONTRACT_ADDRESS=0x1203dc6f5d10556449e194c0c14f167bb3d72208
-VITE_CHAIN_ID=11155111
-VITE_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs/
-```
-
-### 3. Blockchain Environment (.env in blockchain/)
-
-```env
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
-PRIVATE_KEY=your-deployer-private-key
-ETHERSCAN_API_KEY=your-etherscan-api-key
-```
-
-## 🏃 Running the Application
-
-### Development Mode
-
-#### Option 1: Run All Services Concurrently
-
-```powershell
-npm run dev
-```
-
-#### Option 2: Run Services Individually
-
-**Terminal 1 - Backend:**
-```powershell
-cd backend
-.\venv\Scripts\activate
+# Start the server
 python run.py
-# Backend runs on http://localhost:5000
 ```
 
-**Terminal 2 - Frontend:**
-```powershell
+### 4. Frontend Setup
+
+```bash
 cd frontend
-npm run dev
-# Frontend runs on http://localhost:5173
+
+# Install dependencies
+npm install
+
+# Create environment file
+copy .env.example .env
+# Edit .env with your configuration
+
+# Start development server
+npm start
 ```
 
-**Terminal 3 - Local Blockchain (Optional):**
-```powershell
+### 5. Smart Contract Deployment (Optional)
+
+```bash
 cd blockchain
-npx hardhat node
-# Local blockchain runs on http://localhost:8545
-```
 
-### Deploy Smart Contracts
+# Install dependencies
+npm install
 
-```powershell
-# Deploy to Sepolia testnet
-npm run deploy:contracts
+# Compile contracts
+npx hardhat compile
 
-# Or manually:
-cd blockchain
+# Deploy to Sepolia
 npx hardhat run scripts/deploy.js --network sepolia
 ```
 
-### Initialize Database
+---
 
-```powershell
-cd backend
-.\venv\Scripts\activate
-flask db upgrade
-python -c "from app import create_app, db; app = create_app(); app.app_context().push(); db.create_all()"
+## ⚙️ Configuration
+
+### Backend `.env`
+
+```env
+# Database
+DATABASE_URL=postgresql://postgres:password@localhost:5432/docuchain
+
+# JWT Secret
+JWT_SECRET_KEY=your-super-secret-key-change-in-production
+
+# Email (Optional)
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-app-password
+
+# Flask
+FLASK_ENV=development
+FLASK_DEBUG=True
 ```
 
-## 👥 User Roles
+### Frontend `.env`
 
-### 1. Admin
-- Create and manage institution
-- Approve/reject account requests
-- User management (CRUD operations)
-- Department and section management
-- Full access to all features
+```env
+# API
+REACT_APP_API_URL=http://localhost:5000/api
 
-### 2. Faculty/Staff
-- Upload and manage documents
-- Request document approvals
-- Generate documents from templates
-- Create circulars
-- Manage student documents
-- Access department groups
+# Pinata IPFS
+REACT_APP_PINATA_API_KEY=your-pinata-api-key
+REACT_APP_PINATA_SECRET_KEY=your-pinata-secret-key
+REACT_APP_PINATA_JWT=your-pinata-jwt
+REACT_APP_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs/
 
-### 3. Students
-- Upload personal documents
-- Request approvals from faculty
-- View shared documents
-- Access class and department groups
-- Verify documents
-
-## 🔧 Core Features Breakdown
-
-### Institution Registration Flow
-1. Admin fills institution details (name, type, address, unique ID)
-2. Admin creates own account with institution
-3. System generates institution-wide group chat
-4. Department/section groups auto-created as added
-
-### Account Creation Flow
-1. User selects role and fills form
-2. Enters correct institution name + unique ID
-3. Form sent to admin for review
-4. Admin approves/rejects → Email notification sent
-5. User can login after approval
-
-### Document Upload Flow
-1. Connect MetaMask wallet
-2. Select file → Upload to IPFS (Pinata)
-3. Receive IPFS hash (QmXXX...)
-4. Create blockchain transaction
-5. Store metadata in database
-6. Document appears in "My Files"
-
-### Document Approval Flow
-1. User selects document from blockchain
-2. Choose recipients + roles (HOD, Principal, etc.)
-3. Set approval type (Standard / Digital Signature)
-4. Choose process (Sequential / Parallel)
-5. Generate request → Goes to approvers
-6. Approver reviews → Signs/Approves
-7. New version generated with QR + signatures
-8. Final document sent to requestor
-
-### File Sharing Flow
-1. Select file/folder from File Manager
-2. Choose recipient (by search or connection)
-3. Set permissions (Read / Read+Write)
-4. Blockchain records sharing event
-5. Recipient sees in "Shared With Me"
-6. Chat interface shows sharing activity
-
-## 🧪 Testing
-
-### Backend Tests
-```powershell
-cd backend
-pytest
+# Blockchain (Sepolia Testnet)
+REACT_APP_CONTRACT_ADDRESS=your-contract-address
+REACT_APP_APPROVAL_CONTRACT_ADDRESS=your-approval-contract-address
+REACT_APP_CHAIN_ID=11155111
+REACT_APP_RPC_URL=https://sepolia.infura.io/v3/your-infura-key
 ```
-
-### Smart Contract Tests
-```powershell
-cd blockchain
-npx hardhat test
-```
-
-### Frontend Tests
-```powershell
-cd frontend
-npm run test
-```
-
-## 📱 Responsive Design
-
-DocuChain is fully responsive and works on:
-- 💻 Desktop (1920px+)
-- 💼 Laptop (1366px - 1920px)
-- 📱 Tablet (768px - 1366px)
-- 📱 Mobile (320px - 768px)
-
-## 🎨 Theme Support
-
-Multiple color themes available:
-- 🟢 Green (Default)
-- 🔵 Blue
-- 🟣 Purple
-- 🔴 Red
-- ⚫ Dark Mode
-
-Users can switch themes in Settings.
-
-## 🔒 Security Features
-
-- ✅ Password hashing (bcrypt)
-- ✅ JWT token authentication
-- ✅ MetaMask signature verification
-- ✅ CORS protection
-- ✅ SQL injection prevention
-- ✅ XSS protection
-- ✅ Rate limiting
-- ✅ Session management
-- ✅ Input validation
-- ✅ HTTPS enforcement (production)
-
-## 📊 Database Schema
-
-Key tables:
-- `institutions` - Institution details
-- `users` - User accounts
-- `documents` - Document metadata
-- `document_shares` - Sharing permissions
-- `approvals` - Approval workflow
-- `departments` - Department structure
-- `sections` - Section/class management
-- `messages` - Chat messages
-- `circulars` - Institutional circulars
-- `activity_logs` - User activity tracking
-
-## 🌐 API Documentation
-
-Once running, API docs available at:
-- Swagger UI: `http://localhost:5000/api/docs`
-- ReDoc: `http://localhost:5000/api/redoc`
-
-## 🐛 Troubleshooting
-
-### MetaMask Not Connecting
-- Ensure MetaMask is installed
-- Switch to Sepolia network
-- Clear browser cache
-
-### Transaction Failing
-- Check Sepolia ETH balance
-- Verify gas settings
-- Confirm network connectivity
-
-### IPFS Upload Failed
-- Verify Pinata API keys
-- Check file size limits
-- Ensure network connectivity
-
-### Database Connection Error
-- Verify PostgreSQL is running
-- Check DATABASE_URL in .env
-- Run migrations: `flask db upgrade`
-
-## 📚 Additional Resources
-
-- [Solidity Documentation](https://docs.soliditylang.org/)
-- [React Documentation](https://react.dev/)
-- [Flask Documentation](https://flask.palletsprojects.com/)
-- [Hardhat Documentation](https://hardhat.org/docs)
-- [IPFS Documentation](https://docs.ipfs.tech/)
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see LICENSE file for details.
-
-## 👨‍💻 Author
-
-**mujju-212**
-- GitHub: [@mujju-212](https://github.com/mujju-212)
-
-## 🙏 Acknowledgments
-
-- Ethereum Foundation
-- IPFS/Pinata
-- OpenZeppelin
-- React Team
-- Flask Community
 
 ---
 
-**Note**: This is a educational/institutional project. Ensure proper security audits before production deployment.
+## 📖 Usage
 
-For support, email: support@docuchain.example.com
+### Getting Started
+
+1. **Create an Institution**
+   - Navigate to `/register`
+   - Select "Create New Institution"
+   - Fill in institution details
+   - You'll be the primary admin
+
+2. **Register Users**
+   - Students/Faculty register and select your institution
+   - Admin approves user registrations
+   - Users receive email confirmation
+
+3. **Connect MetaMask**
+   - Install MetaMask browser extension
+   - Connect to Sepolia testnet
+   - Get test ETH from [Sepolia Faucet](https://sepoliafaucet.com/)
+
+4. **Upload Documents**
+   - Navigate to File Manager
+   - Upload files (stored on IPFS)
+   - Optionally store hash on blockchain
+
+5. **Share & Verify**
+   - Share documents with other users
+   - Generate QR codes for verification
+   - Verify documents via public portal
+
+### User Workflows
+
+#### Student
+```
+Login → File Manager → Upload Document → Request Approval → Track Status
+```
+
+#### Faculty
+```
+Login → Dashboard → Review Pending Approvals → Approve/Reject → Notify Student
+```
+
+#### Admin
+```
+Login → Admin Panel → Manage Users → Configure Settings → Monitor Activity
+```
+
+---
+
+## 📡 API Documentation
+
+### Authentication
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/register` | POST | Register new user |
+| `/api/auth/login` | POST | User login |
+| `/api/auth/logout` | POST | User logout |
+| `/api/auth/me` | GET | Get current user |
+
+### Documents
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/documents` | GET | List user documents |
+| `/api/documents` | POST | Upload document |
+| `/api/documents/<id>` | GET | Get document details |
+| `/api/documents/<id>` | DELETE | Delete document |
+| `/api/documents/<id>/share` | POST | Share document |
+| `/api/documents/<id>/verify` | GET | Verify document |
+
+### Folders
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/folders` | GET | List folders |
+| `/api/folders` | POST | Create folder |
+| `/api/folders/<id>` | PUT | Update folder |
+| `/api/folders/<id>` | DELETE | Delete folder |
+
+### Approvals
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/approvals` | GET | List approvals |
+| `/api/approvals` | POST | Create approval request |
+| `/api/approvals/<id>/approve` | POST | Approve document |
+| `/api/approvals/<id>/reject` | POST | Reject document |
+
+---
+
+## 🔗 Smart Contracts
+
+### DocumentManagerV2
+- **Network**: Sepolia Testnet
+- **Functions**:
+  - `uploadDocument()` - Store document hash
+  - `shareDocument()` - Grant access permissions
+  - `updateDocument()` - Update document version
+  - `getDocument()` - Retrieve document data
+
+### DocumentApprovalManager
+- **Network**: Sepolia Testnet
+- **Functions**:
+  - `requestApproval()` - Create approval request
+  - `approveDocument()` - Approve document
+  - `rejectDocument()` - Reject document
+  - `getApprovalStatus()` - Check approval status
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please follow these steps:
+
+### 1. Fork the Repository
+
+Click the "Fork" button at the top right of this page.
+
+### 2. Clone Your Fork
+
+```bash
+git clone https://github.com/YOUR_USERNAME/Docu-Chain.git
+cd Docu-Chain
+```
+
+### 3. Create a Branch
+
+```bash
+git checkout -b feature/your-feature-name
+```
+
+### 4. Make Changes
+
+- Follow the existing code style
+- Write meaningful commit messages
+- Add tests for new features
+- Update documentation as needed
+
+### 5. Commit Your Changes
+
+```bash
+git add .
+git commit -m "feat: add your feature description"
+```
+
+### 6. Push to Your Fork
+
+```bash
+git push origin feature/your-feature-name
+```
+
+### 7. Create a Pull Request
+
+- Go to the original repository
+- Click "New Pull Request"
+- Select your branch
+- Describe your changes
+
+### Commit Message Convention
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation changes
+- `style:` Code style changes
+- `refactor:` Code refactoring
+- `test:` Adding tests
+- `chore:` Maintenance tasks
+
+---
+
+## 📁 Project Structure
+
+```
+Docu-Chain/
+├── frontend/                 # React frontend application
+│   ├── public/              # Static assets
+│   ├── src/
+│   │   ├── components/      # Reusable UI components
+│   │   ├── contexts/        # React contexts (Auth, Wallet, Theme)
+│   │   ├── pages/           # Page components by role
+│   │   ├── services/        # API and blockchain services
+│   │   ├── utils/           # Helper functions
+│   │   └── contracts/       # Contract ABIs
+│   └── package.json
+│
+├── backend/                  # Flask backend API
+│   ├── app/
+│   │   ├── models/          # SQLAlchemy models
+│   │   ├── routes/          # API endpoints
+│   │   ├── services/        # Business logic
+│   │   └── utils/           # Helper functions
+│   ├── requirements.txt
+│   └── run.py
+│
+├── blockchain/               # Smart contracts
+│   ├── contracts/           # Solidity contracts
+│   ├── scripts/             # Deployment scripts
+│   ├── test/                # Contract tests
+│   └── hardhat.config.js
+│
+└── database/                 # Database scripts
+    ├── setup_database.sql
+    └── sample_data.sql
+```
+
+---
+
+## 🔒 Security
+
+- JWT-based authentication with secure token handling
+- Password hashing using bcrypt
+- Environment variables for sensitive data
+- Smart contract access controls
+- Input validation and sanitization
+
+### Reporting Vulnerabilities
+
+If you discover a security vulnerability, please email the maintainer instead of creating a public issue.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 👏 Acknowledgments
+
+- [OpenZeppelin](https://openzeppelin.com/) for smart contract libraries
+- [Pinata](https://pinata.cloud/) for IPFS pinning services
+- [Infura](https://infura.io/) for Ethereum node access
+- [Hardhat](https://hardhat.org/) for smart contract development
+
+---
+
+## 📞 Contact
+
+**Mujju** - [@mujju-212](https://github.com/mujju-212)
+
+Project Link: [https://github.com/mujju-212/Docu-Chain](https://github.com/mujju-212/Docu-Chain)
+
+---
+
+<p align="center">
+  Made with ❤️ for secure document management
+</p>

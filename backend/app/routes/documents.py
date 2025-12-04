@@ -22,8 +22,6 @@ def list_documents():
         folder_id = request.args.get('folder_id')
         get_all = request.args.get('all', 'false').lower() == 'true'
         
-        print(f"🔍 Listing documents for user: {current_user_id}, folder: {folder_id}, all: {get_all}")
-        
         # Check if user is viewing special folders (Received/Sent under Shared folder ONLY)
         is_received_folder = False
         is_sent_folder = False
@@ -39,10 +37,8 @@ def list_documents():
                 
                 if folder.name == 'Received' and is_under_shared:
                     is_received_folder = True
-                    print(f"📥 Viewing Shared/Received folder - will show documents shared WITH user")
                 elif folder.name == 'Sent' and is_under_shared:
                     is_sent_folder = True
-                    print(f"📤 Viewing Shared/Sent folder - will show documents shared BY user")
         
         documents = []
         share_info_map = {}  # Map document_id to share info
@@ -72,8 +68,6 @@ def list_documents():
                         'sharedAt': share.shared_at.isoformat() if share.shared_at else None,
                         'transactionHash': share.transaction_hash
                     }
-            
-            print(f"📥 Found {len(documents)} documents shared with user (Shared/Received)")
         
         # If viewing Shared/Sent folder, show documents shared BY this user
         elif is_sent_folder:
@@ -99,8 +93,6 @@ def list_documents():
                         'sharedAt': share.shared_at.isoformat() if share.shared_at else None,
                         'transactionHash': share.transaction_hash
                     }
-            
-            print(f"📤 Found {len(documents)} documents shared by user (Shared/Sent)")
         
         else:
             # Build query for active documents owned by current user
@@ -121,7 +113,6 @@ def list_documents():
                 query = query.filter(Document.folder_id.is_(None))
             
             documents = query.order_by(Document.created_at.desc()).all()
-            print(f"📄 Found {len(documents)} documents")
         
         # Convert to dict format using model's to_dict() method
         documents_data = []
@@ -134,13 +125,6 @@ def list_documents():
                 doc_dict['isShared'] = True
                 doc_dict['permission'] = share_info_map[doc_id_str].get('permission', 'read')
             documents_data.append(doc_dict)
-            print(f"📄 Document: {doc.file_name} (ID: {doc.id}) in folder: {doc.folder_id}")
-        
-        print(f"✅ Returning {len(documents_data)} documents to frontend")
-        if is_received_folder and len(documents_data) > 0:
-            print(f"📥 RECEIVED FOLDER - Returning documents: {[d['fileName'] for d in documents_data]}")
-        elif is_sent_folder and len(documents_data) > 0:
-            print(f"📤 SENT FOLDER - Returning documents: {[d['fileName'] for d in documents_data]}")
         
         return jsonify({
             'success': True,
@@ -149,7 +133,6 @@ def list_documents():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error listing documents: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -264,8 +247,6 @@ def search_documents():
             
             documents_data.append(doc_dict)
         
-        print(f"🔍 Document search for '{query}': found {len(documents_data)} results")
-        
         return jsonify({
             'success': True,
             'documents': documents_data,
@@ -273,7 +254,6 @@ def search_documents():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error searching documents: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -287,9 +267,6 @@ def upload_document():
     try:
         current_user_id = get_jwt_identity()
         data = request.get_json()
-        
-        print(f"📤 Uploading document for user: {current_user_id}")
-        print(f"📤 Document data: {data}")
         
         # Create new document record
         document = Document(
@@ -326,10 +303,9 @@ def upload_document():
                 )
                 db.session.add(blockchain_tx)
                 db.session.commit()
-                print(f"✅ Blockchain transaction recorded: {data.get('transaction_hash')}")
             except Exception as tx_error:
-                print(f"⚠️ Could not record blockchain transaction: {tx_error}")
                 # Don't fail the upload if transaction recording fails
+                pass
         
         # Update parent folder's updated_at timestamp
         if document.folder_id:
@@ -338,8 +314,6 @@ def upload_document():
             if folder:
                 folder.updated_at = datetime.utcnow()
                 db.session.commit()
-        
-        print(f"✅ Document saved to database with ID: {document.id}")
         
         # Log the upload activity
         log_activity(
@@ -384,7 +358,6 @@ def upload_document():
         }), 201
         
     except Exception as e:
-        print(f"❌ Error uploading document: {str(e)}")
         db.session.rollback()
         return jsonify({
             'success': False, 
@@ -449,7 +422,6 @@ def delete_document(document_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error deleting document: {str(e)}")
         db.session.rollback()
         return jsonify({
             'success': False,
@@ -479,7 +451,6 @@ def update_document(document_id):
         # Check ownership
         if str(document.owner_id) == str(current_user_id):
             has_permission = True
-            print(f"✅ User is document owner")
         else:
             # Check for write permission via shares
             share = DocumentShare.query.filter_by(
@@ -490,7 +461,6 @@ def update_document(document_id):
             
             if share:
                 has_permission = True
-                print(f"✅ User has write permission via share")
         
         if not has_permission:
             return jsonify({
@@ -500,11 +470,6 @@ def update_document(document_id):
         
         old_folder_id = document.folder_id
         blockchain_document_id = document.document_id
-        
-        print(f"📝 Update request for database ID: {document_id}")
-        print(f"📝 Document blockchain ID: {blockchain_document_id}")
-        print(f"📝 Current IPFS hash: {document.ipfs_hash}")
-        print(f"📝 Update data: {data}")
         
         # Check if this is a content update (IPFS hash change)
         is_content_update = 'ipfs_hash' in data
@@ -535,7 +500,6 @@ def update_document(document_id):
         # If this is a content update, create a version entry
         # Skip version creation if this is the initial upload (old_ipfs_hash is None)
         if is_content_update and old_ipfs_hash and old_ipfs_hash != data.get('ipfs_hash'):
-            print(f"📝 Creating version entry for document update")
             
             # Get the latest version number
             latest_version = DocumentVersion.query.filter_by(
@@ -573,13 +537,9 @@ def update_document(document_id):
             )
             db.session.add(new_version)
             db.session.commit()
-            
-            print(f"✅ Created version {new_version_number} for document")
         
         # If this is a content update, update ALL copies (all documents with same blockchain document_id)
         if is_content_update and blockchain_document_id:
-            print(f"🔄 Content update detected! Updating all copies with document_id: {blockchain_document_id}")
-            
             # Find all documents (copies) with the same blockchain document_id
             # Note: document.id is UUID, document_id parameter is string
             all_copies = Document.query.filter(
@@ -587,9 +547,6 @@ def update_document(document_id):
                 Document.is_active == True,
                 Document.id != document.id  # Use document.id (UUID object) not document_id (string parameter)
             ).all()
-            
-            print(f"📋 Found {len(all_copies)} other copies to update")
-            print(f"📋 Documents with same blockchain ID:")
             
             # Update all copies with the new IPFS hash and file info
             for copy in all_copies:
@@ -603,10 +560,8 @@ def update_document(document_id):
                 if 'file_type' in data:
                     copy.file_type = data['file_type']
                 copy.updated_at = datetime.utcnow()
-                print(f"  ✅ Updated copy in folder: {copy.folder_id}")
             
             db.session.commit()
-            print(f"✅ All {len(all_copies) + 1} copies updated successfully")
         
         # Update both old and new folder's updated_at timestamp
         from app.models.folder import Folder
@@ -643,9 +598,8 @@ def update_document(document_id):
                     )
                     db.session.add(blockchain_tx)
                     db.session.commit()
-                    print(f"✅ Blockchain transaction recorded: {data.get('transaction_hash')}")
             except Exception as tx_error:
-                print(f"⚠️ Could not record blockchain transaction: {tx_error}")
+                pass  # Don't fail the update if transaction recording fails
                 # Don't fail the update if transaction recording fails
         
         return jsonify({
@@ -656,7 +610,6 @@ def update_document(document_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error updating document: {str(e)}")
         db.session.rollback()
         return jsonify({
             'success': False,
@@ -699,9 +652,6 @@ def copy_document(document_id):
         current_user_id = get_jwt_identity()
         data = request.get_json()
         
-        print(f"📋 Copy document request for: {document_id}")
-        print(f"📋 Target folder: {data.get('folder_id')}")
-        
         # Find the original document
         original_doc = Document.query.filter_by(
             id=document_id, 
@@ -715,8 +665,6 @@ def copy_document(document_id):
                 'message': 'Document not found or you do not have permission'
             }), 404
         
-        print(f"📋 Original document blockchain ID: {original_doc.document_id}")
-        print(f"📋 Original IPFS hash: {original_doc.ipfs_hash}")
         # Create a reference (copy) - Points to the SAME blockchain file
         # Same document_id and ipfs_hash means it's the same blockchain document
         # Only the folder_id is different (organizational difference)
@@ -738,10 +686,6 @@ def copy_document(document_id):
         db.session.add(new_document)
         db.session.commit()
         
-        print(f"✅ Created copy with database ID: {new_document.id}")
-        print(f"✅ Copy has blockchain document_id: {new_document.document_id}")
-        print(f"✅ Copy has IPFS hash: {new_document.ipfs_hash}")
-        
         # Update parent folder's updated_at timestamp
         if new_document.folder_id:
             from app.models.folder import Folder
@@ -757,7 +701,6 @@ def copy_document(document_id):
         }), 201
         
     except Exception as e:
-        print(f"❌ Error copying document: {str(e)}")
         db.session.rollback()
         return jsonify({
             'success': False,
@@ -796,7 +739,6 @@ def toggle_star_document(document_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error toggling star: {str(e)}")
         db.session.rollback()
         return jsonify({
             'success': False,
@@ -827,7 +769,6 @@ def list_starred_documents():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error fetching starred documents: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -840,8 +781,6 @@ def get_document_versions(document_id):
     """Get version history for a document"""
     try:
         current_user_id = get_jwt_identity()
-        
-        print(f"📜 Fetching versions for document ID: {document_id}")
         
         # Find the document (check ownership or shared access)
         document = Document.query.filter_by(id=document_id, is_active=True).first()
@@ -905,8 +844,6 @@ def get_document_versions(document_id):
             version_dict['isCurrent'] = (i == 0)  # First version (highest number) is current
             versions_data.append(version_dict)
         
-        print(f"✅ Found {len(versions_data)} versions")
-        
         return jsonify({
             'success': True,
             'versions': versions_data,
@@ -914,7 +851,6 @@ def get_document_versions(document_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error fetching document versions: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -962,5 +898,4 @@ def log_document_access(document_id):
         return jsonify({'success': True, 'message': f'{action_type.capitalize()} logged'}), 200
         
     except Exception as e:
-        print(f"❌ Error logging document access: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -12,15 +12,6 @@ import { ethers } from 'ethers';
 const CONTRACT_ADDRESS = process.env.REACT_APP_CONTRACT_ADDRESS || "0xfBb782aD097B2Daa2296EBa9FCC9DEeE2C220528";
 const SEPOLIA_RPC_URL = process.env.REACT_APP_RPC_URL || "https://sepolia.infura.io/v3/edc6ea5d5f0245c3b3c10b06ffa69e18";
 
-console.log('🔧 Blockchain Service Configuration:');
-console.log('📄 Contract Address:', CONTRACT_ADDRESS);
-console.log('🌐 RPC URL:', SEPOLIA_RPC_URL);
-console.log('🔍 Environment check:', {
-  'NODE_ENV': process.env.NODE_ENV,
-  'REACT_APP_CONTRACT_ADDRESS': process.env.REACT_APP_CONTRACT_ADDRESS ? 'SET' : 'NOT SET',
-  'REACT_APP_RPC_URL': process.env.REACT_APP_RPC_URL ? 'SET' : 'NOT SET'
-});
-
 // Contract ABI - simplified version without registration
 const CONTRACT_ABI = [
   // Document functions
@@ -68,46 +59,32 @@ class BlockchainService {
     try {
       // Validate contract address
       if (!CONTRACT_ADDRESS) {
-        console.error('❌ Contract address not properly configured');
         throw new Error('Contract address not configured. Please check your REACT_APP_CONTRACT_ADDRESS environment variable.');
       }
       
-      console.log('🚀 Initializing blockchain service with contract:', CONTRACT_ADDRESS);
-
       if (typeof window.ethereum === 'undefined') {
-        console.error('❌ MetaMask not detected');
         throw new Error('MetaMask is not installed. Please install MetaMask browser extension.');
       }
 
-      console.log('🦊 MetaMask detected, requesting account access...');
-      
       // Request account access
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      console.log('👤 Accounts received:', accounts.length);
       
       // Create provider and signer
       provider = new ethers.BrowserProvider(window.ethereum);
       signer = await provider.getSigner();
       this.userAddress = await signer.getAddress();
-      console.log('📝 Signer address:', this.userAddress);
 
       // Create contract instance
       contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-      console.log('📄 Contract instance created');
 
       // Check if connected to Sepolia network
       const network = await provider.getNetwork();
-      console.log('🌐 Current network:', network.name, 'Chain ID:', network.chainId.toString());
       
       if (network.chainId !== 11155111n) { // Sepolia chain ID
-        console.log('⚠️ Not on Sepolia network, attempting to switch...');
         await this.switchToSepolia();
       }
 
       this.isInitialized = true;
-      console.log('✅ Blockchain service initialized successfully');
-      console.log('👤 User address:', this.userAddress);
-      console.log('🌐 Network:', await provider.getNetwork());
       
       return {
         success: true,
@@ -116,7 +93,6 @@ class BlockchainService {
         message: 'Blockchain initialized successfully'
       };
     } catch (error) {
-      console.error('❌ Failed to initialize blockchain service:', error);
       return {
         success: false,
         error: error.message
@@ -168,7 +144,6 @@ class BlockchainService {
         message: 'Wallet connected successfully'
       };
     } catch (error) {
-      console.error('Wallet connection failed:', error);
       return {
         success: false,
         error: error.message
@@ -183,20 +158,11 @@ class BlockchainService {
         throw new Error('Blockchain service not initialized');
       }
 
-      console.log('📋 uploadDocument called with parameters:');
-      console.log('  - fileName:', fileName, typeof fileName);
-      console.log('  - ipfsHash:', ipfsHash, typeof ipfsHash);
-      console.log('  - folderId:', folderId, typeof folderId);
-      console.log('  - fileSize:', fileSize, typeof fileSize);
-      console.log('  - fileType:', fileType, typeof fileType);
-
       // Ensure folderId is a number
       const numericFolderId = Number(folderId);
       if (isNaN(numericFolderId)) {
         throw new Error(`Invalid folderId: ${folderId} (type: ${typeof folderId}). Must be a number.`);
       }
-
-      console.log('📋 Converting to numeric folderId:', numericFolderId);
 
       // Upload document to smart contract
       const tx = await contract.uploadDocument(
@@ -207,9 +173,7 @@ class BlockchainService {
         fileType
       );
 
-      console.log('Transaction sent:', tx.hash);
       const receipt = await tx.wait();
-      console.log('Transaction confirmed:', receipt);
 
       // Extract document ID from event logs
       const documentUploadedEvent = receipt.logs.find(log => {
@@ -235,7 +199,6 @@ class BlockchainService {
       };
 
     } catch (error) {
-      console.error('Error uploading document to blockchain:', error);
       return {
         success: false,
         error: error.message
@@ -249,13 +212,6 @@ class BlockchainService {
       if (!this.isInitialized) {
         throw new Error('Blockchain service not initialized');
       }
-
-      console.log('📋 updateDocument called with parameters:');
-      console.log('  - documentId:', documentId, typeof documentId);
-      console.log('  - newIpfsHash:', newIpfsHash);
-      console.log('  - newFileName:', newFileName);
-      console.log('  - newFileSize:', newFileSize);
-      console.log('  - changeLog:', changeLog);
 
       // Ensure documentId is a number
       const numericDocumentId = Number(documentId);
@@ -272,9 +228,7 @@ class BlockchainService {
         changeLog
       );
 
-      console.log('Transaction sent:', tx.hash);
       const receipt = await tx.wait();
-      console.log('Transaction confirmed:', receipt);
 
       return {
         success: true,
@@ -283,7 +237,6 @@ class BlockchainService {
       };
 
     } catch (error) {
-      console.error('Error updating document on blockchain:', error);
       return {
         success: false,
         error: error.message
@@ -298,13 +251,9 @@ class BlockchainService {
         throw new Error('Blockchain service not initialized');
       }
 
-      console.log('📋 Getting version history for document:', documentId);
-
       // First, get the document to find current version count
       const document = await contract.getDocument(documentId);
       const currentVersion = Number(document.currentVersion);
-      
-      console.log('📋 Document has', currentVersion, 'versions');
 
       // Fetch all versions
       const versions = [];
@@ -322,11 +271,9 @@ class BlockchainService {
             date: new Date(Number(version.timestamp) * 1000).toLocaleString()
           });
         } catch (versionError) {
-          console.warn(`⚠️ Could not fetch version ${i}:`, versionError.message);
+          // Could not fetch version, skip
         }
       }
-
-      console.log('✅ Fetched', versions.length, 'versions');
 
       return {
         success: true,
@@ -335,7 +282,6 @@ class BlockchainService {
       };
 
     } catch (error) {
-      console.error('Error getting version history:', error);
       return {
         success: false,
         error: error.message,
@@ -367,7 +313,6 @@ class BlockchainService {
       };
 
     } catch (error) {
-      console.error('Error getting document version:', error);
       return {
         success: false,
         error: error.message
@@ -391,7 +336,6 @@ class BlockchainService {
         message: 'Document shared successfully'
       };
     } catch (error) {
-      console.error('Error sharing document:', error);
       return {
         success: false,
         error: error.message
@@ -415,7 +359,6 @@ class BlockchainService {
         message: 'Folder created successfully'
       };
     } catch (error) {
-      console.error('Error creating folder:', error);
       return {
         success: false,
         error: error.message
@@ -451,7 +394,7 @@ class BlockchainService {
             isActive: doc.isActive
           });
         } catch (error) {
-          console.error(`Error fetching document ${id}:`, error);
+          // Skip document if fetch fails
         }
       }
 
@@ -460,7 +403,6 @@ class BlockchainService {
         documents: documents
       };
     } catch (error) {
-      console.error('Error getting user documents:', error);
       return {
         success: false,
         error: error.message,
@@ -497,7 +439,7 @@ class BlockchainService {
             isActive: doc.isActive
           });
         } catch (error) {
-          console.error(`Error fetching shared document ${id}:`, error);
+          // Skip shared document if fetch fails
         }
       }
 
@@ -506,7 +448,6 @@ class BlockchainService {
         documents: documents
       };
     } catch (error) {
-      console.error('Error getting shared documents:', error);
       return {
         success: false,
         error: error.message,
@@ -530,7 +471,6 @@ class BlockchainService {
         folderIds: folderIds.map(id => id.toString())
       };
     } catch (error) {
-      console.error('Error getting user folders:', error);
       return {
         success: false,
         error: error.message,
@@ -554,7 +494,6 @@ class BlockchainService {
         hasPermission: hasPermission
       };
     } catch (error) {
-      console.error('Error checking document permission:', error);
       return {
         success: false,
         hasPermission: false,

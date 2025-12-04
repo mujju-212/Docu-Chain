@@ -103,7 +103,6 @@ def get_transactions():
         })
         
     except Exception as e:
-        print(f"Error getting transactions: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -207,7 +206,6 @@ def get_wallet_stats():
         })
         
     except Exception as e:
-        print(f"Error getting wallet stats: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -262,7 +260,6 @@ def record_transaction():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error recording transaction: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -314,7 +311,6 @@ def update_transaction_status(tx_hash):
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error updating transaction: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -369,7 +365,6 @@ def update_wallet_balance():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error updating balance: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -455,7 +450,6 @@ def get_admin_analytics():
         })
         
     except Exception as e:
-        print(f"Error getting admin analytics: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -527,5 +521,4 @@ def export_transactions():
         )
         
     except Exception as e:
-        print(f"Error exporting transactions: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500

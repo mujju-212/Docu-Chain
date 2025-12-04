@@ -41,7 +41,6 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true)
       }
     } catch (error) {
-      console.error('Auth check failed:', error)
       localStorage.removeItem('token')
     } finally {
       setLoading(false)
@@ -56,16 +55,10 @@ export const AuthProvider = ({ children }) => {
         institutionId
       };
       
-      console.log('🔐 AuthContext: Attempting login with:', credentials);
-      
       const response = await api.post('/auth/login', credentials)
-      
-      console.log('📡 AuthContext: Login response:', response);
       
       if (response.data.success) {
         const { user, token } = response.data
-        
-        console.log('✅ AuthContext: Login successful:', user);
         
         // Store token
         localStorage.setItem('token', token)
@@ -94,12 +87,9 @@ export const AuthProvider = ({ children }) => {
         
         return true; // Match AuthContextLocal return format
       }
-      console.log('❌ AuthContext: Login failed - response not successful');
       return false;
     } catch (error) {
       const message = error.response?.data?.message || 'Login failed. Please try again.'
-      console.error('❌ AuthContext: Login error:', error);
-      console.error('❌ AuthContext: Error message:', message);
       return false; // Match AuthContextLocal return format
     }
   }
@@ -159,7 +149,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/auth/logout')
     } catch (error) {
-      console.error('Logout error:', error)
+      // Logout error handled silently
     } finally {
       // Clear local storage
       localStorage.removeItem('token')

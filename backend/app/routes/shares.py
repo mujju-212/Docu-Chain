@@ -37,7 +37,7 @@ def send_share_chat_message(sender_id, recipient_id, document, permission='read'
             message_content=f"📄 Shared document: {document.name}"
         )
     except Exception as e:
-        print(f"⚠️ Failed to send chat message for share: {e}")
+        pass  # Failed to send chat message for share
 
 @bp.route('/document/<document_id>', methods=['POST'])
 @token_required
@@ -55,10 +55,6 @@ def share_document(document_id):
     try:
         current_user_id = get_jwt_identity()
         data = request.get_json()
-        
-        print(f"📤 Share request for document: {document_id}")
-        print(f"📤 From user: {current_user_id}")
-        print(f"📤 Recipients: {data.get('recipients', [])}")
         
         # Verify document exists and user owns it
         document = Document.query.filter_by(
@@ -87,8 +83,6 @@ def share_document(document_id):
         
         # NOTE: We do NOT move the document - it stays in its original folder
         # The Sent/Received folders will show documents by querying DocumentShare table
-        print(f"📁 Document stays in original folder: {document.folder_id}")
-        print(f"� Document will appear in Sent folder via share tracking")
         
         for recipient in recipients:
             user_id = recipient.get('user_id')
@@ -97,7 +91,6 @@ def share_document(document_id):
             # Verify user exists
             user = User.query.get(user_id)
             if not user:
-                print(f"⚠️ User {user_id} not found, skipping")
                 continue
             
             # Check if share already exists
@@ -112,7 +105,6 @@ def share_document(document_id):
                 existing_share.transaction_hash = transaction_hash
                 existing_share.block_number = block_number
                 existing_share.shared_at = datetime.utcnow()
-                print(f"✏️ Updated existing share with user: {user.email}")
             else:
                 # Create new share
                 new_share = DocumentShare(
@@ -124,7 +116,6 @@ def share_document(document_id):
                     block_number=block_number
                 )
                 db.session.add(new_share)
-                print(f"✅ Created new share with user: {user.email}")
                 
                 # Send auto-generated chat message with blockchain info
                 send_share_chat_message(
@@ -163,7 +154,7 @@ def share_document(document_id):
                 if received_folder:
                     # Create a reference/copy in recipient's Received folder
                     # We'll update the document's folder for the recipient's view
-                    print(f"📁 Document will appear in Received folder for {user.email}")
+                    pass
             
             shares_created.append({
                 'user_id': user_id,
@@ -217,9 +208,8 @@ def share_document(document_id):
                     )
                     db.session.add(blockchain_tx)
                     db.session.commit()
-                    print(f"✅ Share blockchain transaction recorded: {transaction_hash}")
             except Exception as tx_error:
-                print(f"⚠️ Could not record share blockchain transaction: {tx_error}")
+                pass  # Could not record share blockchain transaction
         
         return jsonify({
             'success': True,
@@ -229,7 +219,6 @@ def share_document(document_id):
         
     except Exception as e:
         db.session.rollback()
-        print(f"❌ Error sharing document: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -295,7 +284,6 @@ def get_document_shares(document_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error getting shares: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -309,19 +297,13 @@ def get_shared_with_me():
     try:
         current_user_id = get_jwt_identity()
         
-        print(f"📥 Getting documents shared with user: {current_user_id}")
-        
         # Get all shares where user is recipient
         shares = DocumentShare.query.filter_by(
             shared_with_id=current_user_id
         ).all()
         
-        print(f"📥 Found {len(shares)} share records in database")
-        
         shared_documents = []
         for share in shares:
-            print(f"📥 Processing share: document_id={share.document_id}, shared_by={share.shared_by_id}")
-            
             document = Document.query.filter_by(
                 id=share.document_id,
                 is_active=True
@@ -341,11 +323,6 @@ def get_shared_with_me():
                 doc_data['shared_at'] = share.shared_at.isoformat() if share.shared_at else None
                 
                 shared_documents.append(doc_data)
-                print(f"✅ Added shared document: {document.file_name}")
-            else:
-                print(f"⚠️ Document {share.document_id} not found or inactive")
-        
-        print(f"✅ Found {len(shared_documents)} shared documents")
         
         return jsonify({
             'success': True,
@@ -354,7 +331,6 @@ def get_shared_with_me():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error getting shared documents: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -396,8 +372,6 @@ def revoke_share(document_id, user_id):
         db.session.delete(share)
         db.session.commit()
         
-        print(f"✅ Revoked share for document {document_id} from user {user_id}")
-        
         return jsonify({
             'success': True,
             'message': 'Share revoked successfully'
@@ -405,7 +379,6 @@ def revoke_share(document_id, user_id):
         
     except Exception as e:
         db.session.rollback()
-        print(f"❌ Error revoking share: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -462,7 +435,6 @@ def check_permission(document_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error checking permission: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

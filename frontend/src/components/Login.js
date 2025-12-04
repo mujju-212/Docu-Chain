@@ -45,18 +45,12 @@ function Login() {
     fetchInstitutions();
   }, []);
 
-  // Debug: Log institutions when they change
-  useEffect(() => {
-    console.log('🏢 Institutions state updated:', institutions.length, institutions);
-  }, [institutions]);
-
   // Fetch institutions from API with retry logic
   const fetchInstitutions = async (retryCount = 0) => {
     const maxRetries = 3;
     
     try {
       setLoadingInstitutions(true);
-      console.log(`🔍 Attempt ${retryCount + 1}: Fetching institutions from:`, `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/institutions/list`);
       
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/institutions/list`, {
         method: 'GET',
@@ -66,41 +60,28 @@ function Login() {
         timeout: 10000, // 10 second timeout
       });
       
-      console.log('📡 Response status:', response.status, response.statusText);
-      
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.institutions && data.institutions.length > 0) {
-          console.log('✅ Institutions fetched:', data.institutions.length, data.institutions);
           setInstitutions(data.institutions);
           setLoadingInstitutions(false); // Set loading to false on success
           return; // Success, exit function
-        } else {
-          console.warn('⚠️ Empty institutions response:', data);
         }
-      } else {
-        console.error('❌ Failed to fetch institutions:', response.status, response.statusText);
       }
       
       // If we get here, there was an issue
       if (retryCount < maxRetries) {
-        console.log(`🔄 Retrying in 2 seconds... (${retryCount + 1}/${maxRetries})`);
         setTimeout(() => fetchInstitutions(retryCount + 1), 2000);
         return;
       } else {
-        console.error('❌ Max retries reached, giving up');
         setInstitutions([]);
       }
       
     } catch (error) {
-      console.error('❌ Error fetching institutions:', error);
-      
       if (retryCount < maxRetries) {
-        console.log(`🔄 Retrying due to error in 2 seconds... (${retryCount + 1}/${maxRetries})`);
         setTimeout(() => fetchInstitutions(retryCount + 1), 2000);
         return;
       } else {
-        console.error('❌ Max retries reached due to errors');
         setInstitutions([]);
       }
     } finally {
@@ -163,7 +144,6 @@ function Login() {
       }
       
     } catch (err) {
-      console.error('Login error:', err);
       setError(err.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);

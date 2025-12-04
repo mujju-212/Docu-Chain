@@ -2,9 +2,13 @@ import resend
 import os
 import time
 from datetime import datetime
+from dotenv import load_dotenv
 
-# Initialize Resend with API key
-resend.api_key = "re_5aod399A_FeajH9G5HhQufhJ7twBWkgdP"
+# Load environment variables
+load_dotenv()
+
+# Initialize Resend with API key from environment
+resend.api_key = os.getenv('RESEND_API_KEY', '')
 
 # Email configuration - Professional business format
 DEFAULT_SENDER_EMAIL = "noreply@resend.dev"  # Verified sender address
@@ -229,7 +233,6 @@ class EmailService:
             email_response = resend.Emails.send(params)
             return True, email_response
         except Exception as e:
-            print(f"Error sending forgot password email: {str(e)}")
             return False, str(e)
 
     @staticmethod
@@ -452,7 +455,6 @@ class EmailService:
             email_response = resend.Emails.send(params)
             return True, email_response
         except Exception as e:
-            print(f"Error sending verification email: {str(e)}")
             return False, str(e)
 
     @staticmethod
@@ -658,7 +660,6 @@ class EmailService:
             email_response = resend.Emails.send(params)
             return True, email_response
         except Exception as e:
-            print(f"Error sending institution registration email: {str(e)}")
             return False, str(e)
 
     @staticmethod
@@ -929,5 +930,4 @@ class EmailService:
             email_response = resend.Emails.send(params)
             return True, email_response
         except Exception as e:
-            print(f"Error sending welcome email: {str(e)}")
             return False, str(e)

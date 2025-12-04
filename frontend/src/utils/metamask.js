@@ -1,12 +1,12 @@
 // MetaMask integration for DocuChain
 // Based on reference implementation from docuchain-project
 
-// Blockchain configuration
+// Blockchain configuration - loaded from environment variables
 const SEPOLIA_CHAIN_ID = '0xaa36a7'; // 11155111 in hex
 
-// Contract addresses
-const DOCUMENT_MANAGER_ADDRESS = '0x1203dc6f5d10556449e194c0c14f167bb3d72208'; // Original DocumentManager
-const APPROVAL_MANAGER_ADDRESS = '0x8E1626654e1B04ADF941EbbcEc7E92728327aA54'; // DocumentApprovalManager
+// Contract addresses - from environment variables with fallbacks
+const DOCUMENT_MANAGER_ADDRESS = process.env.REACT_APP_CONTRACT_ADDRESS || '0xb19f78B9c32dceaA01DE778Fa46784F5437DF373';
+const APPROVAL_MANAGER_ADDRESS = process.env.REACT_APP_APPROVAL_CONTRACT_ADDRESS || '0x8E1626654e1B04ADF941EbbcEc7E92728327aA54';
 
 // MetaMask connection state
 let web3 = null;
@@ -277,11 +277,9 @@ export const initializeMetaMask = async () => {
             
             return true;
         } catch (error) {
-            console.error('Error initializing MetaMask:', error);
             return false;
         }
     } else {
-        console.log('MetaMask not detected');
         return false;
     }
 };
@@ -293,8 +291,6 @@ export const connectWallet = async () => {
     }
 
     try {
-        console.log('🔗 Requesting MetaMask account access...');
-        
         // Request account access with timeout
         const requestPromise = window.ethereum.request({
             method: 'eth_requestAccounts',
@@ -312,23 +308,18 @@ export const connectWallet = async () => {
         }
         
         userAccount = accounts[0];
-        console.log('✅ Account connected:', userAccount);
         
         // Switch to Sepolia network (non-blocking - can fail gracefully)
         try {
             await switchToSepolia();
-            console.log('✅ Switched to Sepolia network');
         } catch (networkError) {
-            console.warn('⚠️ Failed to switch network (will continue):', networkError.message);
             // Don't fail the whole connection if network switch fails
         }
         
         // Update backend with wallet connection (non-blocking)
         try {
             await updateWalletConnection();
-            console.log('✅ Backend updated with wallet connection');
         } catch (backendError) {
-            console.warn('⚠️ Failed to update backend (will continue):', backendError.message);
             // Don't fail the whole connection if backend update fails
         }
         
@@ -338,8 +329,6 @@ export const connectWallet = async () => {
             message: 'Wallet connected successfully'
         };
     } catch (error) {
-        console.error('❌ Error connecting wallet:', error);
-        
         // User rejected the request
         if (error.code === 4001) {
             throw new Error('Connection request rejected. Please approve the connection in MetaMask.');
@@ -392,13 +381,9 @@ const updateWalletConnection = async () => {
         try {
             const authToken = localStorage.getItem('token');
             if (!authToken) {
-                console.error('❌ No auth token found! Cannot save wallet address to database.');
-                console.error('❌ Please make sure you are logged in before connecting wallet.');
                 alert('Please make sure you are logged in before connecting your wallet.');
                 return;
             }
-            
-            console.log('📤 Sending wallet address to backend:', userAccount);
             
             // Add timeout to backend request
             const controller = new AbortController();
@@ -420,26 +405,16 @@ const updateWalletConnection = async () => {
             
             const data = await response.json();
             if (!response.ok || data.error) {
-                console.error('❌ Backend wallet update failed!');
-                console.error('Response status:', response.status);
-                console.error('Error:', data.error || data.message);
                 alert('Warning: Wallet connected but failed to save to database. Error: ' + (data.error || data.message));
-            } else {
-                console.log('✅ Wallet address SUCCESSFULLY saved to database:', userAccount);
-                console.log('✅ Database response:', data);
             }
         } catch (error) {
             if (error.name === 'AbortError') {
-                console.error('❌ Backend wallet update TIMED OUT after 5 seconds!');
                 alert('Warning: Request timed out while saving wallet to database.');
             } else {
-                console.error('❌ Error updating wallet connection:', error);
                 alert('Warning: Failed to save wallet address to database. Error: ' + error.message);
             }
             // Don't throw - allow connection to succeed even if backend fails
         }
-    } else {
-        console.error('❌ No user account to update!');
     }
 };
 
@@ -491,7 +466,6 @@ export const uploadDocumentToBlockchain = async (ipfsHash, fileName, fileType, f
             documentId: result.events?.DocumentUploaded?.returnValues?.documentId || null
         };
     } catch (error) {
-        console.error('Blockchain upload error:', error);
         throw new Error('Failed to upload document to blockchain: ' + error.message);
     }
 };
@@ -528,7 +502,6 @@ export const shareDocumentOnBlockchain = async (documentId, shareWithAddress, pe
             blockNumber: result.blockNumber
         };
     } catch (error) {
-        console.error('Blockchain share error:', error);
         throw new Error('Failed to share document on blockchain: ' + error.message);
     }
 };
@@ -563,7 +536,6 @@ export const getNetworkInfo = async () => {
             networkName: isCorrectNetwork ? 'Sepolia Testnet' : 'Unknown Network'
         };
     } catch (error) {
-        console.error('Error getting network info:', error);
         return null;
     }
 };
@@ -609,14 +581,6 @@ export const requestApprovalOnBlockchain = async (
         const priorityMap = { 'LOW': 0, 'NORMAL': 1, 'HIGH': 2, 'URGENT': 3 };
         const priorityEnum = priorityMap[priority] || 1;
         
-        console.log('🔄 Requesting approval on blockchain...', {
-            documentId,
-            approvers: approverAddresses,
-            processType: processTypeEnum,
-            approvalType: approvalTypeEnum,
-            priority: priorityEnum
-        });
-        
         // Estimate gas
         const gasEstimate = await contract.methods
             .requestApproval(
@@ -635,8 +599,6 @@ export const requestApprovalOnBlockchain = async (
         const gasEstimateNumber = Number(gasEstimate);
         const gasLimit = Math.round(gasEstimateNumber * 1.2); // Add 20% buffer
         
-        console.log('⛽ Gas estimate:', gasEstimateNumber, '→ Gas limit:', gasLimit);
-        
         // Send transaction
         const result = await contract.methods
             .requestApproval(
@@ -654,9 +616,6 @@ export const requestApprovalOnBlockchain = async (
                 gas: gasLimit
             });
         
-        console.log('📦 Full blockchain result:', result);
-        console.log('📦 Events:', result.events);
-        
         // Get request ID from event - try different event names
         let requestId = result.events.ApprovalRequested?.returnValues?.requestId ||
                        result.events.ApprovalRequestCreated?.returnValues?.requestId;
@@ -665,11 +624,6 @@ export const requestApprovalOnBlockchain = async (
         if (!requestId && result.returnValues) {
             requestId = result.returnValues.requestId || result.returnValues[0];
         }
-        
-        console.log('✅ Approval request created on blockchain:', {
-            requestId,
-            txHash: result.transactionHash
-        });
         
         // Extract gas information
         const gasUsed = result.gasUsed ? result.gasUsed.toString() : null;
@@ -684,7 +638,6 @@ export const requestApprovalOnBlockchain = async (
             gasPrice: effectiveGasPrice
         };
     } catch (error) {
-        console.error('Blockchain approval request error:', error);
         throw new Error('Failed to request approval on blockchain: ' + error.message);
     }
 };
@@ -708,19 +661,9 @@ export const approveDocumentOnBlockchain = async (requestId, reason = '', signat
     try {
         const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
         
-        console.log('🔍 Approve function called with:');
-        console.log('  - requestId:', requestId);
-        console.log('  - requestId type:', typeof requestId);
-        console.log('  - requestId length:', requestId?.length);
-        console.log('  - userAccount:', userAccount);
-        
         // First, try to fetch the request from blockchain to verify it exists
         try {
             const blockchainRequest = await contract.methods.getApprovalRequest(requestId).call();
-            console.log('📦 Blockchain request data:', blockchainRequest);
-            console.log('  - isActive:', blockchainRequest.isActive);
-            console.log('  - status:', blockchainRequest.status);
-            console.log('  - requester:', blockchainRequest.requester);
             
             // Check if request exists (requester is not zero address)
             if (blockchainRequest.requester === '0x0000000000000000000000000000000000000000') {
@@ -734,33 +677,23 @@ export const approveDocumentOnBlockchain = async (requestId, reason = '', signat
             // Get approval steps to see who the approvers are
             try {
                 const approvalSteps = await contract.methods.getApprovalSteps(requestId).call();
-                console.log('📋 Approval steps from blockchain:', approvalSteps);
-                console.log('👤 Current wallet trying to approve:', userAccount.toLowerCase());
                 
                 const approverAddresses = approvalSteps.map(step => step.approver?.toLowerCase());
-                console.log('📋 Registered approver addresses:', approverAddresses);
                 
                 const isRegisteredApprover = approverAddresses.includes(userAccount.toLowerCase());
-                console.log('✅ Is current wallet a registered approver?', isRegisteredApprover);
                 
                 if (!isRegisteredApprover) {
-                    console.error('❌ MISMATCH: Your wallet is NOT in the list of approvers for this request!');
-                    console.error('Your wallet:', userAccount);
-                    console.error('Registered approvers:', approverAddresses);
                     throw new Error(`Your wallet (${userAccount.substring(0, 10)}...) is not registered as an approver for this request. Registered approvers: ${approverAddresses.join(', ')}`);
                 }
             } catch (stepsError) {
                 if (stepsError.message.includes('not registered')) {
                     throw stepsError;
                 }
-                console.warn('⚠️ Could not fetch approval steps:', stepsError.message);
+                // Could not fetch approval steps - continue anyway
             }
         } catch (fetchError) {
-            console.error('❌ Failed to fetch request from blockchain:', fetchError.message);
             throw new Error(`Request verification failed: ${fetchError.message}`);
         }
-        
-        console.log('✅ Approving document on blockchain...', { requestId, reason });
         
         // Estimate gas
         const gasEstimate = await contract.methods
@@ -771,8 +704,6 @@ export const approveDocumentOnBlockchain = async (requestId, reason = '', signat
         const gasEstimateNumber = Number(gasEstimate);
         const gasLimit = Math.round(gasEstimateNumber * 1.2);
         
-        console.log('⛽ Gas estimate:', gasEstimateNumber, '→ Gas limit:', gasLimit);
-        
         // Send transaction
         const result = await contract.methods
             .approveDocument(requestId, signatureHash, reason)
@@ -780,8 +711,6 @@ export const approveDocumentOnBlockchain = async (requestId, reason = '', signat
                 from: userAccount,
                 gas: gasLimit
             });
-        
-        console.log('✅ Document approved on blockchain:', result.transactionHash);
         
         // Extract gas information
         const gasUsed = result.gasUsed ? result.gasUsed.toString() : null;
@@ -795,7 +724,6 @@ export const approveDocumentOnBlockchain = async (requestId, reason = '', signat
             gasPrice: effectiveGasPrice
         };
     } catch (error) {
-        console.error('Blockchain approval error:', error);
         throw new Error('Failed to approve document on blockchain: ' + error.message);
     }
 };
@@ -822,8 +750,6 @@ export const rejectDocumentOnBlockchain = async (requestId, reason) => {
     try {
         const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
         
-        console.log('❌ Rejecting document on blockchain...', { requestId, reason });
-        
         // Estimate gas
         const gasEstimate = await contract.methods
             .rejectDocument(requestId, reason)
@@ -833,8 +759,6 @@ export const rejectDocumentOnBlockchain = async (requestId, reason) => {
         const gasEstimateNumber = Number(gasEstimate);
         const gasLimit = Math.round(gasEstimateNumber * 1.2);
         
-        console.log('⛽ Gas estimate:', gasEstimateNumber, '→ Gas limit:', gasLimit);
-        
         // Send transaction
         const result = await contract.methods
             .rejectDocument(requestId, reason)
@@ -842,8 +766,6 @@ export const rejectDocumentOnBlockchain = async (requestId, reason) => {
                 from: userAccount,
                 gas: gasLimit
             });
-        
-        console.log('✅ Document rejected on blockchain:', result.transactionHash);
         
         // Extract gas information
         const gasUsed = result.gasUsed ? result.gasUsed.toString() : null;
@@ -857,7 +779,6 @@ export const rejectDocumentOnBlockchain = async (requestId, reason) => {
             gasPrice: effectiveGasPrice
         };
     } catch (error) {
-        console.error('Blockchain rejection error:', error);
         throw new Error('Failed to reject document on blockchain: ' + error.message);
     }
 };
@@ -883,14 +804,6 @@ export const recordApprovedDocumentOnBlockchain = async (requestId, approvedDocu
     try {
         const contract = new web3.eth.Contract(APPROVAL_MANAGER_ABI, APPROVAL_MANAGER_ADDRESS);
         
-        console.log('📝 Recording approved document on blockchain...', {
-            requestId,
-            approvedDocumentId,
-            approvedIpfsHash,
-            documentHash,
-            qrCodeData: qrCodeData.substring(0, 50) + '...'
-        });
-        
         // Estimate gas
         const gasEstimate = await contract.methods
             .recordApprovedDocument(requestId, approvedDocumentId, approvedIpfsHash, documentHash, qrCodeData)
@@ -900,8 +813,6 @@ export const recordApprovedDocumentOnBlockchain = async (requestId, approvedDocu
         const gasEstimateNumber = Number(gasEstimate);
         const gasLimit = Math.round(gasEstimateNumber * 1.2);
         
-        console.log('⛽ Gas estimate:', gasEstimateNumber, '→ Gas limit:', gasLimit);
-        
         // Send transaction
         const result = await contract.methods
             .recordApprovedDocument(requestId, approvedDocumentId, approvedIpfsHash, documentHash, qrCodeData)
@@ -909,8 +820,6 @@ export const recordApprovedDocumentOnBlockchain = async (requestId, approvedDocu
                 from: userAccount,
                 gas: gasLimit
             });
-        
-        console.log('✅ Approved document recorded on blockchain:', result.transactionHash);
         
         // Extract gas information
         const gasUsed = result.gasUsed ? result.gasUsed.toString() : null;
@@ -924,7 +833,6 @@ export const recordApprovedDocumentOnBlockchain = async (requestId, approvedDocu
             gasPrice: effectiveGasPrice
         };
     } catch (error) {
-        console.error('Blockchain record error:', error);
         throw new Error('Failed to record approved document on blockchain: ' + error.message);
     }
 };
@@ -954,7 +862,6 @@ export const getApprovedDocumentFromBlockchain = async (requestId) => {
             isValid: result.isValid
         };
     } catch (error) {
-        console.error('Error fetching approved document:', error);
         throw new Error('Failed to fetch approved document: ' + error.message);
     }
 };
@@ -991,7 +898,6 @@ export const getApprovalRequestFromBlockchain = async (requestId) => {
             completedAt: parseInt(request.completedAt)
         };
     } catch (error) {
-        console.error('Error fetching approval request:', error);
         throw new Error('Failed to fetch approval request: ' + error.message);
     }
 };
@@ -1020,7 +926,6 @@ export const getApprovalStepsFromBlockchain = async (requestId) => {
             reason: step.reason
         }));
     } catch (error) {
-        console.error('Error fetching approval steps:', error);
         throw new Error('Failed to fetch approval steps: ' + error.message);
     }
 };
@@ -1048,7 +953,6 @@ export const getApprovalStatusFromBlockchain = async (requestId) => {
             currentStatus: ['DRAFT', 'PENDING', 'PARTIAL', 'APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED'][parseInt(status.currentStatus)]
         };
     } catch (error) {
-        console.error('Error fetching approval status:', error);
         throw new Error('Failed to fetch approval status: ' + error.message);
     }
 };
@@ -1071,7 +975,6 @@ export const getMyApprovalRequests = async () => {
         const requestIds = await contract.methods.getRequesterRequests(userAccount).call();
         return requestIds;
     } catch (error) {
-        console.error('Error fetching my requests:', error);
         throw new Error('Failed to fetch requests: ' + error.message);
     }
 };
@@ -1094,7 +997,6 @@ export const getMyApprovalTasks = async () => {
         const requestIds = await contract.methods.getApproverRequests(userAccount).call();
         return requestIds;
     } catch (error) {
-        console.error('Error fetching my approval tasks:', error);
         throw new Error('Failed to fetch approval tasks: ' + error.message);
     }
 };

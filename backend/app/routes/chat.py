@@ -192,8 +192,6 @@ def get_conversations():
     if not current_user:
         return jsonify({'error': 'User not found'}), 404
     
-    print(f"📡 Fetching conversations for user: {current_user.email}")
-    
     # Ensure user is added to auto-groups (institution, department)
     ensure_auto_groups(current_user)
     
@@ -205,7 +203,6 @@ def get_conversations():
     ).all()
     
     conversation_ids = [m.conversation_id for m in member_query]
-    print(f"📋 User is member of {len(conversation_ids)} conversations")
     
     conversations_query = Conversation.query.filter(
         Conversation.id.in_(conversation_ids)
@@ -215,7 +212,6 @@ def get_conversations():
         conversations_query = conversations_query.filter(Conversation.type == conv_type)
     
     conversations = conversations_query.order_by(Conversation.last_message_at.desc()).all()
-    print(f"✅ Found {len(conversations)} conversations")
     
     result = []
     for conv in conversations:
@@ -656,7 +652,6 @@ def send_message(conversation_id):
                         'sender_id': str(current_user_id)
                     }
                 )
-                print(f"Created message notification: {notif}")
         elif conversation.type == 'group':
             # For all groups, notify members (limit to prevent spam in large groups)
             members = ConversationMember.query.filter(
@@ -679,11 +674,8 @@ def send_message(conversation_id):
                         'group_name': conversation.name
                     }
                 )
-            print(f"Created {len(members)} group message notifications for conversation {conversation.name}")
-    except Exception as notif_error:
-        print(f"Could not send message notification: {notif_error}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        pass
     
     return jsonify({'message': message.to_dict()}), 201
 
@@ -1189,7 +1181,6 @@ def create_document_share_message(sender_id, recipient_id, document, message_con
     conversation.last_message_at = datetime.utcnow()
     db.session.commit()
     
-    print(f"✅ Created blockchain share message: tx={transaction_hash}, permission={permission}")
     return message
 
 

@@ -49,8 +49,6 @@ export default function ForgotPassword() {
       if (response.ok && data.success) {
         if (data.otp && data.dev_note) {
           setSuccess(`${data.message} Development OTP: ${data.otp}`);
-          console.log('Development mode - OTP:', data.otp);
-          console.log('Development note:', data.dev_note);
         } else {
           setSuccess('Reset code sent to your email!');
         }
@@ -66,7 +64,6 @@ export default function ForgotPassword() {
         }
       }
     } catch (error) {
-      console.error('Forgot password error:', error);
       setError('Network error. Please check your connection and try again.');
     } finally {
       setLoading(false);
@@ -103,7 +100,6 @@ export default function ForgotPassword() {
         setError(data.message || 'Invalid or expired code.');
       }
     } catch (error) {
-      console.error('OTP verification error:', error);
       setError('Verification failed. Please try again.');
     } finally {
       setLoading(false);
@@ -153,7 +149,6 @@ export default function ForgotPassword() {
         setError(data.message || 'Failed to reset password.');
       }
     } catch (error) {
-      console.error('Password reset error:', error);
       setError('Password reset failed. Please try again.');
     } finally {
       setLoading(false);

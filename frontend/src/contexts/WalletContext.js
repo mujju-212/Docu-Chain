@@ -92,9 +92,6 @@ export const WalletProvider = ({ children }) => {
     // Helper function to detect MetaMask with retry (async injection handling)
     // Different browsers inject MetaMask at different times
     const detectMetaMask = async (maxRetries = 5, delay = 200) => {
-        console.log('🔍 Starting MetaMask detection...');
-        console.log('Browser:', navigator.userAgent);
-        
         for (let i = 0; i < maxRetries; i++) {
             // Check multiple possible MetaMask indicators
             const hasEthereum = typeof window.ethereum !== 'undefined';
@@ -102,50 +99,32 @@ export const WalletProvider = ({ children }) => {
             const isMetaMask = window.ethereum?.isMetaMask || window.web3?.currentProvider?.isMetaMask;
             
             if (hasEthereum || hasWeb3) {
-                if (isMetaMask) {
-                    console.log('✅ MetaMask detected on attempt', i + 1);
-                    console.log('Provider details:', {
-                        hasEthereum,
-                        hasWeb3,
-                        isMetaMask,
-                        provider: window.ethereum ? 'window.ethereum' : 'window.web3'
-                    });
-                    return true;
-                } else if (hasEthereum) {
-                    // Ethereum provider exists but might not be MetaMask
-                    console.log('⚠️ Ethereum provider found but isMetaMask flag missing');
-                    // Still return true as some browsers don't set isMetaMask immediately
+                if (isMetaMask || hasEthereum) {
+                    // Ethereum provider exists - might be MetaMask or compatible wallet
                     return true;
                 }
             }
             
-            console.log(`⏳ MetaMask not detected yet, retry ${i + 1}/${maxRetries}...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
         
-        console.warn('❌ MetaMask not detected after', maxRetries, 'attempts');
-        console.log('Please ensure MetaMask extension is installed and enabled');
         return false;
     };
 
     // Initialize MetaMask on mount
     useEffect(() => {
         const initialize = async () => {
-            console.log('🚀 WalletContext: Starting initialization...');
-            
             // Check if MetaMask is installed (with retry for async injection)
             const isInstalled = await detectMetaMask();
             dispatch({ type: walletActions.SET_METAMASK_INSTALLED, payload: isInstalled });
 
             if (isInstalled) {
                 try {
-                    console.log('🔗 Initializing MetaMask connection...');
                     await initializeMetaMask();
                     
                     // Check if already connected
                     const currentAddress = getCurrentWalletAddress();
                     if (currentAddress && isWalletConnected()) {
-                        console.log('✅ Wallet already connected:', currentAddress);
                         dispatch({ 
                             type: walletActions.SET_CONNECTED, 
                             payload: { address: currentAddress }
@@ -154,14 +133,10 @@ export const WalletProvider = ({ children }) => {
                         // Get network info
                         const networkInfo = await getNetworkInfo();
                         dispatch({ type: walletActions.SET_NETWORK_INFO, payload: networkInfo });
-                    } else {
-                        console.log('ℹ️ Wallet detected but not connected yet');
                     }
                 } catch (error) {
-                    console.error('❌ Error initializing MetaMask:', error);
+                    // Initialization error - wallet may not be ready
                 }
-            } else {
-                console.warn('⚠️ MetaMask not installed or not detected');
             }
         };
 
@@ -169,7 +144,6 @@ export const WalletProvider = ({ children }) => {
 
         // Listen for MetaMask loading dynamically (for browsers that inject late)
         const handleEthereumLoad = () => {
-            console.log('🦊 Ethereum provider loaded dynamically');
             if (!state.isConnected) {
                 initialize();
             }
@@ -187,13 +161,11 @@ export const WalletProvider = ({ children }) => {
         const delayedChecks = [
             setTimeout(async () => {
                 if (!state.isMetaMaskInstalled && typeof window.ethereum !== 'undefined') {
-                    console.log('🔄 Delayed check (1s) - MetaMask found! Re-initializing...');
                     await initialize();
                 }
             }, 1000),
             setTimeout(async () => {
                 if (!state.isMetaMaskInstalled && typeof window.ethereum !== 'undefined') {
-                    console.log('🔄 Delayed check (3s) - MetaMask found! Re-initializing...');
                     await initialize();
                 }
             }, 3000)
@@ -213,15 +185,11 @@ export const WalletProvider = ({ children }) => {
         if (!state.isMetaMaskInstalled || !window.ethereum) return;
 
         const handleAccountsChanged = async (accounts) => {
-            console.log('🔄 Account changed in WalletContext:', accounts);
-            
             if (accounts.length === 0) {
                 // User disconnected their wallet
-                console.log('👋 Wallet disconnected');
                 dispatch({ type: walletActions.SET_DISCONNECTED });
             } else {
                 // User switched to a different account
-                console.log('🔀 Switched to account:', accounts[0]);
                 dispatch({ 
                     type: walletActions.SET_CONNECTED, 
                     payload: { address: accounts[0] }
@@ -232,20 +200,18 @@ export const WalletProvider = ({ children }) => {
                     const networkInfo = await getNetworkInfo();
                     dispatch({ type: walletActions.SET_NETWORK_INFO, payload: networkInfo });
                 } catch (error) {
-                    console.error('Error getting network info after account change:', error);
+                    // Network info fetch failed
                 }
             }
         };
 
         const handleChainChanged = async (chainId) => {
-            console.log('🌐 Network changed in WalletContext:', chainId);
-            
             // Update network info
             try {
                 const networkInfo = await getNetworkInfo();
                 dispatch({ type: walletActions.SET_NETWORK_INFO, payload: networkInfo });
             } catch (error) {
-                console.error('Error getting network info after chain change:', error);
+                // Network info fetch failed
             }
             
             // Optionally reload the page to reset state

@@ -792,16 +792,13 @@ class BrevoEmailService:
             )
             
             api_response = api_instance.send_transac_email(send_smtp_email)
-            print(f"✅ Email sent successfully to {to_email}: {api_response}")
             return True, {"message_id": api_response.message_id if hasattr(api_response, 'message_id') else str(api_response)}
             
         except ApiException as e:
             error_msg = f"Brevo API error: {e}"
-            print(f"❌ {error_msg}")
             return False, error_msg
         except Exception as e:
             error_msg = f"Email sending error: {str(e)}"
-            print(f"❌ {error_msg}")
             return False, error_msg
 
 

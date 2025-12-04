@@ -20,13 +20,11 @@ def create_folder_flexible():
     try:
         # Get user from JWT
         current_user_id = get_jwt_identity()
-        print(f"Creating folder for user: {current_user_id}")
         
         if not current_user_id:
             return jsonify({'success': False, 'error': 'Authentication required'}), 401
             
         data = request.get_json()
-        print(f"DEBUG: Request data: {data}")
         
         folder_name = data.get('name', '').strip()
         parent_id = data.get('parent_id')
@@ -45,8 +43,6 @@ def create_folder_flexible():
                 'success': False, 
                 'error': 'User not found'
             }), 404
-        
-        print(f"DEBUG: Found user: {user.email}")
         
         # Calculate path and level for hierarchy
         if parent_id:
@@ -120,13 +116,10 @@ def create_folder_flexible():
                 parent_folder.updated_at = datetime.utcnow()
                 db.session.commit()
         
-        print(f"DEBUG: Folder created successfully: {new_folder.id}")
-        
         # Use safe folder dict creation
         try:
             folder_dict = new_folder.to_dict()
-        except Exception as e:
-            print(f"Error in to_dict: {e}")
+        except Exception:
             folder_dict = {
                 'id': str(new_folder.id),
                 'name': new_folder.name,
@@ -141,8 +134,6 @@ def create_folder_flexible():
                 'subfolderCount': 0
             }
         
-        print(f"DEBUG: Folder dict: {folder_dict}")
-        
         return jsonify({
             'success': True,
             'folder': folder_dict,
@@ -151,9 +142,6 @@ def create_folder_flexible():
         
     except Exception as e:
         db.session.rollback()
-        print(f"ERROR in create_folder: {e}")
-        import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False, 
             'error': str(e)
@@ -182,8 +170,7 @@ def test_folders():
             try:
                 folder_dict = folder.to_dict()
                 folder_list.append(folder_dict)
-            except Exception as e:
-                print(f"Error converting folder {folder.id}: {e}")
+            except Exception:
                 # Add basic folder info if to_dict fails
                 folder_list.append({
                     'id': str(folder.id),
@@ -206,9 +193,6 @@ def test_folders():
         }), 200
         
     except Exception as e:
-        print(f"Error in test_folders: {e}")
-        import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False, 
             'error': str(e)
@@ -221,7 +205,6 @@ def list_folders_flexible():
     try:
         # Get user from JWT
         current_user_id = get_jwt_identity()
-        print(f"Listing folders for user: {current_user_id}")
         
         if not current_user_id:
             return jsonify({'success': False, 'error': 'Authentication required'}), 401
@@ -251,8 +234,7 @@ def list_folders_flexible():
             try:
                 folder_dict = folder.to_dict()
                 folder_list.append(folder_dict)
-            except Exception as e:
-                print(f"Error converting folder {folder.id}: {e}")
+            except Exception:
                 # Add basic folder info if to_dict fails
                 folder_list.append({
                     'id': str(folder.id),
@@ -275,9 +257,6 @@ def list_folders_flexible():
         }), 200
         
     except Exception as e:
-        print(f"Error in list_folders: {e}")
-        import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False, 
             'error': str(e)
@@ -506,7 +485,6 @@ def toggle_star_folder(folder_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error toggling folder star: {str(e)}")
         db.session.rollback()
         return jsonify({
             'success': False,
@@ -537,7 +515,6 @@ def list_starred_folders():
         }), 200
         
     except Exception as e:
-        print(f"❌ Error fetching starred folders: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)

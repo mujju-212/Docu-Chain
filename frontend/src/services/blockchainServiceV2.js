@@ -1,14 +1,10 @@
 import { ethers } from 'ethers';
 import DocumentManagerV2ABI from '../contracts/DocumentManagerV2.json';
 
-// Contract configuration
-const CONTRACT_ADDRESS = "0xb19f78B9c32dceaA01DE778Fa46784F5437DF373";
-const SEPOLIA_RPC_URL = "https://sepolia.infura.io/v3/edc6ea5d5f0245c3b3c10b06ffa69e18";
-const SEPOLIA_CHAIN_ID = 11155111;
-
-console.log('🔧 DocumentManagerV2 Service Configuration:');
-console.log('📄 Contract Address:', CONTRACT_ADDRESS);
-console.log('🌐 Network: Sepolia Testnet');
+// Contract configuration - loaded from environment variables
+const CONTRACT_ADDRESS = process.env.REACT_APP_CONTRACT_ADDRESS || "0xb19f78B9c32dceaA01DE778Fa46784F5437DF373";
+const SEPOLIA_RPC_URL = process.env.REACT_APP_RPC_URL || "https://sepolia.infura.io/v3/YOUR_INFURA_KEY";
+const SEPOLIA_CHAIN_ID = parseInt(process.env.REACT_APP_CHAIN_ID || "11155111", 10);
 
 // Global variables
 let provider = null;

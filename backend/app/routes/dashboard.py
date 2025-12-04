@@ -62,7 +62,6 @@ def get_dashboard_stats():
         }), 200
         
     except Exception as e:
-        print(f"Error getting dashboard stats: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -447,5 +446,4 @@ def get_recent_activity():
         }), 200
         
     except Exception as e:
-        print(f"Error getting recent activity: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500

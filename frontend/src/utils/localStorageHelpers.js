@@ -200,7 +200,6 @@ export const clearAuth = () => {
  */
 export const resetAppData = () => {
   localStorage.clear()
-  console.log('✅ All localStorage data cleared!')
 }
 
 // ====================
@@ -217,12 +216,6 @@ export const seedSampleData = () => {
   
   // Add sample institutions
   localStorage.setItem('institutions', JSON.stringify(exampleInstitutions))
-  
-  console.log('✅ Sample data seeded!')
-  console.log('📧 Test Login Credentials:')
-  console.log('  Student: john@example.com / Test123')
-  console.log('  Teacher: jane@example.com / Teacher123')
-  console.log('  Admin: admin@example.com / Admin123')
 }
 
 // ====================

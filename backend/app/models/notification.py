@@ -148,7 +148,6 @@ def create_notification(user_id, notification_type, title, message=None,
         db.session.add(notification)
         db.session.commit()
         return notification
-    except Exception as e:
-        print(f"Error creating notification: {e}")
+    except Exception:
         db.session.rollback()
         return None

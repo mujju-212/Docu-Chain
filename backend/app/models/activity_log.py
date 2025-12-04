@@ -163,7 +163,6 @@ def log_activity(user_id, action_type, action_category, description,
         db.session.add(activity)
         db.session.commit()
         return activity
-    except Exception as e:
-        print(f"Error logging activity: {e}")
+    except Exception:
         db.session.rollback()
         return None

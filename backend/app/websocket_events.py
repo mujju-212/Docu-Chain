@@ -25,7 +25,6 @@ def get_user_from_token(token):
             return User.query.get(user_id)
         return None
     except Exception as e:
-        print(f"Token decode error: {e}")
         return None
 
 
@@ -70,7 +69,6 @@ def handle_connect():
             'lastSeen': datetime.utcnow().isoformat()
         }, room=f"conversation_{conv_member.conversation_id}", include_self=False)
     
-    print(f"✅ User {user.email} connected")
     return True
 
 
@@ -107,8 +105,6 @@ def handle_disconnect():
                         'online': False,
                         'lastSeen': datetime.utcnow().isoformat()
                     }, room=f"conversation_{conv_member.conversation_id}")
-                
-                print(f"👋 User {user.email} disconnected")
 
 
 @socketio.on('join_conversation')
@@ -198,7 +194,6 @@ def handle_send_message(data):
                         'sender_id': str(user.id)
                     }
                 )
-                print(f"✉️ Created message notification for user {other_member.user_id}")
         elif conversation.type == 'group':
             # For groups, notify all members except sender
             members = ConversationMember.query.filter(
@@ -221,9 +216,8 @@ def handle_send_message(data):
                         'group_name': conversation.name
                     }
                 )
-            print(f"✉️ Created {len(members)} group message notifications for {conversation.name}")
     except Exception as notif_error:
-        print(f"⚠️ Could not create message notification: {notif_error}")
+        pass  # Don't fail the message send if notification fails
     
     # Broadcast message to all in conversation EXCEPT the sender
     message_data = message.to_dict()

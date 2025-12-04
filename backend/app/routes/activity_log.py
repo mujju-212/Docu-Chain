@@ -115,7 +115,6 @@ def get_activity_logs():
         })
         
     except Exception as e:
-        print(f"Error getting activity logs: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -195,7 +194,6 @@ def get_activity_stats():
         })
         
     except Exception as e:
-        print(f"Error getting activity stats: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -291,7 +289,6 @@ def export_activity_logs():
         )
         
     except Exception as e:
-        print(f"Error exporting activity logs: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -318,7 +315,6 @@ def get_recent_activities():
         })
         
     except Exception as e:
-        print(f"Error getting recent activities: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

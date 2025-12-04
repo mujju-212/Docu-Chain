@@ -114,7 +114,6 @@ function Register() {
     
     try {
       setLoadingInstitutions(true);
-      console.log(`🔍 Register Attempt ${retryCount + 1}: Fetching institutions from:`, `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/institutions/list`);
       
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/institutions/list`, {
         method: 'GET',
@@ -125,19 +124,14 @@ function Register() {
       });
       
       const data = await response.json();
-      console.log('📡 Register: Response:', data);
       
       if (data.success && data.institutions && data.institutions.length > 0) {
-        console.log('✅ Register: Institutions fetched:', data.institutions.length, data.institutions);
         setInstitutions(data.institutions);
         setLoadingInstitutions(false);
         return;
-      } else {
-        console.warn('⚠️ Register: Empty institutions response:', data);
       }
       
       if (retryCount < maxRetries) {
-        console.log(`🔄 Register: Retrying in 2 seconds... (${retryCount + 1}/${maxRetries})`);
         setTimeout(() => fetchInstitutions(retryCount + 1), 2000);
         return;
       } else {
@@ -146,10 +140,7 @@ function Register() {
       }
       
     } catch (error) {
-      console.error('❌ Register: Error fetching institutions:', error);
-      
       if (retryCount < maxRetries) {
-        console.log(`🔄 Register: Retrying due to error in 2 seconds... (${retryCount + 1}/${maxRetries})`);
         setTimeout(() => fetchInstitutions(retryCount + 1), 2000);
         return;
       } else {
@@ -189,16 +180,14 @@ function Register() {
       if (data.success) {
         setShowOtpInput(true);
         setSuccess('OTP sent to your email. Please check and verify.');
-        // For development - show OTP in console
+        // For development - show OTP in UI
         if (data.otp) {
-          console.log('Development OTP:', data.otp);
           setSuccess(`OTP sent to your email. Development OTP: ${data.otp}`);
         }
       } else {
         setEmailVerificationError(data.message || 'Failed to send verification email.');
       }
     } catch (error) {
-      console.error('Error sending email verification:', error);
       setEmailVerificationError('Failed to send verification email. Please try again.');
     } finally {
       setEmailVerificationLoading(false);
@@ -239,7 +228,6 @@ function Register() {
         setEmailVerificationError(data.message || 'Invalid OTP. Please try again.');
       }
     } catch (error) {
-      console.error('Error verifying OTP:', error);
       setEmailVerificationError('Failed to verify OTP. Please try again.');
     } finally {
       setOtpVerificationLoading(false);
@@ -264,7 +252,6 @@ function Register() {
         setDepartments([]);
       }
     } catch (error) {
-      console.error('Error fetching departments:', error);
       setDepartments([]);
     } finally {
       setLoadingDepartments(false);
@@ -288,7 +275,6 @@ function Register() {
         setSections([]);
       }
     } catch (error) {
-      console.error('Error fetching sections:', error);
       setSections([]);
     } finally {
       setLoadingSections(false);
@@ -592,12 +578,14 @@ function Register() {
         setEmailVerificationSent(true);
         setShowOtpInput(true);
         setSuccess('Verification code sent to your institution email!');
-        console.log('OTP (for development):', data.otp); // Development only
+        // For development - OTP shown in UI if returned
+        if (data.otp) {
+          setSuccess(`Verification code sent! Development OTP: ${data.otp}`);
+        }
       } else {
         setError(data.message || 'Failed to send verification email.');
       }
     } catch (error) {
-      console.error('Email verification error:', error);
       setError('Failed to send verification email. Please try again.');
     } finally {
       setEmailVerificationLoading(false);
@@ -631,12 +619,14 @@ function Register() {
       if (data.success) {
         setShowAdminOtpInput(true);
         setSuccess('Verification code sent to admin email!');
-        console.log('Admin OTP (for development):', data.otp);
+        // For development - OTP shown in UI if returned
+        if (data.otp) {
+          setSuccess(`Verification code sent! Development OTP: ${data.otp}`);
+        }
       } else {
         setError(data.message || 'Failed to send verification email.');
       }
     } catch (error) {
-      console.error('Admin email verification error:', error);
       setError('Failed to send verification email. Please try again.');
     } finally {
       setAdminEmailVerificationLoading(false);
@@ -674,7 +664,6 @@ function Register() {
         setError(data.message || 'Invalid OTP. Please try again.');
       }
     } catch (error) {
-      console.error('Error verifying admin OTP:', error);
       setError('Failed to verify OTP. Please try again.');
     } finally {
       setAdminEmailVerificationLoading(false);
@@ -747,8 +736,6 @@ function Register() {
         adminPassword: formData.institutionAdminPassword
       };
       
-      console.log('Creating institution and admin:', institutionData);
-      
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/institutions/create-with-admin`, {
         method: 'POST',
         headers: {
@@ -780,7 +767,6 @@ function Register() {
         setError(data.message || 'Failed to create institution and admin account.');
       }
     } catch (error) {
-      console.error('Institution creation error:', error);
       setError('Failed to create institution and admin account. Please try again.');
     } finally {
       setLoading(false);

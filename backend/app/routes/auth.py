@@ -155,10 +155,7 @@ def create_default_folders_for_user(user):
                 )
                 db.session.add(inst_folder)
         
-        print(f"✅ Created default folders for user: {user.email} (role: {user_role})")
-        
     except Exception as e:
-        print(f"❌ Error creating default folders for {user.email}: {str(e)}")
         raise
 import os
 
@@ -254,7 +251,7 @@ def admin_create_user():
             create_default_folders_for_user(user)
             db.session.commit()
         except Exception as e:
-            print(f"Warning: Failed to create default folders: {str(e)}")
+            pass  # Don't fail if folder creation fails
         
         # Send welcome email with temporary password info
         try:
@@ -268,7 +265,7 @@ def admin_create_user():
                 inst_name
             )
         except Exception as e:
-            print(f"Warning: Failed to send welcome email to {user.email}: {str(e)}")
+            pass  # Don't fail if email fails
         
         return jsonify({
             'success': True,
@@ -285,7 +282,6 @@ def admin_create_user():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error creating user: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -339,8 +335,7 @@ def register():
             create_default_folders_for_user(user)
             db.session.commit()
         except Exception as e:
-            print(f"Warning: Failed to create default folders: {str(e)}")
-            # Don't fail registration if folder creation fails
+            pass  # Don't fail registration if folder creation fails
         
         # Send welcome email
         try:
@@ -352,7 +347,7 @@ def register():
                 institution.name
             )
         except Exception as e:
-            print(f"Warning: Failed to send welcome email to {user.email}: {str(e)}")
+            pass  # Don't fail registration if email fails
         
         return jsonify({
             'success': True,
@@ -434,7 +429,7 @@ def login():
             from app.routes.chat import create_auto_groups_for_user
             create_auto_groups_for_user(user)
         except Exception as e:
-            print(f"Warning: Could not create auto groups for user: {e}")
+            pass  # Don't fail login if group creation fails
         
         # Create access token
         access_token = create_access_token(identity=user.id)
@@ -528,7 +523,7 @@ def create_institution():
                 data['adminPassword']  # Send the original password before hashing
             )
         except Exception as e:
-            print(f"Warning: Failed to send institution registration email to {admin.email}: {str(e)}")
+            pass  # Don't fail registration if email fails
         
         # Send welcome email too
         try:
@@ -539,8 +534,8 @@ def create_institution():
                 institution.name
             )
         except Exception as e:
-            print(f"Warning: Failed to send welcome email to {admin.email}: {str(e)}")
-        
+            pass  # Don't fail registration if email fails
+
         # Create access token
         access_token = create_access_token(identity=admin.id)
         
