@@ -112,6 +112,14 @@ docs/
 database/schema.sql
 database/sample_data.sql
 
+# Database backup files (local reference only)
+database/*.sql
+database/*.dump
+database/backups/
+backups/
+*.sql.backup
+*.dump
+
 # Reference/prototype folders
 F1/
 

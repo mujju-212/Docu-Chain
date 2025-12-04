@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>85200251-4020-4c84-8e7d-cbd4334cdabf</id>
+  <author>N/A</author>
+  <deployer>OneDeploy</deployer>
+  <authorEmail>N/A</authorEmail>
+  <message>OneDeploy</message>
+  <progress>Running oryx build...</progress>
+  <status>Building</status>
+  <statusText>Building and Deploying '85200251-4020-4c84-8e7d-cbd4334cdabf'.</statusText>
+  <lastSuccessEndTime />
+  <receivedTime>2025-12-04T08:12:56.4667908Z</receivedTime>
+  <startTime>2025-12-04T08:12:57.8713914Z</startTime>
+  <endTime />
+  <complete>False</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>True</is_readonly>
+  <buildSummary />
+</deployment>

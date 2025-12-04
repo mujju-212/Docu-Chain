@@ -1,0 +1,15 @@
+<step title="Incoming Request" date="2025-12-04T10:41:13.191" instance="ead10c" url="/api/publish?type=zip&amp;async=True" method="POST" type="request" pid="770,1,20" Accept="*/*" Host="docu-chain-api.scm.azurewebsites.net" User-Agent="AZURECLI/2.81.0 (MSI)" Accept-Encoding="gzip, deflate" Authorization="Bea..." Cache-Control="no-cache" Content-Type="application/octet-stream" Cookie="ARRAffinity=ead10cea67e8f870f49063668b8834fb9e8504bba74b2866ec62a30d2cc9a094; ARRAffinitySameSite=ead10cea67e8f870f49063668b8834fb9e8504bba74b2866ec62a30d2cc9a094" Content-Length="379823" x-ms-client-request-id="b30b7787-d0fd-11f0-bff5-44a3bbe38496" x-ms-artifact-checksum="a3052930aca22be11d214cea0cc7701bdccd355b7f662859be0111816aeb7c73" X-ARR-LOG-ID="b30b7787-d0fd-11f0-bff5-44a3bbe38496" CLIENT-IP="124.40.247.145:64300" X-SITE-DEPLOYMENT-ID="docu-chain-api" WAS-DEFAULT-HOSTNAME="docu-chain-api.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/publish?type=zip&amp;async=True" X-Client-IP="124.40.247.145" X-Client-Port="64300" >
+  <step title="Cleanup Xml Logs" date="2025-12-04T10:41:13.195" /><!-- duration: 5ms -->
+  <step title="OneDeploy" date="2025-12-04T10:41:13.270" >
+    <step title="Starting PushDeployAsync" date="2025-12-04T10:41:13.284" /><!-- duration: 3ms -->
+    <step title="Writing artifact to /tmp/zipdeploy/04a59759-4e80-428d-8b96-a9f595f6c7a1.zip" date="2025-12-04T10:41:13.295" >
+      <step title="Writing multipart request body to /tmp/zipdeploy/04a59759-4e80-428d-8b96-a9f595f6c7a1.zip" date="2025-12-04T10:41:13.299" /><!-- duration: 11ms -->
+    </step><!-- duration: 135ms -->
+    <step title="Removing previous build artifact&apos;s manifest file" date="2025-12-04T10:41:13.462" >
+      <step title="Start deployment in the background" date="2025-12-04T10:41:13.502" >
+        <step title="Acquiring Deployment Lock" date="2025-12-04T10:41:13.751" /><!-- duration: 12ms -->
+        <step title="Acquired Deployment Lock" date="2025-12-04T10:41:13.921" /><!-- duration: 46ms -->
+      </step><!-- duration: 921ms -->
+    </step><!-- duration: 1008ms -->
+    <step title="Outgoing response" date="2025-12-04T10:41:14.481" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 11ms -->
+  </step><!-- duration: 1239ms -->
