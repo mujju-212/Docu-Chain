@@ -589,6 +589,8 @@
   flex-direction:column;
   gap:20px;
   background: #ffffff;
+  overflow: hidden;
+  min-width: 0;
 }
 
 /* Special styling when chat is active - full height with no padding */
@@ -601,6 +603,8 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .page-title{
