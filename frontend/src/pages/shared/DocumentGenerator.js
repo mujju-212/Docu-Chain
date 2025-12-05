@@ -78,7 +78,7 @@ export default function DocumentGenerator() {
   // Fetch user and institution info
   const fetchUserInfo = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/me`, {
+      const response = await fetch(`${API_URL}/auth/me`, {
         headers: getAuthHeaders()
       });
       if (response.ok) {
@@ -96,7 +96,7 @@ export default function DocumentGenerator() {
   // Fetch approvers list
   const fetchApprovers = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/document-generation/institution/approvers`, {
+      const response = await fetch(`${API_URL}/document-generation/institution/approvers`, {
         headers: getAuthHeaders()
       });
       if (response.ok) {
@@ -135,7 +135,7 @@ export default function DocumentGenerator() {
   const fetchTemplates = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/document-generation/templates`, {
+      const response = await fetch(`${API_URL}/document-generation/templates`, {
         headers: getAuthHeaders()
       });
       
@@ -157,7 +157,7 @@ export default function DocumentGenerator() {
   // Fetch user's documents
   const fetchMyDocuments = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/document-generation/my-documents`, {
+      const response = await fetch(`${API_URL}/document-generation/my-documents`, {
         headers: getAuthHeaders()
       });
       
@@ -173,7 +173,7 @@ export default function DocumentGenerator() {
   // Fetch analytics
   const fetchAnalytics = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/document-generation/analytics`, {
+      const response = await fetch(`${API_URL}/document-generation/analytics`, {
         headers: getAuthHeaders()
       });
       
@@ -1352,7 +1352,7 @@ export default function DocumentGenerator() {
     
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_URL}/api/document-generation/generate`, {
+      const response = await fetch(`${API_URL}/document-generation/generate`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -1422,7 +1422,7 @@ export default function DocumentGenerator() {
       setTransactionProgress(20);
       setTransactionMessage('Generating document...');
       
-      const generateResponse = await fetch(`${API_URL}/api/document-generation/generate`, {
+      const generateResponse = await fetch(`${API_URL}/document-generation/generate`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -1592,7 +1592,7 @@ export default function DocumentGenerator() {
           // Update document with IPFS hash and blockchain info
           try {
             console.log('📤 Updating blockchain info with fileSize:', pdfFile.size, 'fileManagerDocId:', fileManagerDocId);
-            const updateResponse = await fetch(`${API_URL}/api/document-generation/update-blockchain/${docId}`, {
+            const updateResponse = await fetch(`${API_URL}/document-generation/update-blockchain/${docId}`, {
               method: 'PUT',
               headers: getAuthHeaders(),
               body: JSON.stringify({
@@ -1655,7 +1655,7 @@ export default function DocumentGenerator() {
         console.log('📤 Sharing document with recipients:', shareRecipients);
         console.log('📄 File Manager Document ID:', fileManagerDocId);
         
-        const shareResponse = await fetch(`${API_URL}/api/shares/document/${fileManagerDocId}`, {
+        const shareResponse = await fetch(`${API_URL}/shares/document/${fileManagerDocId}`, {
           method: 'POST',
           headers: getAuthHeaders(),
           body: JSON.stringify({
@@ -1748,7 +1748,7 @@ export default function DocumentGenerator() {
         
         setTransactionMessage('Sending for approval...');
         
-        const submitResponse = await fetch(`${API_URL}/api/document-generation/submit/${docId}`, {
+        const submitResponse = await fetch(`${API_URL}/document-generation/submit/${docId}`, {
           method: 'POST',
           headers: getAuthHeaders(),
           body: JSON.stringify({

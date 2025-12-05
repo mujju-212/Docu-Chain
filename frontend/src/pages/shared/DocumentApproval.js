@@ -176,7 +176,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       try {
         setIsLoading(true);
         // Add 'all=true' to get documents from ALL folders recursively
-        const response = await fetch(`${API_URL}/api/documents?all=true`, {
+        const response = await fetch(`${API_URL}/documents?all=true`, {
           headers: getAuthHeaders()
         });
         
@@ -203,7 +203,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/users/institution`, {
+        const response = await fetch(`${API_URL}/users/institution`, {
           headers: getAuthHeaders()
         });
         
@@ -249,7 +249,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     const fetchIncomingRequests = async () => {
       try {
         const timestamp = new Date().getTime();
-        const response = await fetch(`${API_URL}/api/approvals/my-tasks?t=${timestamp}`, {
+        const response = await fetch(`${API_URL}/approvals/my-tasks?t=${timestamp}`, {
           headers: getAuthHeaders(),
           cache: 'no-cache'
         });
@@ -333,7 +333,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       const fetchIncomingRequests = async () => {
         try {
           const timestamp = new Date().getTime();
-          const response = await fetch(`${API_URL}/api/approvals/my-tasks?t=${timestamp}`, {
+          const response = await fetch(`${API_URL}/approvals/my-tasks?t=${timestamp}`, {
             headers: getAuthHeaders(),
             cache: 'no-cache'
           });
@@ -393,7 +393,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   useEffect(() => {
     const fetchSentRequests = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/approvals/my-requests`, {
+        const response = await fetch(`${API_URL}/approvals/my-requests`, {
           headers: getAuthHeaders()
         });
         
@@ -724,7 +724,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       console.log('📦 Document ID:', documentId);
       
       // Step 5: ONLY save to database AFTER blockchain confirmation with CORRECT requestId
-      const response = await fetch(`${API_URL}/api/approvals/request`, {
+      const response = await fetch(`${API_URL}/approvals/request`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -775,7 +775,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         showNotification(`Approval request generated successfully! Blockchain TX: ${txHash.substring(0, 20)}...`, 'success');
         
         // Refresh sent requests
-        const refreshResponse = await fetch(`${API_URL}/api/approvals/my-requests`, {
+        const refreshResponse = await fetch(`${API_URL}/approvals/my-requests`, {
           headers: getAuthHeaders()
         });
         if (refreshResponse.ok) {
@@ -1103,7 +1103,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       const approveEndpointId = isLegacyRequest ? request.id : request.requestId;
       
       // Step: Update database and generate stamped document
-      const response = await fetch(`${API_URL}/api/approvals/approve/${approveEndpointId}`, {
+      const response = await fetch(`${API_URL}/approvals/approve/${approveEndpointId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -1205,7 +1205,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         const timestamp = new Date().getTime();
         
         // Refresh incoming requests
-        const refreshResponse = await fetch(`${API_URL}/api/approvals/my-tasks?t=${timestamp}`, {
+        const refreshResponse = await fetch(`${API_URL}/approvals/my-tasks?t=${timestamp}`, {
           headers: getAuthHeaders(),
           cache: 'no-cache'
         });
@@ -1242,7 +1242,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         }
         
         // Refresh sent requests
-        const sentResponse = await fetch(`${API_URL}/api/approvals/my-requests?t=${timestamp}`, {
+        const sentResponse = await fetch(`${API_URL}/approvals/my-requests?t=${timestamp}`, {
           headers: getAuthHeaders(),
           cache: 'no-cache'
         });
@@ -1435,7 +1435,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       const rejectEndpointId = isLegacyRequest ? request.id : request.requestId;
       
       // Step 2: Update database
-      const response = await fetch(`${API_URL}/api/approvals/reject/${rejectEndpointId}`, {
+      const response = await fetch(`${API_URL}/approvals/reject/${rejectEndpointId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -1461,7 +1461,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         const timestamp = new Date().getTime();
         
         // Refresh incoming requests
-        const refreshResponse = await fetch(`${API_URL}/api/approvals/my-tasks?t=${timestamp}`, {
+        const refreshResponse = await fetch(`${API_URL}/approvals/my-tasks?t=${timestamp}`, {
           headers: getAuthHeaders(),
           cache: 'no-cache'
         });
@@ -1498,7 +1498,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
         }
         
         // Refresh sent requests
-        const sentResponse = await fetch(`${API_URL}/api/approvals/my-requests?t=${timestamp}`, {
+        const sentResponse = await fetch(`${API_URL}/approvals/my-requests?t=${timestamp}`, {
           headers: getAuthHeaders(),
           cache: 'no-cache'
         });
@@ -1672,7 +1672,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
       try {
         setIsLoading(true);
         
-        const response = await fetch(`${API_URL}/api/approvals/cancel/${requestToCancel.requestId}`, {
+        const response = await fetch(`${API_URL}/approvals/cancel/${requestToCancel.requestId}`, {
           method: 'POST',
           headers: getAuthHeaders()
         });

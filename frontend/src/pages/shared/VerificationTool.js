@@ -41,7 +41,7 @@ export default function VerificationTool() {
     setLoadingDocs(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/documents?all=true`, {
+      const response = await fetch(`${API_URL}/documents?all=true`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -66,7 +66,7 @@ export default function VerificationTool() {
   const fetchDocumentVersions = async (documentId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/documents/${documentId}/versions`, {
+      const response = await fetch(`${API_URL}/documents/${documentId}/versions`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -119,7 +119,7 @@ export default function VerificationTool() {
     setVerificationResult(null);
 
     try {
-      const response = await fetch(`${API_URL}/api/approvals/verify/${code.trim()}`);
+      const response = await fetch(`${API_URL}/approvals/verify/${code.trim()}`);
       const data = await response.json();
 
       if (response.ok && data.success) {
@@ -323,7 +323,7 @@ export default function VerificationTool() {
       formData.append('file', uploadedFile);
       
       // This is a public endpoint - no token required
-      const response = await fetch(`${API_URL}/api/approvals/verify-file`, {
+      const response = await fetch(`${API_URL}/approvals/verify-file`, {
         method: 'POST',
         body: formData
       });
@@ -361,7 +361,7 @@ export default function VerificationTool() {
     try {
       // Try to find approval request by document IPFS hash
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/approvals/verify-by-hash/${selectedDocument.ipfsHash}`, {
+      const response = await fetch(`${API_URL}/approvals/verify-by-hash/${selectedDocument.ipfsHash}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
