@@ -12,6 +12,7 @@ import {
 } from '../../utils/metamask';
 import Web3 from 'web3';
 import './ChatInterface.css';
+import './ChatInterface.mobile.css';
 
 // For socket, remove /api suffix
 const SOCKET_URL = API_URL.replace(/\/api\/?$/, '');
@@ -232,6 +233,7 @@ const ChatInterface = () => {
     const [description, setDescription] = useState('');
     const [selectedMembers, setSelectedMembers] = useState([]);
     const [isMobileSidebarHidden, setIsMobileSidebarHidden] = useState(false);
+    const [showMobileCircularsFeed, setShowMobileCircularsFeed] = useState(false);
     
     // New State for enhanced features
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -3728,6 +3730,19 @@ const ChatInterface = () => {
                         {activeTab === 'circulars' ? (
                             /* Circulars List (sidebar) - Feed shows in main area */
                             <div className="circulars-sidebar-list">
+                                {/* View Feed Button - Mobile Only - At Top */}
+                                <button 
+                                    className="view-feed-mobile-btn"
+                                    onClick={() => {
+                                        setShowMobileCircularsFeed(true);
+                                        setIsMobileSidebarHidden(true);
+                                    }}
+                                >
+                                    <i className="ri-newspaper-line"></i>
+                                    <span>View Announcements Feed</span>
+                                    <i className="ri-arrow-right-s-line"></i>
+                                </button>
+                                
                                 <div className="circulars-sidebar-header">
                                     <span className="sidebar-section-title">Available Circulars</span>
                                     <span className="circulars-count">{circularsList.length}</span>
@@ -3788,7 +3803,7 @@ const ChatInterface = () => {
                                         </div>
                                     ))
                                 )}
-                                <div className="view-all-feed-hint">
+                                <div className="view-all-feed-hint desktop-only">
                                     <i className="ri-arrow-right-line"></i>
                                     <span>View announcements feed on the right</span>
                                 </div>
@@ -3938,14 +3953,20 @@ const ChatInterface = () => {
                 </div>
 
                 {/* Chat Area */}
-                <div className={`chat-area ${isMobileSidebarHidden ? 'mobile-full' : ''}`}>
+                <div className={`chat-area ${isMobileSidebarHidden ? 'mobile-full' : ''} ${activeTab === 'circulars' && showMobileCircularsFeed ? 'mobile-feed-visible' : ''}`}>
                     {activeTab === 'circulars' ? (
                         /* Enhanced Circulars Feed with Create/View Tabs */
                         <div className="circulars-main-feed">
                             {/* Circulars Header with View Toggle */}
                             <div className="circulars-header">
                                 <div className="circulars-header-left">
-                                    <button className="back-btn mobile-only" onClick={goBackToConversations}>
+                                    <button 
+                                        className="back-btn mobile-only" 
+                                        onClick={() => {
+                                            setShowMobileCircularsFeed(false);
+                                            setIsMobileSidebarHidden(false);
+                                        }}
+                                    >
                                         <i className="ri-arrow-left-line"></i>
                                     </button>
                                     <div className="circulars-header-info">

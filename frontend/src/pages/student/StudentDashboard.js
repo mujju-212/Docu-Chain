@@ -15,6 +15,7 @@ import Profile from '../../components/shared/Profile';
 import NotificationDropdown from '../../components/shared/NotificationDropdown';
 import GlobalSearch from '../../components/shared/GlobalSearch';
 import './StudentDashboard.css';
+import '../shared/dashboard.mobile.css';
 
 const StudentDashboard = () => {
   const { user, logout } = useAuth();
@@ -22,6 +23,8 @@ const StudentDashboard = () => {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   
   // Persist current page in sessionStorage so refresh stays on same page
   const [currentPage, setCurrentPage] = useState(() => {
@@ -823,6 +826,149 @@ const StudentDashboard = () => {
           </div>
         </main>
       </div>
+
+      {/* Mobile Menu Overlay */}
+      <div 
+        className={`mobile-menu-overlay ${mobileMenuOpen ? 'active' : ''}`}
+        onClick={() => setMobileMenuOpen(false)}
+      ></div>
+
+      {/* Mobile Sidebar */}
+      <div className={`mobile-sidebar ${mobileMenuOpen ? 'active' : ''}`}>
+        <div className="mobile-sidebar-header">
+          <div className="mobile-brand">
+            <div className="logo">D</div>
+            <div className="info">
+              <div className="name">DocuChain</div>
+              <div className="role">STUDENT</div>
+            </div>
+          </div>
+          <button className="mobile-close-btn" onClick={() => setMobileMenuOpen(false)}>
+            <i className="ri-close-line"></i>
+          </button>
+        </div>
+        
+        <div className="mobile-wallet-section">
+          <CustomWalletButton />
+        </div>
+        
+        <nav className="mobile-nav-menu">
+          <div className="mobile-section-title">Dashboard</div>
+          <a className={currentPage === 'dashboard' ? 'active' : ''} onClick={() => { setCurrentPage('dashboard'); setMobileMenuOpen(false); }}>
+            <i className="ri-dashboard-line"></i> <span>Overview</span>
+          </a>
+          <a className={currentPage === 'files' ? 'active' : ''} onClick={() => { setCurrentPage('files'); setMobileMenuOpen(false); }}>
+            <i className="ri-folder-line"></i> <span>My Files</span>
+          </a>
+          <a className={currentPage === 'chat' ? 'active' : ''} onClick={() => { setCurrentPage('chat'); setMobileMenuOpen(false); }}>
+            <i className="ri-chat-3-line"></i> <span>Chat Messages</span>
+            {chatCount > 0 && <span className="badge">{chatCount}</span>}
+          </a>
+          <a className={currentPage === 'document-generator' ? 'active' : ''} onClick={() => { setCurrentPage('document-generator'); setMobileMenuOpen(false); }}>
+            <i className="ri-file-add-line"></i> <span>Generate Document</span>
+          </a>
+          <a className={currentPage === 'document-approval' ? 'active' : ''} onClick={() => { setCurrentPage('document-approval'); setMobileMenuOpen(false); }}>
+            <i className="ri-shield-check-line"></i> <span>Document Approval</span>
+            {pendingApprovalsCount > 0 && <span className="badge">{pendingApprovalsCount}</span>}
+          </a>
+          <a className={currentPage === 'verification-tool' ? 'active' : ''} onClick={() => { setCurrentPage('verification-tool'); setMobileMenuOpen(false); }}>
+            <i className="ri-qr-scan-2-line"></i> <span>Verify Document</span>
+          </a>
+          
+          <div className="mobile-section-title">System</div>
+          <a className={currentPage === 'activity-log' ? 'active' : ''} onClick={() => { setCurrentPage('activity-log'); setMobileMenuOpen(false); }}>
+            <i className="ri-file-list-3-line"></i> <span>Activity Log</span>
+          </a>
+          <a className={currentPage === 'blockchain-monitor' ? 'active' : ''} onClick={() => { setCurrentPage('blockchain-monitor'); setMobileMenuOpen(false); }}>
+            <i className="ri-links-line"></i> <span>Blockchain Monitor</span>
+          </a>
+          <a className={currentPage === 'settings' ? 'active' : ''} onClick={() => { setCurrentPage('settings'); setMobileMenuOpen(false); }}>
+            <i className="ri-settings-3-line"></i> <span>Settings</span>
+          </a>
+          <a className={currentPage === 'help-support' ? 'active' : ''} onClick={() => { setCurrentPage('help-support'); setMobileMenuOpen(false); }}>
+            <i className="ri-question-line"></i> <span>Help & Support</span>
+          </a>
+          <a onClick={logout} className="logout-link">
+            <i className="ri-logout-circle-line"></i> <span>Logout</span>
+          </a>
+        </nav>
+      </div>
+
+      {/* Mobile Header */}
+      <header className="mobile-header">
+        <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(true)}>
+          <i className="ri-menu-line"></i>
+        </button>
+        
+        <div className="mobile-brand-mini">
+          <span className="logo">D</span>
+          <span className="name">DocuChain</span>
+        </div>
+        
+        <div className="mobile-header-actions">
+          <button className="mobile-search-btn" onClick={() => setMobileSearchOpen(!mobileSearchOpen)}>
+            <i className="ri-search-line"></i>
+          </button>
+          <NotificationDropdown />
+          <div className="mobile-avatar" onClick={() => setProfileModalOpen(true)}>
+            {getUserName().charAt(0).toUpperCase()}
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Search Overlay */}
+      {mobileSearchOpen && (
+        <div className="mobile-search-overlay">
+          <GlobalSearch 
+            onNavigate={(page) => { setCurrentPage(page); setMobileSearchOpen(false); }} 
+            currentPage={currentPage}
+          />
+          <button className="mobile-search-close" onClick={() => setMobileSearchOpen(false)}>
+            <i className="ri-close-line"></i>
+          </button>
+        </div>
+      )}
+
+      {/* Bottom Navigation */}
+      <nav className="bottom-nav">
+        <a 
+          className={currentPage === 'dashboard' ? 'active' : ''} 
+          onClick={() => setCurrentPage('dashboard')}
+        >
+          <i className="ri-home-5-line"></i>
+          <span>Home</span>
+        </a>
+        <a 
+          className={currentPage === 'files' ? 'active' : ''} 
+          onClick={() => setCurrentPage('files')}
+        >
+          <i className="ri-folder-line"></i>
+          <span>Files</span>
+        </a>
+        <a 
+          className={currentPage === 'chat' ? 'active' : ''} 
+          onClick={() => setCurrentPage('chat')}
+        >
+          <i className="ri-chat-3-line"></i>
+          <span>Chat</span>
+          {chatCount > 0 && <span className="nav-badge">{chatCount}</span>}
+        </a>
+        <a 
+          className={currentPage === 'document-approval' ? 'active' : ''} 
+          onClick={() => setCurrentPage('document-approval')}
+        >
+          <i className="ri-shield-check-line"></i>
+          <span>Approval</span>
+          {pendingApprovalsCount > 0 && <span className="nav-badge">{pendingApprovalsCount}</span>}
+        </a>
+        <a 
+          className={currentPage === 'settings' ? 'active' : ''} 
+          onClick={() => setCurrentPage('settings')}
+        >
+          <i className="ri-settings-3-line"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
 
       {/* Profile Modal */}
       <Profile 

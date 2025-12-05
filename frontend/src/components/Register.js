@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../services/api';
 import '../pages/auth/auth.css';
+import '../pages/auth/auth.mobile.css';
 
 function Register() {
   const { register: registerUser } = useAuth();

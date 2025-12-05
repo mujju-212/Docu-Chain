@@ -8,6 +8,7 @@ import pinataService from '../../services/pinataService';
 import { API_URL, toggleStarDocument, toggleStarFolder, getStarredDocuments, getStarredFolders, getRecentActivities, addRecentActivity as addRecentActivityAPI } from '../../services/api';
 import TransactionLoader from '../../components/shared/TransactionLoader';
 import './FileManagerNew.css';
+import './FileManagerNew.mobile.css';
 
 const FileManager = () => {
   const { currentTheme } = useTheme();

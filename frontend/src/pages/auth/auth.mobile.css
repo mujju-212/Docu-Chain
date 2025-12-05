@@ -1,0 +1,571 @@
+/* =====================================================
+   DOCU-CHAIN MOBILE STYLES - AUTH PAGES
+   Mobile-first responsive styles for Login & Register
+   Targets screens <= 768px
+   ===================================================== */
+
+/* MOBILE BREAKPOINT - TABLETS AND PHONES */
+@media screen and (max-width: 768px) {
+  
+  /* SHELL CONTAINER - REMOVE MIN WIDTH */
+  .shell {
+    min-width: 100%;
+    width: 100%;
+    padding: 0;
+    min-height: auto;
+    background: var(--bg);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* CARD - SINGLE COLUMN LAYOUT */
+  .card {
+    min-width: 100%;
+    width: 100%;
+    max-width: 100%;
+    display: block;
+    border-radius: 0;
+    overflow: visible;
+    box-shadow: none;
+  }
+
+  /* LEFT SECTION - FORM AREA */
+  .left {
+    min-width: 100%;
+    width: 100%;
+    padding: 0 20px 40px 20px;
+    display: block;
+    overflow: visible;
+    min-height: auto;
+    max-height: none;
+  }
+
+  /* FORM SCROLL CONTAINER - COMPLETELY DISABLE ON MOBILE */
+  .form-scroll-container {
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-y: visible !important;
+    overflow-x: visible !important;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
+    flex: none !important;
+  }
+
+  /* HIDE RIGHT SECTION ON MOBILE */
+  .right {
+    display: none !important;
+  }
+
+  /* BRAND CONTAINER - DOCUCHAIN LOGO - ATTRACTIVE HEADER */
+  .brand {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin: 0 -20px 24px -20px;
+    padding: 24px 20px;
+    background: linear-gradient(135deg, var(--b-600) 0%, var(--b-500) 50%, var(--b-400) 100%);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(24, 163, 111, 0.3);
+  }
+
+  .logo {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px;
+    min-height: 48px;
+    font-size: 24px !important;
+    border-radius: 14px !important;
+    flex-shrink: 0;
+    display: grid !important;
+    place-items: center;
+    background: white !important;
+    color: var(--b-600) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .brand .name {
+    font-size: 22px !important;
+    font-weight: 800;
+    color: white !important;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  /* BRAND LOGO IMAGE (if used) */
+  .brand-logo {
+    max-width: 160px;
+    margin-bottom: 20px;
+  }
+
+  /* DROPDOWN - COMPACT ON MOBILE */
+  .field select {
+    font-size: 14px !important;
+    padding: 12px 36px 12px 56px !important;
+    min-height: 46px !important;
+    background-size: 12px !important;
+    background-position: right 12px center !important;
+  }
+
+  /* DROPDOWN OPTIONS */
+  .field select option {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  /* HEADINGS */
+  .left h1 {
+    font-size: 24px;
+    margin-bottom: 4px;
+    margin-top: 0;
+  }
+
+  .left .sub {
+    font-size: 13px;
+    margin-bottom: 18px;
+    color: var(--muted);
+  }
+
+  /* FORM SCROLL CONTAINER */
+  .form-scroll {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  /* FORM */
+  .form {
+    gap: 12px;
+  }
+
+  /* FIELD LABELS */
+  .field label {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  /* INPUT FIELDS - COMPACT & TOUCH OPTIMIZED */
+  .field input {
+    min-height: 46px !important;
+    font-size: 15px !important;
+    padding: 11px 14px 11px 56px !important;
+    border-radius: 10px !important;
+  }
+
+  .field input::placeholder {
+    font-size: 14px;
+  }
+
+  /* FIELD ICONS - same as desktop */
+  .field > i:first-of-type {
+    left: 16px;
+    font-size: 18px;
+    color: var(--b-500);
+    opacity: 0.8;
+  }
+
+  /* EMAIL FIELD - extra padding for circular @ badge */
+  .email-input-group input {
+    padding-left: 60px !important;
+  }
+
+  /* PASSWORD TOGGLE */
+  .field .toggle {
+    right: 12px;
+    font-size: 18px;
+    width: 36px;
+    height: 36px;
+  }
+
+  /* PHONE FIELD */
+  .phone-field {
+    flex-wrap: nowrap;
+  }
+
+  .phone-field select {
+    width: 90px;
+    padding: 12px 10px !important;
+    font-size: 14px;
+  }
+
+  .phone-field input {
+    flex: 1;
+    padding-left: 65px !important;
+  }
+
+  .phone-field > i:first-child {
+    left: 108px;
+  }
+
+  /* ROW LAYOUT */
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .row label {
+    font-size: 14px;
+  }
+
+  /* CHECKBOX */
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* BUTTONS - FULL WIDTH TOUCH FRIENDLY */
+  .btn {
+    width: 100%;
+    min-height: 50px;
+    padding: 14px 16px;
+    font-size: 15px;
+    border-radius: 12px;
+  }
+
+  .btn i {
+    font-size: 18px;
+  }
+
+  .btn.primary:hover {
+    transform: none;
+  }
+
+  /* ERROR AND SUCCESS MESSAGES */
+  .error,
+  .success {
+    padding: 12px;
+    border-radius: 12px;
+    font-size: 14px;
+  }
+
+  /* FOOTER LINKS */
+  .foot {
+    font-size: 14px;
+    margin-top: 16px;
+  }
+
+  .hint,
+  .muted {
+    font-size: 13px;
+  }
+
+  /* ROLE FIELDS */
+  .role-student,
+  .role-staff,
+  .role-admin,
+  .common-fields {
+    gap: 14px;
+  }
+
+  /* FIELD STATUS */
+  .field-status {
+    font-size: 11px;
+    padding: 4px 8px;
+    right: 10px;
+  }
+
+  /* EMAIL VERIFICATION */
+  .email-verification-container {
+    margin-bottom: 16px;
+  }
+
+  .email-input-group input {
+    padding-right: 100px;
+  }
+
+  .verify-email-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    min-width: 70px;
+  }
+
+  .otp-input-group input {
+    padding-right: 100px;
+  }
+
+  .verify-otp-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    min-width: 80px;
+  }
+
+  .verification-error {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+}
+
+/* SMALL PHONES - EXTRA COMPACT */
+@media screen and (max-width: 375px) {
+  
+  .left {
+    padding: 0 16px 32px 16px;
+  }
+
+  .brand-logo {
+    max-width: 140px;
+  }
+
+  /* BRAND - SMALLER ON TINY SCREENS */
+  .brand {
+    margin: 0 -16px 20px -16px;
+    padding: 18px 16px;
+    gap: 10px;
+  }
+
+  .logo {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px;
+    min-height: 42px;
+    font-size: 20px !important;
+    border-radius: 12px !important;
+  }
+
+  .brand .name {
+    font-size: 20px !important;
+  }
+
+  .left h1 {
+    font-size: 20px;
+  }
+
+  .left .sub {
+    font-size: 12px;
+  }
+
+  .field input,
+  .field select {
+    min-height: 44px !important;
+    padding: 10px 12px 10px 52px !important;
+    font-size: 14px !important;
+  }
+
+  .field > i:first-of-type {
+    left: 14px;
+    font-size: 16px;
+  }
+
+  .email-input-group input {
+    padding-left: 56px !important;
+  }
+
+  .phone-field select {
+    width: 80px;
+    padding: 10px 8px !important;
+  }
+
+  .phone-field input {
+    padding-left: 48px !important;
+  }
+
+  .phone-field > i:first-child {
+    left: 96px;
+  }
+
+  .btn {
+    min-height: 48px;
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+}
+
+/* LANDSCAPE MODE ADJUSTMENTS */
+@media screen and (max-width: 768px) and (orientation: landscape) {
+  
+  .shell {
+    min-height: auto;
+  }
+
+  .left {
+    padding: 20px 24px;
+    padding-bottom: 30px;
+  }
+
+  .brand-logo {
+    max-width: 120px;
+    margin-bottom: 14px;
+  }
+
+  .left h1 {
+    font-size: 22px;
+    margin-bottom: 4px;
+  }
+
+  .left .sub {
+    margin-bottom: 14px;
+  }
+
+  .form {
+    gap: 12px;
+  }
+
+  .field input,
+  .field select {
+    min-height: 44px;
+  }
+}
+
+/* =====================================================
+   APP-LIKE MOBILE ENHANCEMENTS
+   Native mobile app feel
+   ===================================================== */
+
+@media screen and (max-width: 768px) {
+  
+  /* SMOOTH SCROLLING */
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* DISABLE TEXT SELECTION ON UI ELEMENTS */
+  .btn,
+  .brand-logo,
+  label {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* TOUCH FEEDBACK ON BUTTONS */
+  .btn:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
+
+  .btn.primary:active {
+    box-shadow: 0 2px 8px rgba(24, 163, 111, 0.3);
+  }
+
+  /* IMPROVED FOCUS STATES FOR ACCESSIBILITY */
+  .field input:focus,
+  .field select:focus {
+    border-color: var(--b-500);
+    box-shadow: 0 0 0 3px rgba(24, 163, 111, 0.15);
+  }
+
+  /* SMOOTH TRANSITIONS */
+  .field input,
+  .field select,
+  .btn {
+    transition: all 0.2s ease;
+  }
+
+  /* SAFE AREA PADDING FOR NOTCHED DEVICES */
+  .left {
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+    padding-bottom: max(40px, env(safe-area-inset-bottom));
+  }
+
+  /* PREVENT PULL TO REFRESH CONFLICTS */
+  body {
+    overscroll-behavior-y: contain;
+  }
+
+  /* CENTERED BRAND LOGO ON MOBILE */
+  .brand-logo-container,
+  .left > .brand-logo:first-child {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* ADD MOBILE HEADER SPACE */
+  .shell::before {
+    content: "";
+    display: block;
+    height: env(safe-area-inset-top, 0px);
+    background: var(--bg);
+  }
+}
+
+/* =====================================================
+   TABLET PORTRAIT MODE (481px - 768px)
+   Slightly larger elements for tablet
+   ===================================================== */
+
+@media screen and (min-width: 481px) and (max-width: 768px) {
+  
+  .left {
+    padding: 32px 40px;
+    padding-bottom: 48px;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  .brand-logo {
+    max-width: 180px;
+  }
+
+  .left h1 {
+    font-size: 28px;
+  }
+
+  .left .sub {
+    font-size: 15px;
+  }
+
+  .field input,
+  .field select {
+    min-height: 50px;
+    font-size: 16px;
+  }
+
+  .btn {
+    min-height: 52px;
+  }
+}
+
+/* =====================================================
+   MEDIUM SCREENS (769px - 1024px)
+   Transition zone - show simplified layout
+   ===================================================== */
+
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+  
+  .shell {
+    min-width: 100%;
+    padding: 20px;
+  }
+
+  .card {
+    min-width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    grid-template-columns: 1.5fr 1fr;
+  }
+
+  .left {
+    min-width: auto;
+    padding: 36px 40px;
+  }
+
+  .right {
+    min-height: 500px;
+    padding: 24px;
+  }
+
+  .phone {
+    width: min(400px, 90%);
+    max-width: 450px;
+  }
+
+  .device {
+    width: 260px;
+    height: 540px;
+  }
+
+  /* Hide some decorative elements */
+  .bubble,
+  .lock {
+    display: none;
+  }
+
+  .cloud {
+    transform: scale(0.8);
+  }
+}

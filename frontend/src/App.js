@@ -10,7 +10,9 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import FacultyDashboard from './pages/faculty/FacultyDashboard';
 import StudentDashboard from './pages/student/StudentDashboard';
 import VerifyDocument from './pages/public/VerifyDocument';
+import LoadingScreen from './components/LoadingScreen';
 import './pages/auth/auth.css';
+import './pages/auth/auth.mobile.css';
 
 function AppRoutes() {
   const { isAuthenticated, user, loading } = useAuth();
@@ -43,17 +45,7 @@ function AppRoutes() {
   };
 
   if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        fontSize: '18px'
-      }}>
-        Loading...
-      </div>
-    );
+    return <LoadingScreen message="Initializing secure connection..." />;
   }
 
   return (

@@ -86,11 +86,20 @@
     border: none;
     cursor: pointer;
     transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
   
   .btn-primary:hover:not(:disabled) {
     background-color: var(--primary-dark);
     transform: translateY(-1px);
+  }
+
+  .btn-primary:active,
+  .btn-primary:focus,
+  .btn-primary:focus-visible {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+    outline: none;
   }
   
   .btn-primary:disabled {
@@ -107,11 +116,20 @@
     border: 1px solid var(--border-color);
     cursor: pointer;
     transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
   
   .btn-secondary:hover {
     background-color: var(--bg-secondary);
     border-color: var(--primary-color);
+  }
+
+  .btn-secondary:active,
+  .btn-secondary:focus,
+  .btn-secondary:focus-visible {
+    background-color: var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
+    outline: none;
   }
 
   .btn-outline {
@@ -123,10 +141,20 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
   
   .btn-outline:hover {
     background-color: var(--primary-light);
+  }
+
+  .btn-outline:active,
+  .btn-outline:focus,
+  .btn-outline:focus-visible {
+    background-color: var(--primary-light, rgba(59, 130, 246, 0.1)) !important;
+    color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    outline: none;
   }
 
   .btn-danger {
@@ -138,10 +166,19 @@
     border: none;
     cursor: pointer;
     transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
   
   .btn-danger:hover {
     background-color: #dc2626;
+  }
+
+  .btn-danger:active,
+  .btn-danger:focus,
+  .btn-danger:focus-visible {
+    background-color: var(--error-color) !important;
+    color: white !important;
+    outline: none;
   }
 
   /* Input styles */

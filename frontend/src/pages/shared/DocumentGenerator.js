@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../../services/api';
 import './DocumentGenerator.css';
+import './DocumentGenerator.mobile.css';
 import TransactionLoader from '../../components/shared/TransactionLoader';
 import pinataService from '../../services/pinataService';
 import { connectWallet, uploadDocumentToBlockchain, isWalletConnected, getCurrentWalletAddress, requestApprovalOnBlockchain } from '../../utils/metamask';
@@ -2406,20 +2407,20 @@ export default function DocumentGenerator() {
       {showMyDocuments && (
         <div className="modal-overlay" onClick={(e) => e.target.className === 'modal-overlay' && setShowMyDocuments(false)}>
           <div className="my-docs-modal">
-            {/* Modal Header */}
+            {/* Modal Header with Back Button */}
             <div className="my-docs-header">
+              <button className="my-docs-close-btn" onClick={() => setShowMyDocuments(false)}>
+                <i className="ri-arrow-left-line"></i>
+              </button>
               <div className="my-docs-title">
                 <div className="my-docs-icon">
                   <i className="ri-file-list-3-line"></i>
                 </div>
                 <div>
-                  <h2>My Document Requests</h2>
-                  <p className="my-docs-subtitle">{myDocuments.length} document{myDocuments.length !== 1 ? 's' : ''} found</p>
+                  <h2>My Documents</h2>
+                  <p className="my-docs-subtitle">{myDocuments.length} document{myDocuments.length !== 1 ? 's' : ''}</p>
                 </div>
               </div>
-              <button className="my-docs-close-btn" onClick={() => setShowMyDocuments(false)}>
-                <i className="ri-close-line"></i>
-              </button>
             </div>
 
             {/* Filters Bar */}
