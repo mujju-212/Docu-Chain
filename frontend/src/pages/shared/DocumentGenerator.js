@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { API_URL as BASE_API_URL } from '../../services/api';
+import { API_URL } from '../../services/api';
 import './DocumentGenerator.css';
 import TransactionLoader from '../../components/shared/TransactionLoader';
 import pinataService from '../../services/pinataService';
 import { connectWallet, uploadDocumentToBlockchain, isWalletConnected, getCurrentWalletAddress, requestApprovalOnBlockchain } from '../../utils/metamask';
 import html2pdf from 'html2pdf.js';
 
-// Remove /api suffix since we add it in calls
-const API_URL = BASE_API_URL.replace(/\/api\/?$/, '');
+// API_URL already includes /api suffix from services/api.js
 
 export default function DocumentGenerator() {
   // State
@@ -1815,6 +1814,7 @@ export default function DocumentGenerator() {
       draft: { bg: '#e0e7ff', color: '#3730a3', icon: 'ri-draft-line' },
       pending: { bg: '#fef3c7', color: '#92400e', icon: 'ri-time-line' },
       approved: { bg: '#d1fae5', color: '#065f46', icon: 'ri-checkbox-circle-line' },
+      signed: { bg: '#dbeafe', color: '#1e40af', icon: 'ri-shield-check-line' },
       rejected: { bg: '#fee2e2', color: '#991b1b', icon: 'ri-close-circle-line' },
       cancelled: { bg: '#f3f4f6', color: '#374151', icon: 'ri-forbid-line' }
     };
@@ -2431,6 +2431,7 @@ export default function DocumentGenerator() {
                   <option value="draft">Draft</option>
                   <option value="pending">Pending</option>
                   <option value="approved">Approved</option>
+                  <option value="signed">Signed</option>
                   <option value="rejected">Rejected</option>
                 </select>
               </div>
@@ -2635,22 +2636,24 @@ export default function DocumentGenerator() {
 
                 {/* Action Buttons */}
                 <div className="doc-details-actions">
-                  {selectedDocument.pdfIpfsHash && (
+                  {(selectedDocument.stampedIpfsHash || selectedDocument.pdfIpfsHash) && (
                     <>
                       <button 
                         className="doc-action-btn primary"
                         onClick={() => {
-                          const url = `https://gateway.pinata.cloud/ipfs/${selectedDocument.pdfIpfsHash}`;
+                          const ipfsHash = selectedDocument.stampedIpfsHash || selectedDocument.pdfIpfsHash;
+                          const url = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
                           window.open(url, '_blank');
                         }}
                       >
                         <i className="ri-download-2-line"></i>
-                        Download PDF
+                        {selectedDocument.stampedIpfsHash ? 'Download Certified PDF' : 'Download PDF'}
                       </button>
                       <button 
                         className="doc-action-btn secondary"
                         onClick={() => {
-                          const url = `https://gateway.pinata.cloud/ipfs/${selectedDocument.pdfIpfsHash}`;
+                          const ipfsHash = selectedDocument.stampedIpfsHash || selectedDocument.pdfIpfsHash;
+                          const url = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
                           navigator.clipboard.writeText(url);
                           showNotification('success', 'Copied!', 'IPFS link copied to clipboard');
                         }}
@@ -2667,9 +2670,9 @@ export default function DocumentGenerator() {
               <div className="doc-details-preview">
                 <div className="doc-preview-header">
                   <h4><i className="ri-eye-line"></i> Document Preview</h4>
-                  {selectedDocument.stampedIpfsHash && (selectedDocument.status || '').toLowerCase() === 'approved' && (
+                  {selectedDocument.stampedIpfsHash && ['approved', 'signed'].includes((selectedDocument.status || '').toLowerCase()) && (
                     <span className="doc-stamped-badge">
-                      <i className="ri-shield-check-fill"></i> Certified
+                      <i className="ri-shield-check-fill"></i> {(selectedDocument.status || '').toLowerCase() === 'signed' ? 'Digitally Signed' : 'Certified'}
                     </span>
                   )}
                 </div>

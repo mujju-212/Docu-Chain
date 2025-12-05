@@ -11,6 +11,15 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres:mk0492@localhost:5432/Docu-Chain')
     
+    # Connection Pool Settings for 50+ concurrent users
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 10,           # Base connections to keep open
+        'pool_recycle': 300,       # Recycle connections after 5 minutes
+        'pool_pre_ping': True,     # Check if connection is alive before using
+        'max_overflow': 20,        # Extra connections if pool is full (total max: 30)
+        'pool_timeout': 30,        # Wait max 30 seconds for connection
+    }
+    
     # JWT Configuration
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=1)

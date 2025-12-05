@@ -22,7 +22,16 @@ const StudentDashboard = () => {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  
+  // Persist current page in sessionStorage so refresh stays on same page
+  const [currentPage, setCurrentPage] = useState(() => {
+    return sessionStorage.getItem('studentCurrentPage') || 'dashboard';
+  });
+  
+  // Save page to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('studentCurrentPage', currentPage);
+  }, [currentPage]);
   
   // Sidebar badge counts
   const [chatCount, setChatCount] = useState(0);

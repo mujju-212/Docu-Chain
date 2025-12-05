@@ -36,15 +36,22 @@ def create_app(config_name=None):
         }
     })
     
-    # Initialize SocketIO with polling support (more reliable for development)
+    # Determine async mode based on environment
+    # Use 'eventlet' in production for high concurrency (50+ users)
+    # Use 'threading' in development for easier debugging
+    is_production = os.getenv('FLASK_ENV') == 'production'
+    async_mode = 'eventlet' if is_production else 'threading'
+    
+    # Initialize SocketIO with optimal settings for concurrency
     socketio.init_app(
         app, 
         cors_allowed_origins="*", 
-        async_mode='threading',
+        async_mode=async_mode,
         ping_timeout=60,
         ping_interval=25,
         logger=False,
-        engineio_logger=False
+        engineio_logger=False,
+        max_http_buffer_size=10 * 1024 * 1024  # 10MB for file transfers
     )
     
     # Import WebSocket events (must be after socketio init)

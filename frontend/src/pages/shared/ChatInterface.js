@@ -222,8 +222,6 @@ const ChatInterface = () => {
         };
     }, [currentUser]);
 
-    const [activeTab, setActiveTab] = useState('direct');
-    const [selectedChat, setSelectedChat] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [currentDocumentAction, setCurrentDocumentAction] = useState('share');
     const [selectedDocument, setSelectedDocument] = useState(null);
@@ -290,6 +288,9 @@ const ChatInterface = () => {
     const [signedDocuments, setSignedDocuments] = useState([]);
     const [loadingSharedDocs, setLoadingSharedDocs] = useState(false);
     const [sharedDocsTab, setSharedDocsTab] = useState('shared'); // 'shared', 'approvals', 'signed'
+    
+    // Loading state for documents in share modal
+    const [loadingDocuments, setLoadingDocuments] = useState(false);
 
     // Message context menu state
     const [messageContextMenu, setMessageContextMenu] = useState({ show: false, x: 0, y: 0, message: null });
@@ -348,11 +349,71 @@ const ChatInterface = () => {
     const [onlineUsers, setOnlineUsers] = useState({});
     const [typingUsers, setTypingUsers] = useState({});
 
-    // Real data from API
-    const [conversations, setConversations] = useState([]);
-    const [messages, setMessages] = useState([]);
-    const [availableDocuments, setAvailableDocuments] = useState([]);
+    // Real data from API (with cache initialization)
+    const [conversations, setConversations] = useState(() => {
+        try {
+            const cached = sessionStorage.getItem('chat_conversations');
+            return cached ? JSON.parse(cached) : [];
+        } catch { return []; }
+    });
+    const [messages, setMessages] = useState(() => {
+        try {
+            const cached = sessionStorage.getItem('chat_messages');
+            return cached ? JSON.parse(cached) : [];
+        } catch { return []; }
+    });
+    const [availableDocuments, setAvailableDocuments] = useState(() => {
+        try {
+            const cached = sessionStorage.getItem('chat_documents');
+            return cached ? JSON.parse(cached) : [];
+        } catch { return []; }
+    });
     const [teamMembers, setTeamMembers] = useState([]);
+    
+    // Restore selectedChat from sessionStorage
+    const [selectedChat, setSelectedChat] = useState(() => {
+        const cached = sessionStorage.getItem('chat_selectedChat');
+        return cached ? parseInt(cached) : null;
+    });
+    
+    // Restore activeTab from sessionStorage
+    const [activeTab, setActiveTab] = useState(() => {
+        return sessionStorage.getItem('chat_activeTab') || 'direct';
+    });
+    
+    // Cache conversations when they change
+    useEffect(() => {
+        if (conversations.length > 0) {
+            sessionStorage.setItem('chat_conversations', JSON.stringify(conversations));
+        }
+    }, [conversations]);
+    
+    // Cache messages when they change (limit to last 100 for performance)
+    useEffect(() => {
+        if (messages.length > 0) {
+            const toCache = messages.slice(-100);
+            sessionStorage.setItem('chat_messages', JSON.stringify(toCache));
+        }
+    }, [messages]);
+    
+    // Cache documents when they change
+    useEffect(() => {
+        if (availableDocuments.length > 0) {
+            sessionStorage.setItem('chat_documents', JSON.stringify(availableDocuments));
+        }
+    }, [availableDocuments]);
+    
+    // Cache selectedChat when it changes
+    useEffect(() => {
+        if (selectedChat) {
+            sessionStorage.setItem('chat_selectedChat', selectedChat.toString());
+        }
+    }, [selectedChat]);
+    
+    // Cache activeTab when it changes
+    useEffect(() => {
+        sessionStorage.setItem('chat_activeTab', activeTab);
+    }, [activeTab]);
     
     // Document selection modal filters
     const [docSearchQuery, setDocSearchQuery] = useState('');
@@ -628,6 +689,7 @@ const ChatInterface = () => {
 
     // Fetch user's documents for sharing (get ALL documents)
     const fetchDocuments = useCallback(async () => {
+        setLoadingDocuments(true);
         try {
             const response = await fetch(`${API_URL}/documents?all=true`, {
                 headers: getAuthHeader()
@@ -635,10 +697,15 @@ const ChatInterface = () => {
             
             if (response.ok) {
                 const data = await response.json();
+                console.log('📄 Fetched documents:', data.documents?.length || 0);
                 setAvailableDocuments(data.documents || []);
+            } else {
+                console.error('❌ Failed to fetch documents:', response.status);
             }
         } catch (error) {
             console.error('Error fetching documents:', error);
+        } finally {
+            setLoadingDocuments(false);
         }
     }, [getAuthHeader]);
 
@@ -2282,6 +2349,8 @@ const ChatInterface = () => {
         setCurrentDocumentAction(action);
         setIsDocumentSelectionModalOpen(true);
         setIsAttachmentMenuOpen(false);
+        // Refresh documents when opening share modal
+        fetchDocuments();
     };
 
     const closeDocumentSelectionModal = () => {
@@ -4775,14 +4844,19 @@ const ChatInterface = () => {
                         </div>
                         
                         <div className="doc-count-info">
-                            Showing {filteredDocs.length} of {availableDocuments.length} documents
+                            {loadingDocuments ? 'Loading documents...' : `Showing ${filteredDocs.length} of ${availableDocuments.length} documents`}
                         </div>
                         
                         <div className="document-grid">
-                            {filteredDocs.length === 0 ? (
+                            {loadingDocuments ? (
+                                <div className="no-documents-found">
+                                    <i className="ri-loader-4-line spinning"></i>
+                                    <p>Loading your documents...</p>
+                                </div>
+                            ) : filteredDocs.length === 0 ? (
                                 <div className="no-documents-found">
                                     <i className="ri-file-search-line"></i>
-                                    <p>No documents found</p>
+                                    <p>{availableDocuments.length === 0 ? 'No documents uploaded yet. Upload documents from File Manager first.' : 'No documents match your search'}</p>
                                 </div>
                             ) : (
                                 filteredDocs.map(doc => {

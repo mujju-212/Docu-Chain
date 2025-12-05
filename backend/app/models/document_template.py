@@ -106,14 +106,22 @@ class GeneratedDocument(db.Model):
         # Check if there's a linked approval request with different status
         actual_status = self.status
         approval_type = None
+        stamped_ipfs_hash = None
+        verification_code = None
+        approval_completed_at = None
+        approvers = []
+        
         if self.approval_request_id:
-            from app.models.approval import ApprovalRequest
+            from app.models.approval import ApprovalRequest, ApprovalStep
             approval = ApprovalRequest.query.filter(
                 (ApprovalRequest.id.cast(db.String) == self.approval_request_id) |
                 (ApprovalRequest.request_id == self.approval_request_id)
             ).first()
             if approval:
                 approval_type = approval.approval_type
+                stamped_ipfs_hash = approval.stamped_document_ipfs_hash
+                verification_code = approval.verification_code
+                approval_completed_at = approval.completed_at
                 is_digital = approval_type in ['DIGITAL_SIGNATURE', 'digital']
                 if approval.status == 'APPROVED':
                     actual_status = 'signed' if is_digital else 'approved'
@@ -121,6 +129,21 @@ class GeneratedDocument(db.Model):
                     actual_status = 'rejected'
                 elif approval.status == 'PENDING':
                     actual_status = 'pending'
+                
+                # Get approvers info
+                steps = ApprovalStep.query.filter(
+                    (ApprovalStep.request_id == approval.id) |
+                    (ApprovalStep.blockchain_request_id == approval.request_id)
+                ).all()
+                for step in steps:
+                    from app.models.user import User
+                    approver = User.query.get(step.approver_id)
+                    if approver:
+                        approvers.append({
+                            'name': f"{approver.first_name} {approver.last_name}",
+                            'role': step.approver_role or approver.role,
+                            'status': 'approved' if step.has_approved else ('rejected' if step.has_rejected else 'pending')
+                        })
         
         return {
             'id': str(self.id),
@@ -135,12 +158,15 @@ class GeneratedDocument(db.Model):
             'blockchainTxHash': self.blockchain_tx_hash,
             'status': actual_status,
             'approvalType': approval_type,
+            'stampedIpfsHash': stamped_ipfs_hash,
+            'verificationCode': verification_code,
+            'approvers': approvers,
             'currentApproverIndex': self.current_approver_index,
             'approvalHistory': self.approval_history or [],
             'approvalRequestId': self.approval_request_id,
             'createdAt': format_date(self.created_at),
             'submittedAt': format_date(self.submitted_at),
-            'completedAt': format_date(self.completed_at)
+            'completedAt': format_date(approval_completed_at or self.completed_at)
         }
     
     def to_dict_with_requester(self):

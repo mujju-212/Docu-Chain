@@ -473,6 +473,11 @@ body.modal-open {
     to { transform: rotate(360deg); }
 }
 
+/* Spinning animation class */
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
 .tabs {
     display: flex;
     border-bottom: 1px solid var(--line);

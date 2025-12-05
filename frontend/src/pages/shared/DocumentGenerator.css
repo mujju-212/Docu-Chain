@@ -2126,6 +2126,11 @@
   color: #16a34a;
 }
 
+.my-docs-status-signed {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
 .my-docs-status-rejected {
   background: #fee2e2;
   color: #dc2626;
@@ -2455,6 +2460,11 @@
 .doc-status-approved {
   background: #dcfce7;
   color: #16a34a;
+}
+
+.doc-status-signed {
+  background: #dbeafe;
+  color: #1e40af;
 }
 
 .doc-status-rejected {

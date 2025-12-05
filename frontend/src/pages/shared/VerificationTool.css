@@ -225,7 +225,8 @@
 
 .vt-tab:hover {
   color: var(--primary-color, #10b981);
-  background: var(--primary-light, rgba(16, 185, 129, 0.05));
+  background: rgba(16, 185, 129, 0.1);
+  border-bottom-color: rgba(16, 185, 129, 0.3);
 }
 
 .vt-tab.active {

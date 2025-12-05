@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_URL as BASE_API_URL } from '../../services/api';
+import { API_URL } from '../../services/api';
 import './DocumentApproval.css';
 import TransactionLoader from '../../components/shared/TransactionLoader';
 import {
@@ -163,8 +163,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   const [notification, setNotification] = useState(null);
   const [currentDraftId, setCurrentDraftId] = useState(null);
 
-  // API Configuration - Remove /api suffix since we add it in calls
-  const API_URL = BASE_API_URL.replace(/\/api\/?$/, '');
+  // API Configuration - API_URL already includes /api suffix
   const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -1235,7 +1234,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               myStepStatus: myStep?.hasApproved ? 'approved' : (myStep?.hasRejected ? 'rejected' : 'pending'),
               approvedDate: myStep?.hasApproved ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
               rejectedDate: myStep?.hasRejected ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
-              rejectionReason: myStep?.reason || ''
+              rejectionReason: myStep?.reason || '',
+              verificationCode: req.verificationCode,
+              stampedIpfsHash: req.stampedDocumentIpfsHash,
+              stampedAt: req.stampedAt
             };
           });
           setIncomingRequests(transformedRequests);
@@ -1279,7 +1281,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               pendingWith: steps.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approverRole || 'Unknown'),
               recipients: recipientNames,
               currentVersion: req.stampedDocumentIpfsHash ? 'v2.0 (Certified)' : (req.version || 'v1.0'),
-              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash, status: req.status?.toLowerCase() }]
+              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash, status: req.status?.toLowerCase() }],
+              verificationCode: req.verificationCode,
+              stampedIpfsHash: req.stampedDocumentIpfsHash,
+              stampedAt: req.stampedAt
             };
           });
           setSentRequests(transformedSentRequests);
@@ -1491,7 +1496,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               myStepStatus: myStep?.hasApproved ? 'approved' : (myStep?.hasRejected ? 'rejected' : 'pending'),
               approvedDate: myStep?.hasApproved ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
               rejectedDate: myStep?.hasRejected ? new Date(myStep.actionTimestamp * 1000).toLocaleDateString() : null,
-              rejectionReason: myStep?.reason || ''
+              rejectionReason: myStep?.reason || '',
+              verificationCode: req.verificationCode,
+              stampedIpfsHash: req.stampedDocumentIpfsHash,
+              stampedAt: req.stampedAt
             };
           });
           setIncomingRequests(transformedRequests);
@@ -1535,7 +1543,10 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
               pendingWith: steps.filter(s => !s.hasApproved && !s.hasRejected).map(s => s.approverRole || 'Unknown'),
               recipients: recipientNames,
               currentVersion: req.stampedDocumentIpfsHash ? 'v2.0 (Certified)' : (req.version || 'v1.0'),
-              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash, status: req.status?.toLowerCase() }]
+              versions: [{ version: req.version || 'v1.0', date: req.createdAt, hash: req.documentIpfsHash, status: req.status?.toLowerCase() }],
+              verificationCode: req.verificationCode,
+              stampedIpfsHash: req.stampedDocumentIpfsHash,
+              stampedAt: req.stampedAt
             };
           });
           setSentRequests(transformedSentRequests);
