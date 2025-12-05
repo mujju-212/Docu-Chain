@@ -10,10 +10,12 @@ const normalizeApiUrl = (url) => {
   if (!normalized.includes('localhost') && !normalized.includes('127.0.0.1')) {
     normalized = normalized.replace(/^http:\/\//i, 'https://');
   }
+  console.log('🔗 API URL normalized:', { original: url, normalized });
   return normalized;
 };
 
 export const API_URL = normalizeApiUrl(process.env.REACT_APP_API_URL);
+console.log('🌐 Final API_URL:', API_URL);
 
 // Create axios instance
 const api = axios.create({
