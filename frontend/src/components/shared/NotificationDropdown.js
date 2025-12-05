@@ -16,11 +16,15 @@ const NotificationDropdown = () => {
 
     try {
       setLoading(true);
+      const notifUrl = `${API_URL}/notifications?limit=10`;
+      const countUrl = `${API_URL}/notifications/count`;
+      console.log('🔔 NotificationDropdown fetching:', { API_URL, notifUrl, countUrl });
+      
       const [notifRes, countRes] = await Promise.all([
-        fetch(`${API_URL}/notifications?limit=10`, {
+        fetch(notifUrl, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch(`${API_URL}/notifications/count`, {
+        fetch(countUrl, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
