@@ -4,15 +4,14 @@
  */
 
 import axios from 'axios';
+import { API_URL } from './api';
 import blockchainService from './blockchainSimpleService.js';
 import pinataService from './pinataService.js';
 
 class HybridFileManagerService {
   constructor() {
-    // Use environment variable for API URL, fallback to localhost for development
-    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
     // Remove /api suffix since we append it in the calls
-    this.apiBaseUrl = apiUrl.replace(/\/api\/?$/, '');
+    this.apiBaseUrl = API_URL.replace(/\/api\/?$/, '');
     this.isInitialized = false;
     this.userAccount = null;
     this.authToken = null;

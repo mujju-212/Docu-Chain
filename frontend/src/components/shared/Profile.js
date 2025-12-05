@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { API_URL } from '../../services/api';
 import './Profile.css';
 
 const Profile = ({ isOpen, onClose }) => {
@@ -20,8 +21,6 @@ const Profile = ({ isOpen, onClose }) => {
     shares: 0,
     activities: 0
   });
-
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   // Fetch profile data
   const fetchProfileData = useCallback(async () => {

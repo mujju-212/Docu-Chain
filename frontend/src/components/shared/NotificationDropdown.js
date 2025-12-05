@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { API_URL } from '../../services/api';
 import './NotificationDropdown.css';
 
 const NotificationDropdown = () => {
@@ -7,8 +8,6 @@ const NotificationDropdown = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef(null);
-  
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {

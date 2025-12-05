@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { API_URL } from '../services/api';
 import '../pages/auth/auth.css';
 
 function Register() {
@@ -115,7 +116,7 @@ function Register() {
     try {
       setLoadingInstitutions(true);
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/institutions/list`, {
+      const response = await fetch(`${API_URL}/institutions/list`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -165,7 +166,7 @@ function Register() {
       setEmailVerificationLoading(true);
       setEmailVerificationError('');
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/send-email-verification`, {
+      const response = await fetch(`${API_URL}/auth/send-email-verification`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -207,7 +208,7 @@ function Register() {
       setOtpVerificationLoading(true);
       setEmailVerificationError('');
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/verify-email-otp`, {
+      const response = await fetch(`${API_URL}/auth/verify-email-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -243,7 +244,7 @@ function Register() {
 
     try {
       setLoadingDepartments(true);
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/institutions/${institutionId}/departments`);
+      const response = await fetch(`${API_URL}/institutions/${institutionId}/departments`);
       const data = await response.json();
       
       if (data.success) {
@@ -266,7 +267,7 @@ function Register() {
 
     try {
       setLoadingSections(true);
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/institutions/departments/${departmentId}/sections`);
+      const response = await fetch(`${API_URL}/institutions/departments/${departmentId}/sections`);
       const data = await response.json();
       
       if (data.success) {
@@ -422,7 +423,8 @@ function Register() {
       if (!formData.institutionId) errors.push("Please select an institution.");
       if (!formData.department) errors.push("Please select a department.");
     } else if (role === 'admin') {
-      if (!isAlphabetic(formData.adminFullName)) errors.push("Full name must only contain letters and spaces.");
+      if (!isAlphabetic(formData.adminFirstName)) errors.push("First name must only contain letters and spaces.");
+      if (!isAlphabetic(formData.adminLastName)) errors.push("Last name must only contain letters and spaces.");
       if (!isAlphaNumeric(formData.adminId)) errors.push("Admin ID must be alphanumeric.");
       if (!formData.institutionId) errors.push("Please select an institution.");
     }
@@ -561,7 +563,7 @@ function Register() {
       setEmailVerificationLoading(true);
       setError('');
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/send-email-verification`, {
+      const response = await fetch(`${API_URL}/auth/send-email-verification`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -603,7 +605,7 @@ function Register() {
       setAdminEmailVerificationLoading(true);
       setError('');
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/send-email-verification`, {
+      const response = await fetch(`${API_URL}/auth/send-email-verification`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -643,7 +645,7 @@ function Register() {
       setAdminEmailVerificationLoading(true);
       setError('');
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/verify-email-otp`, {
+      const response = await fetch(`${API_URL}/auth/verify-email-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -736,7 +738,7 @@ function Register() {
         adminPassword: formData.institutionAdminPassword
       };
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/institutions/create-with-admin`, {
+      const response = await fetch(`${API_URL}/institutions/create-with-admin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

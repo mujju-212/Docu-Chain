@@ -85,6 +85,10 @@ Thumbs.db
 # ===========================================
 logs/
 *.log
+azure_logs/
+azure_logs.zip
+azure_app_logs/
+azure_app_logs.zip
 
 # ===========================================
 # Testing

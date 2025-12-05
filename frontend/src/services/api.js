@@ -1,7 +1,19 @@
 import axios from 'axios'
 // import toast from 'react-hot-toast' // Temporarily disabled
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api'
+// Normalize API URL - ensure HTTPS in production and remove trailing slashes
+const normalizeApiUrl = (url) => {
+  let normalized = url || 'http://localhost:5000/api';
+  // Remove trailing slashes
+  normalized = normalized.replace(/\/+$/, '');
+  // Force HTTPS in production (when not localhost)
+  if (!normalized.includes('localhost') && !normalized.includes('127.0.0.1')) {
+    normalized = normalized.replace(/^http:\/\//i, 'https://');
+  }
+  return normalized;
+};
+
+export const API_URL = normalizeApiUrl(process.env.REACT_APP_API_URL);
 
 // Create axios instance
 const api = axios.create({

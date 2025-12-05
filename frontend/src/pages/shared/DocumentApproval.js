@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_URL as BASE_API_URL } from '../../services/api';
 import './DocumentApproval.css';
 import TransactionLoader from '../../components/shared/TransactionLoader';
 import {
@@ -163,7 +164,7 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
   const [currentDraftId, setCurrentDraftId] = useState(null);
 
   // API Configuration - Remove /api suffix since we add it in calls
-  const API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+  const API_URL = BASE_API_URL.replace(/\/api\/?$/, '');
   const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${localStorage.getItem('token')}`

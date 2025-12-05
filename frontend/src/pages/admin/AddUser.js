@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { API_URL } from '../../services/api';
 import './AddUser.css';
 
 const AddUser = () => {
@@ -33,8 +34,6 @@ const AddUser = () => {
     password: false,
     confirmPassword: false
   });
-
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   // Fetch departments when component mounts (using currentUser's institution)
   useEffect(() => {

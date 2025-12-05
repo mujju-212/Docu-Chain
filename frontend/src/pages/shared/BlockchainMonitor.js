@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
+import { API_URL } from '../../services/api';
 import './BlockchainMonitor.css';
 
 const BlockchainMonitor = ({ userRole = 'student' }) => {
@@ -98,7 +99,7 @@ const BlockchainMonitor = ({ userRole = 'student' }) => {
   const updateWalletBalance = async (address, balanceWei, balanceEth) => {
     try {
       const token = localStorage.getItem('token');
-      await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/blockchain/update-balance`, {
+      await fetch(`${API_URL}/blockchain/update-balance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -120,7 +121,7 @@ const BlockchainMonitor = ({ userRole = 'student' }) => {
     try {
       setStatsLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/blockchain/wallet-stats`, {
+      const response = await fetch(`${API_URL}/blockchain/wallet-stats`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -159,7 +160,7 @@ const BlockchainMonitor = ({ userRole = 'student' }) => {
       if (filters.search) params.append('search', filters.search);
       
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/blockchain/transactions?${params}`,
+        `${API_URL}/blockchain/transactions?${params}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -189,7 +190,7 @@ const BlockchainMonitor = ({ userRole = 'student' }) => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/blockchain/admin/analytics`, {
+      const response = await fetch(`${API_URL}/blockchain/admin/analytics`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -216,7 +217,7 @@ const BlockchainMonitor = ({ userRole = 'student' }) => {
       if (filters.dateTo) params.append('date_to', filters.dateTo);
       
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/blockchain/export?${params}`,
+        `${API_URL}/blockchain/export?${params}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`

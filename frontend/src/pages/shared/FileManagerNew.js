@@ -5,11 +5,9 @@ import { useWallet } from '../../contexts/WalletContext';
 import hybridFileManagerService from '../../services/hybridFileManagerService';
 import blockchainServiceV2 from '../../services/blockchainServiceV2';
 import pinataService from '../../services/pinataService';
-import { toggleStarDocument, toggleStarFolder, getStarredDocuments, getStarredFolders, getRecentActivities, addRecentActivity as addRecentActivityAPI } from '../../services/api';
+import { API_URL, toggleStarDocument, toggleStarFolder, getStarredDocuments, getStarredFolders, getRecentActivities, addRecentActivity as addRecentActivityAPI } from '../../services/api';
 import TransactionLoader from '../../components/shared/TransactionLoader';
 import './FileManagerNew.css';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const FileManager = () => {
   const { currentTheme } = useTheme();

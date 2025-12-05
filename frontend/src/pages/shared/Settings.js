@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { API_URL } from '../../services/api';
 import ThemeSelector from '../../components/common/ThemeSelector';
 import './Settings.css';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 export default function Settings() {
   const { user, updateUser } = useAuth();

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { io } from 'socket.io-client';
 import blockchainServiceV2 from '../../services/blockchainServiceV2';
+import { API_URL } from '../../services/api';
 import {
     requestApprovalOnBlockchain,
     approveDocumentOnBlockchain,
@@ -12,9 +13,8 @@ import {
 import Web3 from 'web3';
 import './ChatInterface.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 // For socket, remove /api suffix
-const SOCKET_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+const SOCKET_URL = API_URL.replace(/\/api\/?$/, '');
 
 // Helper function to format timestamp properly with local timezone
 const formatMessageTime = (timestamp) => {

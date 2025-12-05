@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { API_URL } from '../../services/api';
 import './VerifyDocument.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 const PINATA_GATEWAY = 'https://gateway.pinata.cloud/ipfs/';
 
 export default function VerifyDocument() {

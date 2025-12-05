@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_URL } from '../../services/api';
 import './AccountRequests.css';
 
 const AccountRequests = () => {
@@ -32,8 +33,6 @@ const AccountRequests = () => {
     rejected: 0,
     thisWeek: 0
   });
-
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   // Fetch all account requests
   const fetchRequests = useCallback(async () => {

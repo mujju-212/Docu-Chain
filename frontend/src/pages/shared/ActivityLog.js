@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_URL } from '../../services/api';
 import './ActivityLog.css';
 
 const ActivityLog = ({ userRole = 'student' }) => {
@@ -87,7 +88,7 @@ const ActivityLog = ({ userRole = 'student' }) => {
     try {
       setStatsLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/activity-logs/stats`, {
+      const response = await fetch(`${API_URL}/activity-logs/stats`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -123,7 +124,7 @@ const ActivityLog = ({ userRole = 'student' }) => {
       if (filters.dateTo) params.append('date_to', filters.dateTo);
       if (filters.search) params.append('search', filters.search);
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/activity-logs/?${params}`, {
+      const response = await fetch(`${API_URL}/activity-logs/?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -158,7 +159,7 @@ const ActivityLog = ({ userRole = 'student' }) => {
       if (filters.dateFrom) params.append('date_from', filters.dateFrom);
       if (filters.dateTo) params.append('date_to', filters.dateTo);
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/activity-logs/export?${params}`, {
+      const response = await fetch(`${API_URL}/activity-logs/export?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

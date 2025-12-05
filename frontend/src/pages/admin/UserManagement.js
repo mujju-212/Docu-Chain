@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_URL } from '../../services/api';
 import './UserManagement.css';
 
 const UserManagement = () => {
@@ -46,8 +47,6 @@ const UserManagement = () => {
     suspended: 0,
     newThisWeek: 0
   });
-
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   // Fetch all users
   const fetchUsers = useCallback(async () => {

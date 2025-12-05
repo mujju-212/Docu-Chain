@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { API_URL } from '../../services/api';
 import './InstitutionManagement.css';
 
 const InstitutionManagement = () => {
@@ -39,8 +40,6 @@ const InstitutionManagement = () => {
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmTitle, setConfirmTitle] = useState('');
-
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   const institutionTypes = [
     { value: 'university', label: 'University' },

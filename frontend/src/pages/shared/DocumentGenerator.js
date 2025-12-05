@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_URL as BASE_API_URL } from '../../services/api';
 import './DocumentGenerator.css';
 import TransactionLoader from '../../components/shared/TransactionLoader';
 import pinataService from '../../services/pinataService';
@@ -6,7 +7,7 @@ import { connectWallet, uploadDocumentToBlockchain, isWalletConnected, getCurren
 import html2pdf from 'html2pdf.js';
 
 // Remove /api suffix since we add it in calls
-const API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+const API_URL = BASE_API_URL.replace(/\/api\/?$/, '');
 
 export default function DocumentGenerator() {
   // State

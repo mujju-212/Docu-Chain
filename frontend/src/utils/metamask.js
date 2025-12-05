@@ -1,6 +1,8 @@
 // MetaMask integration for DocuChain
 // Based on reference implementation from docuchain-project
 
+import { API_URL } from '../services/api';
+
 // Blockchain configuration - loaded from environment variables
 const SEPOLIA_CHAIN_ID = '0xaa36a7'; // 11155111 in hex
 
@@ -409,8 +411,7 @@ const updateWalletConnection = async () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
             
-            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-            const response = await fetch(`${apiUrl}/users/profile`, {
+            const response = await fetch(`${API_URL}/users/profile`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { API_URL } from '../services/api';
 import '../pages/auth/auth.css';
 
 function Login() {
@@ -52,7 +53,7 @@ function Login() {
     try {
       setLoadingInstitutions(true);
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/institutions/list`, {
+      const response = await fetch(`${API_URL}/institutions/list`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

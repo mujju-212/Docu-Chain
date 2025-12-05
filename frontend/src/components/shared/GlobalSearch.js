@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { API_URL } from '../../services/api';
 import './GlobalSearch.css';
 
 const GlobalSearch = ({ onNavigate, onOpenChat, currentPage }) => {
@@ -11,8 +12,6 @@ const GlobalSearch = ({ onNavigate, onOpenChat, currentPage }) => {
   const searchRef = useRef(null);
   const inputRef = useRef(null);
   const resultsRef = useRef(null);
-
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   // Close dropdown when clicking outside
   useEffect(() => {

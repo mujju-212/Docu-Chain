@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { WalletProvider, useWallet } from '../../contexts/WalletContext';
+import { API_URL } from '../../services/api';
 import Settings from '../shared/Settings';
 import FileManager from '../shared/FileManagerNew';
 import ChatInterface from '../shared/ChatInterface';
@@ -35,8 +36,6 @@ const StudentDashboard = () => {
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
-
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   // Fetch dashboard stats
   const fetchDashboardStats = useCallback(async () => {
