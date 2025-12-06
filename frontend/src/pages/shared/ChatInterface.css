@@ -1,5 +1,22 @@
 /* Chat Interface Styles with Theme Support */
 
+/* =====================================================
+   BASE FALLBACK VARIABLES (Immediate Load Protection)
+   These ensure content is visible before theme class loads
+   Note: --g-* variables come from ThemeContext, don't override them!
+   ===================================================== */
+:root {
+    /* Layout fallback values - NOT theme colors */
+    --surface: #ffffff;
+    --bg: #edf2f7;
+    --bg-2: #e9eff6;
+    --text: #0f172a;
+    --muted: #64748b;
+    --line: #e6ebf2;
+    --icon: #94a3b8;
+    /* --g-* variables are set by ThemeContext dynamically */
+}
+
 /* Chat Interface Wrapper */
 .chat-interface-wrapper {
     width: 100%;
@@ -9,7 +26,10 @@
     display: flex;
     flex-direction: column;
     flex: 1;
-    background: var(--surface);
+    background: var(--surface, #ffffff);
+    /* Ensure immediate visibility */
+    visibility: visible;
+    opacity: 1;
 }
 
 /* Light Theme Variables */
@@ -21,14 +41,7 @@
     --text: #0f172a;
     --muted: #64748b;
     --icon: #94a3b8;
-    --g-900: #0a3f2f;
-    --g-800: #0e5842;
-    --g-700: #11684f;
-    --g-600: #13815f;
-    --g-500: #18a36f;
-    --g-400: #23bd7c;
-    --g-300: #88e2b9;
-    --g-200: #c9f3e1;
+    /* --g-* colors are inherited from global theme set by ThemeContext */
     --g-500-rgb: 24, 163, 111;
     --warning: #f59e0b;
     --info: #3b82f6;
@@ -49,14 +62,7 @@
     --text: #f1f5f9;
     --muted: #94a3b8;
     --icon: #64748b;
-    --g-900: #0a3f2f;
-    --g-800: #0e5842;
-    --g-700: #11684f;
-    --g-600: #13815f;
-    --g-500: #18a36f;
-    --g-400: #23bd7c;
-    --g-300: #88e2b9;
-    --g-200: #c9f3e1;
+    /* --g-* colors are inherited from global theme set by ThemeContext */
     --g-500-rgb: 24, 163, 111;
     --warning: #f59e0b;
     --info: #3b82f6;
@@ -116,7 +122,8 @@ body.modal-open {
     height: 100%;
     width: 100% !important;
     max-width: 100% !important;
-    background: var(--surface);
+    background: var(--surface, #ffffff);
+    background-color: #ffffff; /* Fallback for immediate load */
     overflow: hidden !important;
     position: relative;
     margin: 0 !important;
@@ -125,6 +132,9 @@ body.modal-open {
     isolation: isolate;
     box-sizing: border-box !important;
     left: 0 !important;
+    /* Ensure immediate visibility */
+    visibility: visible;
+    opacity: 1;
 }
 
 /* Chat Sidebar Styles */
@@ -132,8 +142,9 @@ body.modal-open {
     width: 320px;
     min-width: 320px;
     max-width: 320px;
-    background: var(--bg-2);
-    border-right: 1px solid var(--line);
+    background: var(--bg-2, #e9eff6);
+    background-color: #e9eff6; /* Fallback for immediate load */
+    border-right: 1px solid var(--line, #e6ebf2);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
@@ -141,6 +152,29 @@ body.modal-open {
     overflow: hidden;
     position: relative;
     z-index: 10;
+    /* Ensure immediate visibility */
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Mobile: Sidebar as full-width overlay (like WhatsApp conversation list) */
+@media screen and (max-width: 768px) {
+    .chat-sidebar {
+        position: fixed;
+        top: 60px;
+        left: 0;
+        right: 0;
+        bottom: 70px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 100%;
+        z-index: 200;
+        transform: translateX(0);
+        background-color: #ffffff;
+    }
+    .chat-sidebar.mobile-hidden {
+        transform: translateX(-100%);
+    }
 }
 
 /* Chat Area Styles */
@@ -148,12 +182,28 @@ body.modal-open {
     flex: 1 1 0 !important;
     display: flex;
     flex-direction: column;
-    background: var(--surface);
+    background: var(--surface, #ffffff);
+    background-color: #ffffff; /* Fallback for immediate load */
     overflow: hidden !important;
     position: relative;
     height: 100%;
     min-width: 0 !important;
     z-index: 1;
+    /* Ensure immediate visibility */
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Mobile: Hide chat-area by default so sidebar shows (like WhatsApp) */
+@media screen and (max-width: 768px) {
+    .chat-area {
+        transform: translateX(100%);
+        position: fixed;
+        z-index: 100;
+    }
+    .chat-area.mobile-full {
+        transform: translateX(0);
+    }
 }
 
 .chat-header {
@@ -558,9 +608,13 @@ body.modal-open {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    background: var(--surface);
+    background: var(--surface, #ffffff);
+    background-color: #ffffff; /* Fallback for immediate load */
     min-height: 0;
     overscroll-behavior: contain;
+    /* Ensure immediate visibility */
+    visibility: visible;
+    opacity: 1;
 }
 
 /* Smooth fade-in for conversation items on tab switch */
@@ -618,12 +672,16 @@ body.modal-open {
 
 .conversation-item {
     padding: 18px 20px;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--line, #e6ebf2);
     cursor: pointer;
     transition: var(--transition);
-    background: var(--surface);
+    background: var(--surface, #ffffff);
+    background-color: #ffffff; /* Fallback for immediate load */
     position: relative;
     will-change: background-color;
+    /* Ensure immediate visibility */
+    visibility: visible;
+    opacity: 1;
 }
 
 .conversation-item:focus {
@@ -2642,38 +2700,9 @@ body.modal-open {
     }
 }
 
+/* Mobile styles are handled by ChatInterface.mobile.css */
+/* Only minimal, non-conflicting overrides here */
 @media (max-width: 768px) {
-    .chat-container {
-        margin: 0;
-        border-radius: 0;
-        height: 100vh;
-        height: 100dvh;
-    }
-
-    .chat-sidebar {
-        width: 100%;
-        position: absolute;
-        z-index: 10;
-        height: 100%;
-        transform: translateX(0);
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        animation: slideInFromLeft 0.3s ease-out;
-    }
-
-    .chat-sidebar.mobile-hidden {
-        transform: translateX(-100%);
-        animation: none;
-    }
-
-    .chat-area {
-        width: 100%;
-        animation: slideInFromRight 0.3s ease-out;
-    }
-
-    .chat-area.mobile-full {
-        width: 100%;
-    }
-
     .document-grid {
         grid-template-columns: 1fr;
     }
@@ -2690,170 +2719,24 @@ body.modal-open {
         flex-direction: column-reverse;
     }
 
-    .btn-secondary,
-    .btn-primary {
-        width: 100%;
-        justify-content: center;
-    }
-
     .share-options {
         flex-direction: column;
     }
-
-    .conversation-item {
-        padding: 16px 20px;
-    }
-
-    .user-info {
-        padding: 16px 20px;
-    }
-
-    .search-container {
-        padding: 12px 20px;
-    }
-
-    .create-group-btn {
-        margin: 16px 20px;
-    }
 }
 
+/* 480px and smaller styles are handled by ChatInterface.mobile.css */
 @media (max-width: 480px) {
-    .conversation-content {
-        gap: 8px;
-    }
-
-    .conversation-avatar {
-        width: 40px;
-        height: 40px;
-    }
-
-    .chat-avatar,
-    .user-avatar {
-        width: 40px;
-        height: 40px;
-        font-size: 16px;
-    }
-
-    .message-bubble {
-        max-width: 85%;
-        padding: 12px 16px;
-    }
-
-    .document-attachment {
-        padding: 12px;
-    }
-
-    .document-actions {
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .document-action-btn {
-        justify-content: center;
-        width: 100%;
-    }
-
-    .chat-header {
-        padding: 12px 16px;
-        min-height: 56px;
-    }
-
-    .messages-container {
-        padding: 12px;
-        gap: 12px;
-    }
-
-    .message-input-container {
-        padding: 12px 16px;
-    }
-
-    .message-input {
-        gap: 8px;
-    }
-
-    .attachment-btn,
-    .send-btn {
-        width: 36px;
-        height: 36px;
-    }
-
     .modal-content,
     .document-selection-content {
         padding: 16px;
         margin: 8px;
         border-radius: 16px;
     }
-
-    .sidebar-header {
-        padding: 20px 16px;
-    }
-
-    .sidebar-header h2 {
-        font-size: 20px;
-    }
-
-    .blockchain-badge {
-        font-size: 12px;
-        padding: 4px 8px;
-    }
-
-    .user-info {
-        padding: 16px;
-    }
-
-    .user-avatar {
-        width: 44px;
-        height: 44px;
-        font-size: 18px;
-    }
-
-    .search-container {
-        padding: 12px 16px;
-    }
-
-    .tab {
-        padding: 12px 16px;
-        font-size: 11px;
-    }
-
-    .conversation-item {
-        padding: 14px 16px;
-    }
-
-    .create-group-btn {
-        margin: 12px 16px;
-        padding: 10px 14px;
-    }
 }
 
 @media (max-width: 360px) {
-    .conversation-name {
-        font-size: 14px;
-    }
-
-    .conversation-message {
-        font-size: 12px;
-    }
-
-    .message-bubble {
-        padding: 10px 14px;
-    }
-
-    .document-attachment {
-        padding: 10px;
-    }
-
     .document-name {
         font-size: 13px;
-    }
-
-    .document-actions {
-        gap: 4px;
-    }
-
-    .document-action-btn {
-        padding: 6px 10px;
-        font-size: 11px;
     }
 }
 
@@ -3679,13 +3562,19 @@ input:invalid:focus {
     align-items: center;
     justify-content: center;
     height: 100%;
+    min-height: 200px; /* Fallback minimum height */
     gap: 16px;
-    color: var(--muted);
+    color: var(--muted, #64748b);
+    background: var(--surface, #ffffff);
+    background-color: #ffffff; /* Fallback for immediate load */
+    /* Ensure immediate visibility */
+    visibility: visible;
+    opacity: 1;
 }
 
 .loading-state i {
     font-size: 32px;
-    color: var(--g-500);
+    color: var(--g-500, #18a36f);
 }
 
 .spin {

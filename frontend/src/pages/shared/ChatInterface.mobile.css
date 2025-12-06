@@ -25,6 +25,110 @@
    ===================================================== */
 
 /* =====================================================
+   CRITICAL CSS - IMMEDIATE VISIBILITY (Before main media query)
+   These styles ensure content is visible immediately on load
+   ===================================================== */
+@media screen and (max-width: 768px) {
+  /* =====================================================
+     MOBILE PAGE-BASED NAVIGATION
+     - Conversations Page: Full screen when no chat selected
+     - Chat Page: Full screen when chat is selected
+     ===================================================== */
+  
+  /* Base visibility for all elements */
+  .chat-interface-wrapper,
+  .chat-container {
+    visibility: visible !important;
+    opacity: 1 !important;
+    background-color: #ffffff !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  /* CONVERSATIONS PAGE - Full screen list */
+  .chat-sidebar {
+    position: fixed !important;
+    top: 60px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 70px !important;
+    width: 100% !important;
+    height: calc(100vh - 60px - 70px) !important;
+    z-index: 200 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background-color: #ffffff !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  
+  /* Hide conversations page when chat is selected */
+  .chat-sidebar.mobile-hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  
+  /* CHAT PAGE - Full screen chat */
+  .chat-area {
+    position: fixed !important;
+    top: 60px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 70px !important;
+    width: 100% !important;
+    height: calc(100vh - 60px - 70px) !important;
+    z-index: 100 !important;
+    display: none !important;
+    flex-direction: column !important;
+    background-color: #ffffff !important;
+    transform: none !important;
+  }
+  
+  /* Show chat page when a chat is selected */
+  .chat-area.mobile-visible {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 300 !important;
+  }
+  
+  /* Ensure sidebar header is visible */
+  .chat-sidebar-header {
+    background: linear-gradient(135deg, var(--g-700, #11684f), var(--g-500, #18a36f)) !important;
+    color: white !important;
+    display: flex !important;
+    visibility: visible !important;
+  }
+  
+  .chat-sidebar-header h2,
+  .chat-sidebar-header span {
+    color: white !important;
+    visibility: visible !important;
+  }
+  
+  /* Ensure conversations list is visible */
+  .conversations-list {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    background-color: #ffffff !important;
+  }
+  
+  .conversation-item {
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  .conversation-name,
+  .conversation-preview {
+    color: #0f172a !important;
+    visibility: visible !important;
+  }
+}
+
+/* =====================================================
    MOBILE BREAKPOINT (≤768px)
    ===================================================== */
 @media screen and (max-width: 768px) {
@@ -38,6 +142,27 @@
     --chat-header-height: 56px;
     --chat-input-height: 60px;
     --chat-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* -------------------------------------------------
+     FALLBACK THEME VARIABLES (Ensure visibility)
+     Note: --g-* variables come from ThemeContext, don't override them!
+     ------------------------------------------------- */
+  .chat-interface-wrapper {
+    /* Layout fallback values - NOT theme colors */
+    --bg: #edf2f7;
+    --bg-2: #e9eff6;
+    --surface: #ffffff;
+    --line: #e6ebf2;
+    --text: #0f172a;
+    --muted: #64748b;
+    --icon: #94a3b8;
+    /* --g-* variables are set by ThemeContext dynamically */
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --info: #3b82f6;
+    --shadow-soft: 0 4px 16px rgba(15,23,42,.06);
   }
 
   /* -------------------------------------------------
@@ -103,13 +228,14 @@
   }
 
   /* -------------------------------------------------
-     SIDEBAR AS SLIDE-OUT DRAWER
+     SIDEBAR AS FULL PAGE (Not drawer)
      ------------------------------------------------- */
   .chat-sidebar {
     position: fixed !important;
     top: 60px !important;
     top: var(--dashboard-header, 60px) !important;
     left: 0 !important;
+    right: 0 !important;
     bottom: 70px !important;
     bottom: var(--dashboard-bottom-nav, 70px) !important;
     
@@ -119,33 +245,34 @@
     height: calc(100vh - 60px - 70px) !important;
     height: calc(100vh - var(--dashboard-header, 60px) - var(--dashboard-bottom-nav, 70px)) !important;
     
-    background: var(--surface) !important;
+    background: var(--surface, #ffffff) !important;
+    background-color: #ffffff !important;
     border-right: none !important;
     
     z-index: 200 !important;
     
-    /* DEFAULT: Show sidebar (conversations list) - WhatsApp style */
-    transform: translateX(0) !important;
-    transition: transform var(--chat-transition) !important;
+    /* Page-based: no transform, use display */
+    transform: none !important;
     
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
-    
-    /* Will change for performance */
-    will-change: transform !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 
-  /* When a chat is selected, hide sidebar */
+  /* When a chat is selected, hide sidebar (page switch) */
   .chat-sidebar.mobile-hidden {
-    transform: translateX(-100%) !important;
+    display: none !important;
+    visibility: hidden !important;
   }
 
   /* Sidebar open state (for drawer toggle if needed) */
   .chat-sidebar.open,
   .chat-sidebar.mobile-open,
   .chat-container.sidebar-open .chat-sidebar {
-    transform: translateX(0) !important;
+    display: flex !important;
+    visibility: visible !important;
   }
 
   /* -------------------------------------------------
@@ -328,7 +455,7 @@
   }
 
   /* -------------------------------------------------
-     CHAT AREA (Full Width on Mobile)
+     CHAT AREA (Full Page on Mobile)
      ------------------------------------------------- */
   .chat-area {
     position: fixed !important;
@@ -343,25 +470,34 @@
     height: calc(100vh - 60px - 70px) !important;
     height: calc(100vh - var(--dashboard-header, 60px) - var(--dashboard-bottom-nav, 70px)) !important;
     
-    display: flex !important;
     flex-direction: column !important;
     
-    background: var(--surface) !important;
+    background: var(--surface, #ffffff) !important;
+    background-color: #ffffff !important;
     
     z-index: 100 !important;
     
     overflow: hidden !important;
     
-    /* DEFAULT: Hidden (sidebar/conversations visible instead) */
-    transform: translateX(100%) !important;
-    transition: transform var(--chat-transition) !important;
-    
-    will-change: transform !important;
+    /* DEFAULT: Hidden (page-based, use display) */
+    display: none !important;
+    transform: none !important;
   }
 
-  /* When sidebar is hidden, show chat area (full screen) */
+  /* When chat is selected, show chat area (full page) */
+  .chat-area.mobile-visible {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 300 !important;
+  }
+  
+  /* Legacy class support */
   .chat-area.mobile-full {
-    transform: translateX(0) !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 300 !important;
   }
 
   /* -------------------------------------------------
@@ -937,7 +1073,8 @@
     overflow-y: auto !important;
     overflow-x: hidden !important;
     
-    background: var(--surface) !important;
+    background: var(--surface, #ffffff) !important;
+    background-color: #ffffff !important;
     
     min-height: 0 !important;
   }
@@ -962,8 +1099,9 @@
     padding: 14px 16px !important;
     min-height: 72px !important;
     
-    background: var(--surface) !important;
-    border-bottom: 1px solid var(--line) !important;
+    background: var(--surface, #ffffff) !important;
+    background-color: #ffffff !important;
+    border-bottom: 1px solid var(--line, #e6ebf2) !important;
     
     cursor: pointer !important;
     position: relative !important;
@@ -972,7 +1110,7 @@
   }
 
   .conversation-item:active {
-    background: var(--bg-2) !important;
+    background: var(--bg-2, #e9eff6) !important;
   }
 
   .conversation-item.active {
@@ -1067,7 +1205,7 @@
   .conversation-name {
     font-size: 15px !important;
     font-weight: 600 !important;
-    color: var(--text) !important;
+    color: var(--text, #0f172a) !important;
     
     overflow: hidden !important;
     text-overflow: ellipsis !important;
@@ -10683,4 +10821,96 @@
     border: 1px solid #ddd !important;
   }
 
+}
+
+/* =====================================================
+   FINAL OVERRIDE - PAGE-BASED MOBILE NAVIGATION
+   This MUST be at the very end to override all other styles
+   ===================================================== */
+@media screen and (max-width: 768px) {
+  /* CONVERSATIONS PAGE - Full screen */
+  .chat-interface-wrapper .chat-container .chat-sidebar {
+    position: fixed !important;
+    top: 60px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 70px !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 100vw !important;
+    height: calc(100vh - 60px - 70px) !important;
+    z-index: 500 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background-color: #ffffff !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: none !important;
+    overflow-y: auto !important;
+  }
+  
+  /* Hide conversations page when chat selected */
+  .chat-interface-wrapper .chat-container .chat-sidebar.mobile-hidden {
+    display: none !important;
+    visibility: hidden !important;
+    z-index: -1 !important;
+  }
+  
+  /* CHAT PAGE - Full screen */
+  .chat-interface-wrapper .chat-container .chat-area {
+    position: fixed !important;
+    top: 60px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 70px !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: calc(100vh - 60px - 70px) !important;
+    z-index: 100 !important;
+    display: none !important;
+    flex-direction: column !important;
+    background-color: #ffffff !important;
+    transform: none !important;
+  }
+  
+  /* Show chat page when selected */
+  .chat-interface-wrapper .chat-container .chat-area.mobile-visible {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 600 !important;
+  }
+  
+  /* Show circulars feed when View Feed button is clicked */
+  .chat-interface-wrapper .chat-container .chat-area.mobile-feed-visible {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 600 !important;
+  }
+  
+  /* Hide sidebar when circulars feed is visible */
+  .chat-interface-wrapper .chat-container .chat-sidebar:has(~ .chat-area.mobile-feed-visible) {
+    display: none !important;
+  }
+  
+  /* Ensure conversations list is visible */
+  .chat-interface-wrapper .chat-container .chat-sidebar .conversations-list {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    flex: 1 !important;
+    overflow-y: auto !important;
+    background-color: #ffffff !important;
+  }
+  
+  /* Ensure conversation items are visible */
+  .chat-interface-wrapper .chat-container .chat-sidebar .conversation-item {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #e0e0e0 !important;
+    padding: 12px 16px !important;
+  }
 }

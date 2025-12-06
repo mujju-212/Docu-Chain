@@ -124,7 +124,11 @@ const formatLastSeen = (timestamp) => {
 };
 
 const ChatInterface = () => {
-    const { theme } = useTheme();
+    const { currentTheme } = useTheme();
+    // The theme context provides color themes (green, blue, etc.)
+    // ChatInterface CSS uses theme-light/theme-dark for mode
+    // Default to 'light' mode for now
+    const theme = 'light';
     
     // Get current user from localStorage - try multiple sources
     const [currentUser, setCurrentUser] = useState(() => {
@@ -232,7 +236,15 @@ const ChatInterface = () => {
     const [isDocumentSelectionModalOpen, setIsDocumentSelectionModalOpen] = useState(false);
     const [description, setDescription] = useState('');
     const [selectedMembers, setSelectedMembers] = useState([]);
-    const [isMobileSidebarHidden, setIsMobileSidebarHidden] = useState(false);
+    const [isMobileSidebarHidden, setIsMobileSidebarHidden] = useState(() => {
+        // Initialize based on screen size - on mobile, start with sidebar visible (no chat selected)
+        if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+            // Check if there's a cached selected chat
+            const cachedChat = sessionStorage.getItem('chat_selectedChat');
+            return cachedChat ? true : false;
+        }
+        return false;
+    });
     const [showMobileCircularsFeed, setShowMobileCircularsFeed] = useState(false);
     
     // New State for enhanced features
@@ -409,7 +421,31 @@ const ChatInterface = () => {
     useEffect(() => {
         if (selectedChat) {
             sessionStorage.setItem('chat_selectedChat', selectedChat.toString());
+        } else {
+            sessionStorage.removeItem('chat_selectedChat');
         }
+    }, [selectedChat]);
+    
+    // Sync mobile sidebar state with selectedChat and window resize
+    useEffect(() => {
+        const handleResize = () => {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile && selectedChat) {
+                // On mobile with a selected chat, hide sidebar to show chat area
+                setIsMobileSidebarHidden(true);
+            } else if (isMobile && !selectedChat) {
+                // On mobile with no selected chat, show sidebar (conversation list)
+                setIsMobileSidebarHidden(false);
+            }
+            // On desktop, sidebar is always visible (handled by CSS)
+        };
+        
+        // Run on mount and when selectedChat changes
+        handleResize();
+        
+        // Listen for resize events
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, [selectedChat]);
     
     // Cache activeTab when it changes
@@ -3651,11 +3687,11 @@ const ChatInterface = () => {
 
     if (loading) {
         return (
-            <div className={`chat-interface-wrapper theme-${theme}`}>
-                <div className="chat-container">
-                    <div className="loading-state">
-                        <i className="ri-loader-4-line spin"></i>
-                        <p>Loading conversations...</p>
+            <div className={`chat-interface-wrapper theme-${theme}`} style={{ visibility: 'visible', opacity: 1, backgroundColor: '#ffffff' }}>
+                <div className="chat-container" style={{ visibility: 'visible', opacity: 1, backgroundColor: '#ffffff' }}>
+                    <div className="loading-state" style={{ visibility: 'visible', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', minHeight: '200px' }}>
+                        <i className="ri-loader-4-line spin" style={{ fontSize: '2rem', color: '#18a36f' }}></i>
+                        <p style={{ color: '#0f172a', marginTop: '1rem' }}>Loading conversations...</p>
                         <small style={{color: '#999', marginTop: '10px'}}>
                             Token: {localStorage.getItem('token') ? '✓' : '✗'} | 
                             User: {localStorage.getItem('user') ? '✓' : '✗'}
@@ -3668,12 +3704,17 @@ const ChatInterface = () => {
 
     // Debug log for render
     console.log('🎨 Rendering ChatInterface - conversations:', conversations.length, 'activeTab:', activeTab);
+    
+    // Mobile view detection
+    const isMobileView = typeof window !== 'undefined' && window.innerWidth <= 768;
 
     return (
-        <div className={`chat-interface-wrapper theme-${theme}`}>
+        <div className={`chat-interface-wrapper theme-${theme}`} data-mobile={isMobileView} data-chat-selected={!!selectedChat}>
             <div className="chat-container">
-                {/* Chat Sidebar */}
-                <div className={`chat-sidebar ${isMobileSidebarHidden ? 'mobile-hidden' : ''}`}>
+                {/* Chat Sidebar / Conversations Page */}
+                <div 
+                    className={`chat-sidebar ${selectedChat || showMobileCircularsFeed ? 'mobile-hidden' : ''}`}
+                >
                     {/* Header */}
                     <div className="chat-sidebar-header">
                         <h2>DocuChain Messenger</h2>
@@ -3953,7 +3994,7 @@ const ChatInterface = () => {
                 </div>
 
                 {/* Chat Area */}
-                <div className={`chat-area ${isMobileSidebarHidden ? 'mobile-full' : ''} ${activeTab === 'circulars' && showMobileCircularsFeed ? 'mobile-feed-visible' : ''}`}>
+                <div className={`chat-area ${selectedChat ? 'mobile-visible' : ''} ${activeTab === 'circulars' && showMobileCircularsFeed ? 'mobile-feed-visible' : ''}`}>
                     {activeTab === 'circulars' ? (
                         /* Enhanced Circulars Feed with Create/View Tabs */
                         <div className="circulars-main-feed">
