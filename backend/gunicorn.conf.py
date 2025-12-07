@@ -1,6 +1,10 @@
 # Gunicorn Configuration for 50+ Concurrent Users
 # Optimized for Azure App Service B1 (1 vCPU, 1.75GB RAM)
 
+# CRITICAL: Monkey-patch MUST happen before any other imports
+import eventlet
+eventlet.monkey_patch()
+
 import multiprocessing
 
 # Bind to Azure's expected port

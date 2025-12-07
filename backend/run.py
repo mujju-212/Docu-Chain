@@ -1,3 +1,9 @@
+# Eventlet monkey-patching MUST be done before any other imports
+import os
+if os.getenv('FLASK_ENV') == 'production':
+    import eventlet
+    eventlet.monkey_patch()
+
 from app import create_app, socketio, db
 from dotenv import load_dotenv
 import os

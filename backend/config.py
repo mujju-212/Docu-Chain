@@ -5,20 +5,31 @@ from dotenv import load_dotenv
 # Load .env file at import time
 load_dotenv()
 
+# Check if running in production (eventlet mode)
+is_production = os.getenv('FLASK_ENV') == 'production'
+
 class Config:
     """Base configuration"""
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres:mk0492@localhost:5432/Docu-Chain')
     
-    # Connection Pool Settings for 50+ concurrent users
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_size': 10,           # Base connections to keep open
-        'pool_recycle': 300,       # Recycle connections after 5 minutes
-        'pool_pre_ping': True,     # Check if connection is alive before using
-        'max_overflow': 20,        # Extra connections if pool is full (total max: 30)
-        'pool_timeout': 30,        # Wait max 30 seconds for connection
-    }
+    # Connection Pool Settings
+    # Use NullPool in production with eventlet to avoid threading issues
+    if is_production:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
+            'pool_pre_ping': True,
+        }
+    else:
+        # Standard pool for development
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_size': 10,
+            'pool_recycle': 300,
+            'pool_pre_ping': True,
+            'max_overflow': 20,
+            'pool_timeout': 30,
+        }
     
     # JWT Configuration
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
