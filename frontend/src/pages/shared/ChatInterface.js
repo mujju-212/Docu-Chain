@@ -727,22 +727,32 @@ const ChatInterface = () => {
 
     // Fetch user's documents for sharing (get ALL documents)
     const fetchDocuments = useCallback(async () => {
+        console.log('📄 Starting fetchDocuments...');
         setLoadingDocuments(true);
         try {
+            const headers = getAuthHeader();
+            console.log('📄 Auth headers:', headers.Authorization ? 'Token present' : 'No token');
+            
             const response = await fetch(`${API_URL}/documents?all=true`, {
-                headers: getAuthHeader()
+                headers: headers
             });
+            
+            console.log('📄 Documents response status:', response.status);
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('📄 Fetched documents:', data.documents?.length || 0);
-                setAvailableDocuments(data.documents || []);
+                console.log('📄 Fetched documents:', data.documents?.length || 0, data);
+                setAvailableDocuments(data.documents || data || []);
             } else {
-                console.error('❌ Failed to fetch documents:', response.status);
+                const errorText = await response.text();
+                console.error('❌ Failed to fetch documents:', response.status, errorText);
+                setAvailableDocuments([]);
             }
         } catch (error) {
             console.error('Error fetching documents:', error);
+            setAvailableDocuments([]);
         } finally {
+            console.log('📄 fetchDocuments complete, setting loadingDocuments to false');
             setLoadingDocuments(false);
         }
     }, [getAuthHeader]);

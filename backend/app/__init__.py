@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from flask_socketio import SocketIO
+from werkzeug.middleware.proxy_fix import ProxyFix
 from config import config
 import os
 
@@ -21,20 +22,37 @@ def create_app(config_name=None):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
     
+    # Fix for Azure/proxy HTTPS handling - prevents HTTP redirect issues
+    # This tells Flask to trust X-Forwarded-* headers from the Azure proxy
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+    
+    # Disable strict slashes to prevent redirect loops on Azure
+    app.url_map.strict_slashes = False
+    
     # Initialize extensions with app
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
     
-    # Setup CORS - Allow all origins during development
+    # Setup CORS - Allow all origins with proper headers for Azure
     CORS(app, resources={
         r"/api/*": {
-            "origins": "*",  # Allow all origins during development
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-            "supports_credentials": True
+            "origins": "*",
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+            "expose_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": False,  # Set to False when using "*" origins
+            "max_age": 3600
         }
     })
+    
+    # Add CORS headers to ALL responses (including errors and redirects)
+    @app.after_request
+    def add_cors_headers(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Origin'
+        return response
     
     # Determine async mode based on environment
     # Use 'eventlet' in production for high concurrency (50+ users)
