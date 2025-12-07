@@ -1,0 +1,64 @@
+# GitHub Actions workflow for deploying DocuChain Backend to Azure App Service
+# This workflow triggers on push to main branch (backend folder changes)
+
+name: Deploy Backend to Azure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/azure-backend-deploy.yml'
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  AZURE_WEBAPP_NAME: docu-chain-api
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Create virtual environment and install dependencies
+        working-directory: ./backend
+        run: |
+          python -m venv antenv
+          source antenv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Zip artifact for deployment
+        working-directory: ./backend
+        run: |
+          zip -r ../release.zip . -x "antenv/*" -x "__pycache__/*" -x "*.pyc" -x ".env"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-app
+          path: release.zip
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: python-app
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: release.zip
+
+      - name: Delete zip file
+        run: rm release.zip
