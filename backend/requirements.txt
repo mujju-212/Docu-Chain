@@ -19,4 +19,4 @@ reportlab==4.0.7
 gunicorn==21.2.0
 eventlet==0.33.3
 
-# Azure deployment
+# Azure deployment - trigger rebuild
