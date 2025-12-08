@@ -29,7 +29,7 @@ def get_user_from_token(token):
 
 
 @socketio.on('connect')
-def handle_connect():
+def handle_connect(auth=None):
     """Handle new socket connection"""
     token = request.args.get('token')
     if not token:
