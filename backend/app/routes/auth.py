@@ -649,10 +649,21 @@ def send_email_verification():
             }), 200
         else:
             # Email sending failed
-            print(f"[EMAIL WARNING] Failed to send email to {email}: {response}")
+            error_detail = str(response)
+            print(f"[EMAIL ERROR] Failed to send email to {email}: {error_detail}")
+            
+            # Provide helpful error messages
+            if 'API Key is not enabled' in error_detail or 'unauthorized' in error_detail:
+                message = 'Email service API key is disabled. Please contact administrator.'
+            elif 'api.sendinblue.com' in error_detail or 'Failed to resolve' in error_detail:
+                message = 'Email service connection error. API endpoint may need updating.'
+            else:
+                message = 'Failed to send verification email. Please try again.'
+            
             return jsonify({
                 'success': False, 
-                'message': 'Failed to send verification email. Please try again.'
+                'message': message,
+                'error': error_detail if os.getenv('FLASK_ENV') == 'development' else None
             }), 500
         
     except Exception as e:
