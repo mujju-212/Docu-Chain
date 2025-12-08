@@ -1,9 +1,0 @@
-<step title="Incoming Request" date="2025-12-04T12:37:50.466" instance="ead10c" url="/api/deployments/latest" method="GET" type="request" pid="772,1,19" Accept="*/*" Host="docu-chain-api.scm.azurewebsites.net" User-Agent="AZURECLI/2.81.0 (MSI)" Accept-Encoding="gzip, deflate" Authorization="Bea..." x-ms-client-request-id="e329d1a4-d10d-11f0-8224-44a3bbe38496" X-ARR-LOG-ID="e329d1a4-d10d-11f0-8224-44a3bbe38496" CLIENT-IP="124.40.247.145:57165" X-SITE-DEPLOYMENT-ID="docu-chain-api" WAS-DEFAULT-HOSTNAME="docu-chain-api.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/deployments/latest" X-Client-IP="124.40.247.145" X-Client-Port="57165" >
-  <step title="Cleanup Xml Logs" date="2025-12-04T12:37:50.476" /><!-- duration: 13ms -->
-  <step title="DeploymentService.GetResult" date="2025-12-04T12:37:50.629" >
-    <step title="DeploymentService.GetLatestDeployment" date="2025-12-04T12:37:50.638" >
-      <step title="DeploymentManager.GetResults" date="2025-12-04T12:37:50.643" /><!-- duration: 1616ms -->
-    </step><!-- duration: 1701ms -->
-  </step><!-- duration: 1779ms -->
-  <step title="Outgoing response" date="2025-12-04T12:37:52.615" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 15ms -->
-</step><!-- duration: 2174ms -->
