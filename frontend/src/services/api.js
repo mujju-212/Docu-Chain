@@ -3,6 +3,13 @@ import axios from 'axios'
 
 // Normalize API URL - ensure HTTPS in production and remove trailing slashes
 const normalizeApiUrl = (url) => {
+  // If running on production domain without env var, use production API
+  if (!url && typeof window !== 'undefined' && 
+      (window.location.hostname === 'www.docuchain.tech' || 
+       window.location.hostname === 'docuchain.tech')) {
+    return 'https://docu-chain-api.azurewebsites.net/api';
+  }
+  
   let normalized = url || 'http://localhost:5000/api';
   // Remove trailing slashes
   normalized = normalized.replace(/\/+$/, '');
@@ -10,7 +17,7 @@ const normalizeApiUrl = (url) => {
   if (!normalized.includes('localhost') && !normalized.includes('127.0.0.1')) {
     normalized = normalized.replace(/^http:\/\//i, 'https://');
   }
-  console.log('🔗 API URL normalized:', { original: url, normalized });
+  console.log('🔗 API URL normalized:', { original: url, normalized, hostname: typeof window !== 'undefined' ? window.location.hostname : 'N/A' });
   return normalized;
 };
 

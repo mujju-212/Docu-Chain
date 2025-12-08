@@ -12,7 +12,8 @@ export FLASK_ENV=production
 
 # Start Gunicorn with SocketIO support
 # Using eventlet for WebSocket + high concurrency
-gunicorn --config gunicorn.conf.py --bind 0.0.0.0:$PORT 'app:create_app()' \
+# Use wsgi.py module for proper Socket.IO integration
+gunicorn --config gunicorn.conf.py --bind 0.0.0.0:$PORT wsgi:app \
     --worker-class eventlet \
     --workers 3 \
     --timeout 120 \

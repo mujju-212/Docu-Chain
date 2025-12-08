@@ -2,4 +2,5 @@
 # Set this in Azure Portal > App Service > Configuration > General Settings > Startup Command
 
 # For 50+ concurrent users with WebSocket support:
-gunicorn --bind 0.0.0.0:$PORT --worker-class eventlet --workers 3 --timeout 120 'app:create_app()'
+# Use wsgi.py module instead of factory function for proper Socket.IO support
+gunicorn --bind 0.0.0.0:$PORT --worker-class eventlet --workers 3 --timeout 120 --log-level info wsgi:app

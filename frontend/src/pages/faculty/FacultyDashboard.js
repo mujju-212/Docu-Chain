@@ -573,7 +573,10 @@ const FacultyDashboard = () => {
             ) : currentPage === 'help-support' ? (
               <HelpSupport />
             ) : currentPage === 'filemanager' ? (
-              <FileManager />
+              <>
+                <h2>File Manager</h2>
+                <FileManager />
+              </>
             ) : currentPage === 'chat' ? (
               <ChatInterface />
             ) : currentPage === 'document-generator' ? (
