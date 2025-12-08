@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from flask_socketio import SocketIO
+from flask_compress import Compress
 from werkzeug.middleware.proxy_fix import ProxyFix
 from config import config
 import os
@@ -13,6 +14,7 @@ db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()
 socketio = SocketIO()
+compress = Compress()
 
 def create_app(config_name=None):
     """Application factory pattern"""
@@ -33,6 +35,7 @@ def create_app(config_name=None):
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+    compress.init_app(app)  # Enable gzip compression
     
     # Setup CORS - Allow all origins with proper headers for Azure
     CORS(app, resources={
@@ -69,7 +72,12 @@ def create_app(config_name=None):
         ping_interval=25,
         logger=False,
         engineio_logger=False,
-        max_http_buffer_size=10 * 1024 * 1024  # 10MB for file transfers
+        max_http_buffer_size=10 * 1024 * 1024,  # 10MB for file transfers
+        # Fix for 400 errors - allow all transport types and proper CORS
+        transports=['websocket', 'polling'],
+        cors_credentials=False,
+        cookie=None,  # Disable cookies to avoid CORS issues
+        manage_session=False  # Don't manage Flask session
     )
     
     # Import WebSocket events (must be after socketio init)

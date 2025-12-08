@@ -31,45 +31,55 @@ def get_user_from_token(token):
 @socketio.on('connect')
 def handle_connect(auth=None):
     """Handle new socket connection"""
-    token = request.args.get('token')
-    if not token:
+    try:
+        token = request.args.get('token')
+        if not token:
+            print("No token provided in WebSocket connection")
+            return False
+        
+        user = get_user_from_token(token)
+        if not user:
+            print("Invalid token in WebSocket connection")
+            return False
+        
+        user_id = str(user.id)
+        print(f"User {user_id} connecting via WebSocket")
+        
+        # Add user to connected users
+        if user_id not in connected_users:
+            connected_users[user_id] = []
+        connected_users[user_id].append(request.sid)
+        
+        # Update online status
+        status = UserOnlineStatus.query.get(user.id)
+        if not status:
+            status = UserOnlineStatus(user_id=user.id, is_online=True, last_seen=datetime.utcnow())
+            db.session.add(status)
+        else:
+            status.is_online = True
+            status.last_seen = datetime.utcnow()
+        db.session.commit()
+        
+        # Join user's conversation rooms
+        conversations = ConversationMember.query.filter_by(user_id=user.id).all()
+        for conv_member in conversations:
+            join_room(f"conversation_{conv_member.conversation_id}")
+        
+        # Broadcast online status to all user's conversations
+        for conv_member in conversations:
+            emit('user_online', {
+                'userId': user_id,
+                'online': True,
+                'lastSeen': datetime.utcnow().isoformat()
+            }, room=f"conversation_{conv_member.conversation_id}", include_self=False)
+        
+        print(f"User {user_id} connected successfully")
+        return True
+    except Exception as e:
+        print(f"Error in WebSocket connect: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
-    
-    user = get_user_from_token(token)
-    if not user:
-        return False
-    
-    user_id = str(user.id)
-    
-    # Add user to connected users
-    if user_id not in connected_users:
-        connected_users[user_id] = []
-    connected_users[user_id].append(request.sid)
-    
-    # Update online status
-    status = UserOnlineStatus.query.get(user.id)
-    if not status:
-        status = UserOnlineStatus(user_id=user.id, is_online=True, last_seen=datetime.utcnow())
-        db.session.add(status)
-    else:
-        status.is_online = True
-        status.last_seen = datetime.utcnow()
-    db.session.commit()
-    
-    # Join user's conversation rooms
-    conversations = ConversationMember.query.filter_by(user_id=user.id).all()
-    for conv_member in conversations:
-        join_room(f"conversation_{conv_member.conversation_id}")
-    
-    # Broadcast online status to all user's conversations
-    for conv_member in conversations:
-        emit('user_online', {
-            'userId': user_id,
-            'online': True,
-            'lastSeen': datetime.utcnow().isoformat()
-        }, room=f"conversation_{conv_member.conversation_id}", include_self=False)
-    
-    return True
 
 
 @socketio.on('disconnect')
@@ -316,3 +326,20 @@ def handle_mark_read(data):
 def broadcast_message(conversation_id, message_data):
     """Utility function to broadcast a message to a conversation"""
     socketio.emit('new_message', message_data, room=f"conversation_{conversation_id}")
+
+
+# Error handlers for SocketIO
+@socketio.on_error()
+def error_handler(e):
+    """Handle general SocketIO errors"""
+    print(f"SocketIO error: {str(e)}")
+    import traceback
+    traceback.print_exc()
+
+
+@socketio.on_error_default
+def default_error_handler(e):
+    """Handle default SocketIO errors"""
+    print(f"SocketIO default error: {str(e)}")
+    import traceback
+    traceback.print_exc()

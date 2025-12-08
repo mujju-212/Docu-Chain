@@ -223,31 +223,53 @@ body.modal-open {
 
 .chat-sidebar-header {
     padding: 24px 20px;
-    background: linear-gradient(135deg, var(--g-700), var(--g-500));
+    background: linear-gradient(135deg, var(--g-600, #16a34a), var(--g-700, #15803d));
     color: white;
+    border-bottom: none;
     position: sticky;
     top: 0;
     z-index: 10;
     flex-shrink: 0;
 }
 
+.chat-header-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.chat-header-title i {
+    font-size: 28px;
+    color: white;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
 .chat-sidebar-header h2 {
     font-size: 22px;
     font-weight: 700;
-    margin-bottom: 10px;
     letter-spacing: 0.3px;
+    color: white;
+    margin: 0;
 }
 
 .blockchain-badge {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #eafff2;
+    color: rgba(255, 255, 255, 0.95);
     font-size: 14px;
-    background: rgba(255,255,255,0.15);
+    background: rgba(255, 255, 255, 0.2);
     padding: 6px 12px;
     border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.25);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
 }

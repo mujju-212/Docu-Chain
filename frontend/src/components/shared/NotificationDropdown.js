@@ -18,7 +18,7 @@ const NotificationDropdown = () => {
       setLoading(true);
       const notifUrl = `${API_URL}/notifications?limit=10`;
       const countUrl = `${API_URL}/notifications/count`;
-      console.log('🔔 NotificationDropdown fetching:', { API_URL, notifUrl, countUrl });
+      console.log('🔔 [Notifications] Fetching from:', { API_URL, notifUrl, countUrl });
       
       const [notifRes, countRes] = await Promise.all([
         fetch(notifUrl, {
@@ -29,21 +29,33 @@ const NotificationDropdown = () => {
         })
       ]);
 
+      console.log('🔔 [Notifications] Response status:', notifRes.status, '| Count status:', countRes.status);
+      console.log('🔔 [Notifications] Response URL:', notifRes.url);
+
       if (notifRes.ok) {
         const data = await notifRes.json();
+        console.log('🔔 [Notifications] Data received:', data);
         if (data.success) {
           setNotifications(data.notifications || []);
         }
+      } else {
+        const errorText = await notifRes.text();
+        console.error('❌ [Notifications] Failed:', notifRes.status, errorText);
       }
 
       if (countRes.ok) {
         const countData = await countRes.json();
+        console.log('🔔 [Notifications] Count data:', countData);
         if (countData.success) {
           setUnreadCount(countData.unreadCount || countData.count || 0);
         }
+      } else {
+        const countErrorText = await countRes.text();
+        console.error('❌ [Notifications] Count failed:', countRes.status, countErrorText);
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('❌ [Notifications] Error:', error);
+      console.error('❌ [Notifications] Error details:', error.message, error.stack);
     } finally {
       setLoading(false);
     }

@@ -297,8 +297,8 @@
 
   .mobile-nav-menu a .badge {
     margin-left: auto !important;
-    background: linear-gradient(135deg, #18a36f 0%, #0d7553 100%) !important;
-    color: white !important;
+    background: var(--g-200, #bbf7d0) !important;
+    color: var(--g-800, #166534) !important;
     font-size: 11px !important;
     font-weight: 600 !important;
     padding: 2px 8px !important;

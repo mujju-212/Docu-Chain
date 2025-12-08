@@ -728,29 +728,42 @@ const ChatInterface = () => {
     // Fetch user's documents for sharing (get ALL documents)
     const fetchDocuments = useCallback(async () => {
         console.log('📄 Starting fetchDocuments...');
+        console.log('📄 API_URL:', API_URL);
         setLoadingDocuments(true);
         try {
             const headers = getAuthHeader();
             console.log('📄 Auth headers:', headers.Authorization ? 'Token present' : 'No token');
             
-            const response = await fetch(`${API_URL}/documents?all=true`, {
+            const url = `${API_URL}/documents?all=true`;
+            console.log('📄 Fetching from URL:', url);
+            
+            const response = await fetch(url, {
                 headers: headers
             });
             
             console.log('📄 Documents response status:', response.status);
+            console.log('📄 Documents response URL:', response.url);
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('📄 Fetched documents:', data.documents?.length || 0, data);
-                setAvailableDocuments(data.documents || data || []);
+                console.log('📄 Fetched documents SUCCESS:', data.documents?.length || 0, data);
+                const docs = data.documents || data || [];
+                setAvailableDocuments(docs);
+                // Update sessionStorage with fresh data
+                sessionStorage.setItem('chat_documents', JSON.stringify(docs));
             } else {
                 const errorText = await response.text();
                 console.error('❌ Failed to fetch documents:', response.status, errorText);
                 setAvailableDocuments([]);
+                // Clear stale cache
+                sessionStorage.removeItem('chat_documents');
             }
         } catch (error) {
-            console.error('Error fetching documents:', error);
+            console.error('❌ Error fetching documents:', error);
+            console.error('❌ Error details:', error.message, error.stack);
             setAvailableDocuments([]);
+            // Clear stale cache
+            sessionStorage.removeItem('chat_documents');
         } finally {
             console.log('📄 fetchDocuments complete, setting loadingDocuments to false');
             setLoadingDocuments(false);
@@ -3727,7 +3740,10 @@ const ChatInterface = () => {
                 >
                     {/* Header */}
                     <div className="chat-sidebar-header">
-                        <h2>DocuChain Messenger</h2>
+                        <div className="chat-header-title">
+                            <i className="ri-message-3-line"></i>
+                            <h2>DocuChain Messenger</h2>
+                        </div>
                         <div className="blockchain-badge">
                             <i className="ri-shield-check-line"></i>
                             <span>Secure Messaging</span>

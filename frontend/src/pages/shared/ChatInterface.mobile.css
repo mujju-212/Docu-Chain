@@ -635,6 +635,8 @@
     gap: 8px !important;
     
     flex-shrink: 0 !important;
+    position: relative !important;
+    z-index: 100 !important;
   }
 
   .header-action-btn,
@@ -656,6 +658,10 @@
     font-size: 18px !important;
     
     cursor: pointer !important;
+    pointer-events: auto !important;
+    
+    position: relative !important;
+    z-index: 101 !important;
     
     transition: all 0.2s ease !important;
   }
@@ -670,6 +676,83 @@
   .chat-options i {
     font-size: 18px !important;
     line-height: 1 !important;
+    pointer-events: none !important;
+  }
+
+  /* Three-dot menu dropdown */
+  .chat-options {
+    position: relative !important;
+  }
+
+  .options-menu,
+  .chat-options-menu {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    right: 0 !important;
+    
+    min-width: 200px !important;
+    
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 12px !important;
+    
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+    
+    z-index: 1100 !important;
+    
+    padding: 8px !important;
+    
+    display: none !important;
+  }
+
+  .chat-options.active .options-menu,
+  .chat-options.active .chat-options-menu {
+    display: block !important;
+  }
+
+  .options-menu button,
+  .chat-options-menu button {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    
+    padding: 12px 16px !important;
+    
+    background: none !important;
+    border: none !important;
+    border-radius: 8px !important;
+    
+    font-size: 14px !important;
+    color: var(--text) !important;
+    text-align: left !important;
+    
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    
+    transition: background 0.2s ease !important;
+  }
+
+  .options-menu button:active,
+  .chat-options-menu button:active {
+    background: var(--bg) !important;
+  }
+
+  .options-menu button i,
+  .chat-options-menu button i {
+    font-size: 18px !important;
+    width: 20px !important;
+    text-align: center !important;
+  }
+
+  .options-menu button.delete,
+  .chat-options-menu button.delete {
+    color: var(--danger) !important;
+  }
+
+  .options-menu button.block,
+  .chat-options-menu button.block {
+    color: var(--warning) !important;
   }
 
   /* Hide some header actions on mobile - show essential only */
@@ -1602,7 +1685,7 @@
   /* Own message bubble (right side - green) */
   .message-bubble.own {
     background: linear-gradient(135deg, var(--g-500), var(--g-600)) !important;
-    color: white !important;
+    color: #1a1a1a !important;
     
     border-bottom-right-radius: 6px !important;
     
@@ -1637,7 +1720,7 @@
   }
 
   .message-bubble.own .message-sender {
-    color: rgba(255, 255, 255, 0.85) !important;
+    color: rgba(0, 0, 0, 0.7) !important;
   }
 
   /* -------------------------------------------------
@@ -1663,7 +1746,8 @@
   }
 
   .message-bubble.own .message-content a {
-    color: rgba(255, 255, 255, 0.95) !important;
+    color: rgba(0, 0, 0, 0.9) !important;
+    font-weight: 600 !important;
   }
 
   /* -------------------------------------------------
@@ -1686,7 +1770,7 @@
   }
 
   .message-bubble.own .message-time {
-    color: rgba(255, 255, 255, 0.8) !important;
+    color: rgba(0, 0, 0, 0.6) !important;
   }
 
   .message-bubble.other .message-time {
@@ -1700,7 +1784,7 @@
   }
 
   .message-bubble.own .message-status {
-    color: rgba(255, 255, 255, 0.8) !important;
+    color: rgba(0, 0, 0, 0.7) !important;
   }
 
   .message-status.status-sent {
@@ -2585,173 +2669,63 @@
   }
 
   /* -------------------------------------------------
-     ATTACHMENT MENU (Bottom Sheet)
+     ATTACHMENT MENU (Popup above button - Mobile)
      ------------------------------------------------- */
-  .attachment-menu-overlay {
-    position: fixed !important;
-    inset: 0 !important;
-    
-    background: rgba(0, 0, 0, 0.5) !important;
-    backdrop-filter: blur(4px) !important;
-    -webkit-backdrop-filter: blur(4px) !important;
-    
-    z-index: 400 !important;
-    
-    opacity: 0 !important;
-    visibility: hidden !important;
-    
-    transition: opacity 0.3s ease, visibility 0.3s ease !important;
-  }
-
-  .attachment-menu-overlay.open {
-    opacity: 1 !important;
-    visibility: visible !important;
-  }
-
-  .attachment-menu,
-  .attachment-sheet {
-    position: fixed !important;
+  .attachment-menu {
+    position: absolute !important;
+    bottom: 100% !important;
     left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
+    right: auto !important;
     
     background: var(--surface) !important;
-    border-radius: 20px 20px 0 0 !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.15) !important;
+    
+    min-width: 200px !important;
+    margin-bottom: 8px !important;
     
     padding: 8px 0 !important;
-    padding-bottom: calc(16px + var(--safe-area-bottom)) !important;
     
-    z-index: 401 !important;
+    z-index: 1000 !important;
     
-    transform: translateY(100%) !important;
+    transform: none !important;
+    transition: none !important;
     
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  }
-
-  .attachment-menu-overlay.open .attachment-menu,
-  .attachment-menu-overlay.open .attachment-sheet,
-  .attachment-menu.open,
-  .attachment-sheet.open {
-    transform: translateY(0) !important;
-  }
-
-  /* Sheet handle */
-  .attachment-menu-handle,
-  .sheet-handle {
-    width: 36px !important;
-    height: 4px !important;
-    
-    background: var(--line) !important;
-    border-radius: 2px !important;
-    
-    margin: 8px auto 16px !important;
-  }
-
-  /* Sheet header */
-  .attachment-menu-header,
-  .sheet-header {
-    padding: 0 20px 16px !important;
-    
-    border-bottom: 1px solid var(--line) !important;
-  }
-
-  .attachment-menu-title,
-  .sheet-title {
-    font-size: 16px !important;
-    font-weight: 600 !important;
-    color: var(--text) !important;
-    margin: 0 !important;
-  }
-
-  /* Attachment options grid */
-  .attachment-options {
-    display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
-    gap: 8px !important;
-    
-    padding: 20px 16px !important;
+    overflow: hidden !important;
   }
 
   .attachment-option {
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: row !important;
     align-items: center !important;
-    gap: 8px !important;
+    gap: 12px !important;
     
-    padding: 16px 8px !important;
+    padding: 14px 16px !important;
     
     background: none !important;
     border: none !important;
-    border-radius: var(--chat-radius-sm) !important;
     
     cursor: pointer !important;
     
-    transition: background 0.2s ease !important;
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    color: var(--text) !important;
+    
+    transition: background 0.15s ease !important;
+    
+    text-align: left !important;
+    width: 100% !important;
   }
 
   .attachment-option:active {
     background: var(--bg) !important;
   }
 
-  .attachment-option-icon {
-    width: 52px !important;
-    height: 52px !important;
-    
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    
-    border-radius: 50% !important;
-    
-    font-size: 24px !important;
-  }
-
-  /* Icon colors */
-  .attachment-option.documents .attachment-option-icon {
-    background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
-    color: white !important;
-  }
-
-  .attachment-option.camera .attachment-option-icon {
-    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
-    color: white !important;
-  }
-
-  .attachment-option.gallery .attachment-option-icon {
-    background: linear-gradient(135deg, #a855f7, #9333ea) !important;
-    color: white !important;
-  }
-
-  .attachment-option.location .attachment-option-icon {
-    background: linear-gradient(135deg, var(--g-500), var(--g-600)) !important;
-    color: white !important;
-  }
-
-  .attachment-option.blockchain .attachment-option-icon {
-    background: linear-gradient(135deg, #f59e0b, #d97706) !important;
-    color: white !important;
-  }
-
-  .attachment-option.contact .attachment-option-icon {
-    background: linear-gradient(135deg, #06b6d4, #0891b2) !important;
-    color: white !important;
-  }
-
-  .attachment-option.poll .attachment-option-icon {
-    background: linear-gradient(135deg, #ec4899, #db2777) !important;
-    color: white !important;
-  }
-
-  .attachment-option.audio .attachment-option-icon {
-    background: linear-gradient(135deg, #f97316, #ea580c) !important;
-    color: white !important;
-  }
-
-  .attachment-option-label {
-    font-size: 11px !important;
-    font-weight: 500 !important;
-    color: var(--text) !important;
-    text-align: center !important;
+  .attachment-option i {
+    font-size: 20px !important;
+    color: var(--g-500) !important;
+    flex-shrink: 0 !important;
   }
 
   /* -------------------------------------------------
@@ -4124,10 +4098,9 @@
   }
 
   /* -------------------------------------------------
-     APPROVAL MODAL (Full Screen on Mobile)
+     APPROVAL MODAL (Compact Bottom Sheet - Mobile Only)
      ------------------------------------------------- */
-  .approval-modal,
-  .approval-detail-modal {
+  .document-share-modal {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
@@ -4136,31 +4109,82 @@
     
     z-index: 1200 !important;
     
+    background: rgba(0, 0, 0, 0.5) !important;
+    
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    
+    padding: 0 !important;
+  }
+
+  .modal-content.approval-modal,
+  .share-modal-enhanced.approval-modal,
+  .approval-detail-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 70vh !important;
+    height: auto !important;
+    
     background: var(--surface) !important;
+    border-radius: 24px 24px 0 0 !important;
     
     display: flex !important;
     flex-direction: column !important;
     
-    transform: translateX(100%) !important;
+    animation: slideUpFast 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
     
-    transition: var(--chat-transition) !important;
+    overflow: hidden !important;
+    
+    position: relative !important;
+    
+    margin: 0 !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: 0 !important;
+    transform: none !important;
+    
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15) !important;
   }
 
-  .approval-modal.open,
-  .approval-detail-modal.open {
-    transform: translateX(0) !important;
+  @keyframes slideUpFast {
+    from {
+      transform: translateY(100%);
+      opacity: 0.8;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
 
-  /* Approval Modal Header */
-  .approval-modal-header {
+  /* Handle bar at top */
+  .modal-content.approval-modal::before,
+  .share-modal-enhanced.approval-modal::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 10px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    
+    width: 40px !important;
+    height: 4px !important;
+    
+    background: var(--line) !important;
+    border-radius: 4px !important;
+    
+    z-index: 10 !important;
+  }
+
+  /* Modal Header - Simpler for mobile */
+  .modal-content.approval-modal .modal-header {
     display: flex !important;
     align-items: center !important;
-    gap: 12px !important;
+    justify-content: center !important;
+    position: relative !important;
     
-    height: var(--chat-header-height) !important;
-    min-height: var(--chat-header-height) !important;
-    
-    padding: 0 16px !important;
+    padding: 24px 20px 12px !important;
     
     background: var(--surface) !important;
     border-bottom: 1px solid var(--line) !important;
@@ -4168,15 +4192,29 @@
     flex-shrink: 0 !important;
   }
 
-  .approval-modal-back {
-    width: 40px !important;
-    height: 40px !important;
+  .modal-content.approval-modal .modal-title {
+    flex: 1 !important;
+    text-align: center !important;
+    
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    color: var(--text) !important;
+    
+    margin: 0 !important;
+  }
+
+  .modal-content.approval-modal .close-btn {
+    position: absolute !important;
+    right: 16px !important;
+    
+    width: 32px !important;
+    height: 32px !important;
     
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     
-    background: none !important;
+    background: var(--bg) !important;
     border: none !important;
     border-radius: 50% !important;
     
@@ -4184,85 +4222,125 @@
     font-size: 20px !important;
     
     cursor: pointer !important;
-    
-    margin-left: -8px !important;
   }
 
-  .approval-modal-title {
-    flex: 1 !important;
-    
-    font-size: 17px !important;
-    font-weight: 600 !important;
-    color: var(--text) !important;
+  /* Modal Body - Scrollable Content Area */
+  .modal-content.approval-modal > div:not(.modal-header):not(.modal-footer),
+  .modal-content.approval-modal .share-document-preview,
+  .modal-content.approval-modal .approval-workflow-section {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
   }
 
-  /* Approval Modal Content */
-  .approval-modal-content {
-    flex: 1 !important;
-    
+  .modal-content.approval-modal {
+    padding-bottom: 0 !important;
+  }
+
+  .modal-content.approval-modal > div:first-of-type:not(.modal-header) {
+    padding-top: 16px !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
-    
-    padding: 20px !important;
+    flex: 1 !important;
   }
 
-  /* Document Preview Section */
-  .approval-document-section {
-    padding: 20px !important;
+  /* Document Preview Section - Compact */
+  .share-document-preview {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 14px !important;
     
     background: var(--bg) !important;
-    border-radius: var(--chat-radius) !important;
+    border-radius: 12px !important;
     
-    margin-bottom: 20px !important;
+    margin: 0 20px 16px !important;
+  }
+
+  .doc-preview-icon {
+    width: 48px !important;
+    height: 48px !important;
+    
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
+    border-radius: 12px !important;
+    background: linear-gradient(135deg, var(--g-500), var(--g-600)) !important;
+    color: white !important;
+    
+    font-size: 22px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .doc-preview-info h4 {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: var(--text) !important;
+    margin: 0 0 3px 0 !important;
+  }
+
+  .doc-preview-info p {
+    font-size: 12px !important;
+    color: var(--muted) !important;
+    margin: 0 !important;
+  }
+
+  .approval-document-section {
+    padding: 14px !important;
+    
+    background: var(--bg) !important;
+    border-radius: 12px !important;
+    
+    margin-bottom: 16px !important;
   }
 
   .approval-document-header {
     display: flex !important;
     align-items: center !important;
-    gap: 14px !important;
+    gap: 12px !important;
     
-    margin-bottom: 16px !important;
+    margin-bottom: 12px !important;
   }
 
   .approval-document-icon {
-    width: 56px !important;
-    height: 56px !important;
+    width: 48px !important;
+    height: 48px !important;
     
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     
-    border-radius: 14px !important;
+    border-radius: 12px !important;
     
-    font-size: 26px !important;
+    font-size: 22px !important;
   }
 
   .approval-document-details h3 {
-    font-size: 16px !important;
+    font-size: 15px !important;
     font-weight: 600 !important;
     color: var(--text) !important;
-    margin: 0 0 4px 0 !important;
+    margin: 0 0 3px 0 !important;
   }
 
   .approval-document-meta {
-    font-size: 13px !important;
+    font-size: 12px !important;
     color: var(--muted) !important;
   }
 
   .approval-view-document-btn {
     width: 100% !important;
-    height: 44px !important;
+    height: 40px !important;
     
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 8px !important;
+    gap: 6px !important;
     
     background: var(--surface) !important;
     border: 1px solid var(--line) !important;
     border-radius: 10px !important;
     
-    font-size: 14px !important;
+    font-size: 13px !important;
     font-weight: 500 !important;
     color: var(--text) !important;
     
@@ -4282,6 +4360,184 @@
     letter-spacing: 0.5px !important;
     
     margin-bottom: 12px !important;
+  }
+
+  /* Approval Type Section - Compact Mobile Design */
+  .approval-type-section {
+    margin-bottom: 16px !important;
+  }
+
+  .approval-type-section label {
+    display: block !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--muted) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .approval-type-options {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .approval-type-option {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 14px 16px !important;
+    background: var(--bg) !important;
+    border: 2px solid var(--line) !important;
+    border-radius: 14px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .approval-type-option:active {
+    transform: scale(0.97) !important;
+  }
+
+  .approval-type-option.selected {
+    border-color: var(--g-500) !important;
+    background: linear-gradient(135deg, rgba(var(--g-500-rgb), 0.12), rgba(var(--g-500-rgb), 0.08)) !important;
+    box-shadow: 0 2px 8px rgba(var(--g-500-rgb), 0.2) !important;
+  }
+
+  .approval-type-option i {
+    font-size: 22px !important;
+    color: var(--g-500) !important;
+    flex-shrink: 0 !important;
+  }
+
+  .approval-type-option span {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: var(--text) !important;
+    flex: 1 !important;
+  }
+
+  /* Modal Actions (Footer Buttons) */
+  .modal-content.approval-modal .modal-actions {
+    display: flex !important;
+    gap: 10px !important;
+    
+    padding: 14px 20px !important;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 10px)) !important;
+    
+    border-top: 1px solid var(--line) !important;
+    
+    background: var(--surface) !important;
+    
+    flex-shrink: 0 !important;
+    
+    margin: 0 !important;
+  }
+
+  .modal-content.approval-modal .modal-actions button {
+    flex: 1 !important;
+    
+    height: 48px !important;
+    
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    
+    border-radius: 14px !important;
+    
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    
+    cursor: pointer !important;
+    
+    transition: all 0.15s ease !important;
+  }
+
+  .modal-content.approval-modal .modal-actions .btn-secondary {
+    background: var(--bg) !important;
+    border: 1px solid var(--line) !important;
+    color: var(--text) !important;
+  }
+
+  .modal-content.approval-modal .modal-actions .btn-primary {
+    background: linear-gradient(135deg, var(--g-500), var(--g-600)) !important;
+    border: none !important;
+    color: white !important;
+  }
+
+  .modal-content.approval-modal .modal-actions .btn-primary:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+  }
+
+  .modal-content.approval-modal .modal-actions button:active:not(:disabled) {
+    transform: scale(0.97) !important;
+  }
+
+  /* Workflow Options - Stack vertically on mobile */
+  .approval-workflow-section {
+    margin-bottom: 16px !important;
+  }
+
+  .approval-workflow-section label {
+    display: block !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--muted) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .workflow-options {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .workflow-option {
+    width: 100% !important;
+    padding: 14px 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    background: var(--bg) !important;
+    border: 2px solid var(--line) !important;
+    border-radius: 14px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .workflow-option:active {
+    transform: scale(0.97) !important;
+  }
+
+  .workflow-option.selected {
+    border-color: var(--g-500) !important;
+    background: linear-gradient(135deg, rgba(var(--g-500-rgb), 0.12), rgba(var(--g-500-rgb), 0.08)) !important;
+    box-shadow: 0 2px 8px rgba(var(--g-500-rgb), 0.2) !important;
+  }
+
+  .workflow-option i {
+    font-size: 22px !important;
+    color: var(--g-500) !important;
+    flex-shrink: 0 !important;
+  }
+
+  .workflow-option h4 {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: var(--text) !important;
+    margin: 0 0 2px 0 !important;
+  }
+
+  .workflow-option p {
+    font-size: 12px !important;
+    color: var(--muted) !important;
+    margin: 0 !important;
   }
 
   /* Approval Chain / Timeline */
@@ -4421,13 +4677,13 @@
     border-color: var(--g-500) !important;
   }
 
-  /* Approval Modal Footer */
+  /* Approval Modal Footer - Compact */
   .approval-modal-footer {
     display: flex !important;
-    gap: 12px !important;
+    gap: 10px !important;
     
-    padding: 16px 20px !important;
-    padding-bottom: calc(16px + var(--safe-area-bottom)) !important;
+    padding: 14px 20px !important;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 10px)) !important;
     
     border-top: 1px solid var(--line) !important;
     
@@ -4439,14 +4695,14 @@
   .approval-modal-btn {
     flex: 1 !important;
     
-    height: 50px !important;
+    height: 48px !important;
     
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 8px !important;
+    gap: 6px !important;
     
-    border-radius: 12px !important;
+    border-radius: 14px !important;
     
     font-size: 16px !important;
     font-weight: 600 !important;
@@ -7649,10 +7905,9 @@
      ===================================================== */
 
   /* -------------------------------------------------
-     USER PROFILE MODAL
+     USER PROFILE MODAL - Mobile Optimized
      ------------------------------------------------- */
-  .user-profile-modal,
-  .profile-modal {
+  .profile-modal-overlay {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
@@ -7661,47 +7916,45 @@
     
     z-index: 1300 !important;
     
+    background: rgba(0, 0, 0, 0.6) !important;
+    
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    
+    opacity: 1 !important;
+    animation: fadeIn 0.2s ease !important;
+  }
+
+  .profile-modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 85vh !important;
+    
     background: var(--surface) !important;
+    border-radius: 20px 20px 0 0 !important;
     
     display: flex !important;
     flex-direction: column !important;
     
-    transform: translateX(100%) !important;
+    animation: slideUp 0.3s ease !important;
     
-    transition: var(--chat-transition) !important;
+    overflow: hidden !important;
   }
 
-  .user-profile-modal.open,
-  .profile-modal.open {
-    transform: translateX(0) !important;
-  }
-
-  /* Profile Modal Header */
-  .profile-modal-header {
-    display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
+  .profile-modal-close {
+    position: absolute !important;
+    top: 16px !important;
+    right: 16px !important;
     
-    height: var(--chat-header-height) !important;
-    min-height: var(--chat-header-height) !important;
-    
-    padding: 0 16px !important;
-    
-    background: var(--surface) !important;
-    border-bottom: 1px solid var(--line) !important;
-    
-    flex-shrink: 0 !important;
-  }
-
-  .profile-modal-back {
-    width: 40px !important;
-    height: 40px !important;
+    width: 36px !important;
+    height: 36px !important;
     
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     
-    background: none !important;
+    background: rgba(0, 0, 0, 0.1) !important;
     border: none !important;
     border-radius: 50% !important;
     
@@ -7709,42 +7962,217 @@
     font-size: 20px !important;
     
     cursor: pointer !important;
-    
-    margin-left: -8px !important;
+    z-index: 10 !important;
   }
 
-  .profile-modal-title {
-    flex: 1 !important;
-    
-    font-size: 17px !important;
-    font-weight: 600 !important;
-    color: var(--text) !important;
+  .profile-modal-close:active {
+    transform: scale(0.95) !important;
+    background: rgba(0, 0, 0, 0.15) !important;
   }
 
-  .profile-modal-action {
-    width: 40px !important;
-    height: 40px !important;
-    
+  .profile-modal-header {
     display: flex !important;
+    flex-direction: column !important;
     align-items: center !important;
-    justify-content: center !important;
     
-    background: none !important;
-    border: none !important;
-    border-radius: 50% !important;
+    padding: 30px 20px 20px !important;
     
-    color: var(--muted) !important;
-    font-size: 18px !important;
+    background: linear-gradient(180deg, var(--g-50) 0%, var(--surface) 100%) !important;
     
-    cursor: pointer !important;
+    position: relative !important;
+    flex-shrink: 0 !important;
   }
 
-  /* Profile Modal Content */
-  .profile-modal-content {
+  .profile-modal-header .profile-avatar-large {
+    position: relative !important;
+  }
+
+  .profile-modal-header h2 {
+    font-size: 22px !important;
+    font-weight: 700 !important;
+    color: var(--text) !important;
+    margin: 12px 0 4px !important;
+    text-align: center !important;
+  }
+
+  .profile-modal-header .profile-role {
+    font-size: 14px !important;
+    color: var(--muted) !important;
+    text-align: center !important;
+    margin: 0 !important;
+  }
+
+  .profile-modal-header .profile-last-seen {
+    font-size: 13px !important;
+    color: var(--muted) !important;
+    margin-top: 8px !important;
+  }
+
+  .profile-modal-body {
     flex: 1 !important;
-    
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
+    padding: 16px !important;
+  }
+
+  .profile-section {
+    margin-bottom: 20px !important;
+  }
+
+  .profile-section h3 {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: var(--text) !important;
+    
+    margin-bottom: 12px !important;
+  }
+
+  .profile-section h3 i {
+    font-size: 18px !important;
+    color: var(--g-500) !important;
+  }
+
+  .profile-info-item {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    
+    padding: 12px !important;
+    
+    background: var(--bg) !important;
+    border-radius: 10px !important;
+    
+    margin-bottom: 8px !important;
+  }
+
+  .profile-info-item i {
+    font-size: 20px !important;
+    color: var(--g-500) !important;
+    flex-shrink: 0 !important;
+    margin-top: 2px !important;
+  }
+
+  .profile-info-item > div {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .profile-info-item .info-label {
+    display: block !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: var(--muted) !important;
+    margin-bottom: 2px !important;
+  }
+
+  .profile-info-item .info-value {
+    display: block !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: var(--text) !important;
+    word-break: break-word !important;
+  }
+
+  .profile-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .profile-action-btn {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    
+    padding: 14px 16px !important;
+    
+    background: var(--bg) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 10px !important;
+    
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: var(--text) !important;
+    text-align: left !important;
+    
+    cursor: pointer !important;
+    
+    transition: all 0.2s ease !important;
+  }
+
+  .profile-action-btn:active {
+    transform: scale(0.98) !important;
+    background: rgba(var(--g-500-rgb), 0.05) !important;
+  }
+
+  .profile-action-btn i {
+    font-size: 20px !important;
+    color: var(--g-500) !important;
+    flex-shrink: 0 !important;
+  }
+
+  .profile-action-btn.danger {
+    color: #ef4444 !important;
+    border-color: rgba(239, 68, 68, 0.2) !important;
+  }
+
+  .profile-action-btn.danger i {
+    color: #ef4444 !important;
+  }
+
+  .profile-action-btn.danger:active {
+    background: rgba(239, 68, 68, 0.1) !important;
+  }
+
+  .profile-action-btn.warning {
+    color: #f59e0b !important;
+    border-color: rgba(245, 158, 11, 0.2) !important;
+  }
+
+  .profile-action-btn.warning i {
+    color: #f59e0b !important;
+  }
+
+  .blockchain-verification {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    
+    padding: 16px !important;
+    
+    background: linear-gradient(135deg, rgba(var(--g-500-rgb), 0.1), rgba(var(--g-500-rgb), 0.05)) !important;
+    border: 1px solid rgba(var(--g-500-rgb), 0.2) !important;
+    border-radius: 12px !important;
+  }
+
+  .blockchain-verification i {
+    font-size: 24px !important;
+    color: var(--g-500) !important;
+    flex-shrink: 0 !important;
+  }
+
+  .blockchain-verification h4 {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: var(--text) !important;
+    margin: 0 0 4px !important;
+  }
+
+  .blockchain-verification p {
+    font-size: 13px !important;
+    color: var(--muted) !important;
+    margin: 0 !important;
+  }
+
+  /* OLD CODE REMOVED */
+  .user-profile-modal,
+  .profile-modal {
+    /* Keeping for backward compatibility but overridden above */
   }
 
   /* Profile Header Section */
@@ -8209,9 +8637,76 @@
   }
 
   /* -------------------------------------------------
-     CONTEXT MENU / ACTION SHEET
+     CONTEXT MENU / ACTION SHEET (Three-dot menu)
      ------------------------------------------------- */
-  .context-menu,
+  .context-menu {
+    position: fixed !important;
+    top: auto !important;
+    left: auto !important;
+    right: 8px !important;
+    bottom: auto !important;
+    
+    z-index: 1350 !important;
+    
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 12px !important;
+    
+    min-width: 220px !important;
+    max-width: calc(100vw - 32px) !important;
+    
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2) !important;
+    
+    animation: slideDown 0.2s ease !important;
+    
+    padding: 8px !important;
+  }
+
+  .context-menu-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    
+    width: 100% !important;
+    
+    padding: 14px 16px !important;
+    
+    background: none !important;
+    border: none !important;
+    border-radius: 8px !important;
+    
+    font-size: 15px !important;
+    color: var(--text) !important;
+    text-align: left !important;
+    
+    cursor: pointer !important;
+    
+    transition: background 0.2s ease !important;
+  }
+
+  .context-menu-item:active {
+    background: var(--bg) !important;
+  }
+
+  .context-menu-item i {
+    font-size: 20px !important;
+    color: var(--g-600) !important;
+    width: 20px !important;
+    text-align: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .context-menu-item span {
+    flex: 1 !important;
+  }
+
+  .context-menu-divider {
+    height: 1px !important;
+    background: var(--line) !important;
+    margin: 4px 0 !important;
+  }
+
+  /* Old action-sheet code removed */
   .action-sheet {
     position: fixed !important;
     top: 0 !important;
@@ -8233,7 +8728,6 @@
     transition: var(--chat-transition) !important;
   }
 
-  .context-menu.open,
   .action-sheet.open {
     opacity: 1 !important;
     visibility: visible !important;

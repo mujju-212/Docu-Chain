@@ -22,6 +22,34 @@
 --ring: 0 0 0 4px rgba(24,163,111,.18);
 }
 
+/* DEBUG MODE - Uncomment to see field boundaries and icon positions */
+/*
+.field {
+  outline: 3px dashed red !important;
+  background: rgba(255, 0, 0, 0.05) !important;
+}
+
+.field input,
+.field select {
+  outline: 2px solid blue !important;
+  background: rgba(255, 255, 0, 0.15) !important;
+}
+
+.field > i:first-child {
+  background: rgba(255, 0, 0, 0.4) !important;
+  outline: 3px solid orange !important;
+  padding: 4px !important;
+  z-index: 1000 !important;
+}
+
+.field .toggle-password,
+.field button.icon {
+  background: rgba(0, 255, 0, 0.4) !important;
+  outline: 3px solid lime !important;
+  z-index: 1001 !important;
+}
+*/
+
 /* Optional: purple theme like the reference image */
 body.theme-purple{
 --b-900:#3b1363;
@@ -832,12 +860,10 @@ margin-bottom: 12px;
 }
 
 .email-input-group input {
-flex: 1;
-padding-left: 65px; /* Match main field padding for icon spacing */
-padding-right: 140px; /* Space for verify button */
-}
-
-.verify-email-btn {
+  flex: 1;
+  padding-left: 48px; /* Match regular fields - mobile will override */
+  padding-right: 140px; /* Space for verify button */
+}.verify-email-btn {
 position: absolute;
 right: 8px;
 top: 50%;
@@ -882,15 +908,13 @@ margin-top: 12px;
 }
 
 .otp-input-group input {
-flex: 1;
-padding-left: 65px; /* Match main field padding for icon spacing */
-padding-right: 140px; /* Space for verify OTP button */
-font-family: monospace;
-letter-spacing: 2px;
-text-align: center;
-}
-
-.verify-otp-btn {
+  flex: 1;
+  padding-left: 48px !important; /* Match regular fields */
+  padding-right: 140px; /* Space for verify OTP button */
+  font-family: monospace;
+  letter-spacing: 2px;
+  text-align: left;
+}.verify-otp-btn {
 position: absolute;
 right: 8px;
 top: 50%;

@@ -15,11 +15,16 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres:mk0492@localhost:5432/Docu-Chain')
     
     # Connection Pool Settings
-    # Use NullPool in production with eventlet to avoid threading issues
+    # Production: Use QueuePool with proper sizing for 50+ concurrent users
+    # Each user may need 1-3 connections at peak
     if is_production:
         SQLALCHEMY_ENGINE_OPTIONS = {
-            'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
-            'pool_pre_ping': True,
+            'pool_size': 20,  # Base pool size (increased from NullPool)
+            'max_overflow': 30,  # Allow up to 50 total connections (20 + 30)
+            'pool_recycle': 300,  # Recycle connections every 5 minutes
+            'pool_pre_ping': True,  # Verify connections before use
+            'pool_timeout': 30,  # Wait 30s for connection
+            'echo': False,  # Disable SQL logging in production
         }
     else:
         # Standard pool for development
@@ -70,6 +75,15 @@ class Config:
     
     # Other
     TRASH_RETENTION_DAYS = int(os.getenv('TRASH_RETENTION_DAYS', 30))
+    
+    # Performance & Caching
+    CACHE_TYPE = 'simple'  # Use 'redis' in production with Redis server
+    CACHE_DEFAULT_TIMEOUT = 300  # 5 minutes default cache
+    
+    # Compression
+    COMPRESS_MIMETYPES = ['text/html', 'text/css', 'application/json', 'application/javascript']
+    COMPRESS_LEVEL = 6
+    COMPRESS_MIN_SIZE = 500
 
 class DevelopmentConfig(Config):
     """Development configuration"""

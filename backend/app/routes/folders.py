@@ -228,27 +228,24 @@ def list_folders_flexible():
             
         folders = query.order_by(Folder.created_at.desc()).all()
         
-        # Convert to dict format with error handling
+        # Convert to dict format WITHOUT calling to_dict() to avoid N+1 queries
+        # Build simplified response that doesn't count documents/subfolders
         folder_list = []
         for folder in folders:
-            try:
-                folder_dict = folder.to_dict()
-                folder_list.append(folder_dict)
-            except Exception:
-                # Add basic folder info if to_dict fails
-                folder_list.append({
-                    'id': str(folder.id),
-                    'name': folder.name,
-                    'description': folder.description or '',
-                    'parentId': str(folder.parent_id) if folder.parent_id else None,
-                    'path': folder.path or '/',
-                    'level': folder.level or 0,
-                    'ownerId': str(folder.owner_id),
-                    'createdAt': folder.created_at.isoformat() if folder.created_at else None,
-                    'updatedAt': folder.updated_at.isoformat() if folder.updated_at else None,
-                    'documentCount': 0,
-                    'subfolderCount': 0
-                })
+            folder_list.append({
+                'id': str(folder.id),
+                'name': folder.name,
+                'description': folder.description or '',
+                'parentId': str(folder.parent_id) if folder.parent_id else None,
+                'path': folder.path or '/',
+                'level': folder.level or 0,
+                'ownerId': str(folder.owner_id),
+                'createdAt': folder.created_at.isoformat() if folder.created_at else None,
+                'updatedAt': folder.updated_at.isoformat() if folder.updated_at else None,
+                'documentCount': 0,  # Skip counting for performance
+                'subfolderCount': 0,  # Skip counting for performance
+                'isSystemFolder': getattr(folder, 'is_system_folder', False)
+            })
         
         return jsonify({
             'success': True,

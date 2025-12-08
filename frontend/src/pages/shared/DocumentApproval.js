@@ -174,21 +174,29 @@ const DocumentApproval = ({ userRole = 'faculty' }) => {
     const fetchDocuments = async () => {
       try {
         setIsLoading(true);
+        console.log('📄 [Approval] Fetching documents from:', `${API_URL}/documents?all=true`);
+        console.log('📄 [Approval] API_URL:', API_URL);
+        
         // Add 'all=true' to get documents from ALL folders recursively
         const response = await fetch(`${API_URL}/documents?all=true`, {
           headers: getAuthHeaders()
         });
         
+        console.log('📄 [Approval] Response status:', response.status);
+        console.log('📄 [Approval] Response URL:', response.url);
+        
         if (response.ok) {
           const data = await response.json();
-          console.log('📄 Fetched documents:', data.documents?.length || 0, 'documents');
-          console.log('Documents data:', data.documents);
+          console.log('📄 [Approval] Fetched documents SUCCESS:', data.documents?.length || 0, 'documents');
+          console.log('📄 [Approval] Documents data:', data.documents);
           setBlockchainDocuments(data.documents || []);
         } else {
-          console.error('Failed to fetch documents:', await response.text());
+          const errorText = await response.text();
+          console.error('❌ [Approval] Failed to fetch documents:', response.status, errorText);
         }
       } catch (error) {
-        console.error('Error fetching documents:', error);
+        console.error('❌ [Approval] Error fetching documents:', error);
+        console.error('❌ [Approval] Error details:', error.message, error.stack);
         setError('Failed to load documents');
       } finally {
         setIsLoading(false);

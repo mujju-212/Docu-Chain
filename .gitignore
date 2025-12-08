@@ -131,3 +131,5 @@ F1/
 backend/uploads/
 frontend/uploads/
 uploads/
+.vercel
+.env*.local

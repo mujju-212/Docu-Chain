@@ -947,12 +947,54 @@ div.content-grid {
   z-index: 9998;
 }
 
+/* Modern Page Header - Only for specific pages (NOT CHAT) */
+.content:not(.chat-content) h2 {
+  font-size: 26px !important;
+  font-weight: 600 !important;
+  margin: 0 0 24px 0 !important;
+  padding: 16px 24px !important;
+  background: var(--g-50, #f0fdf4) !important;
+  color: var(--g-900, #14532d) !important;
+  border-radius: 12px !important;
+  border-left: 4px solid var(--g-500, #22c55e) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.content:not(.chat-content) h2::before {
+  content: '\edc1' !important; /* Folder icon instead of WiFi */
+  font-family: 'remixicon' !important;
+  font-size: 24px !important;
+  font-weight: normal !important;
+  color: var(--g-600, #16a34a) !important;
+}
+
 /* Responsive wallet dropdown */
 @media (max-width: 768px) {
   .wallet-dropdown {
     min-width: 280px;
     max-width: 320px;
     left: -20px;
+  }
+
+  /* Modern File Manager header on mobile */
+  .content:not(.chat-content) h2 {
+    font-size: 22px !important;
+    padding: 16px 20px !important;
+    border-radius: 12px !important;
+    background: var(--g-50, #f0fdf4) !important;
+    color: var(--g-900, #14532d) !important;
+    border-left: 4px solid var(--g-500, #22c55e) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+  }
+
+  .content:not(.chat-content) h2::before {
+    font-size: 20px !important;
   }
 }
 

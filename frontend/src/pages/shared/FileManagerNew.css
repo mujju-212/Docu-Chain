@@ -658,31 +658,19 @@ body {
     border-color: var(--g-500);
 }
 
-/* Selection Checkbox */
-.fm-selection-checkbox {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    border: 2px solid var(--line);
-    background: white;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
+/* Card actions always visible */
+.fm-card-actions,
+.fm-card-menu {
+    opacity: 1 !important;
+    visibility: visible !important;
 }
 
-.fm-card:hover .fm-selection-checkbox,
-.fm-card.selected .fm-selection-checkbox {
-    display: flex;
-}
-
-.fm-selection-checkbox.checked {
-    background: var(--g-500);
-    border-color: var(--g-500);
-    color: white;
+/* Selection Checkbox - Hidden for cleaner UI */
+.fm-selection-checkbox,
+.fm-card-checkbox,
+.fm-card .checkbox {
+    display: none !important;
+    visibility: hidden !important;
 }
 
 .fm-row {

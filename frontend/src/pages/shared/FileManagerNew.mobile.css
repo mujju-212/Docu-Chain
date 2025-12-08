@@ -372,6 +372,35 @@
 @media screen and (max-width: 768px) {
 
   /* -------------------------------------------------
+     0. CONTENT WRAPPER OVERRIDES
+     Remove container constraints for full-width FM
+     ------------------------------------------------- */
+  
+  /* Override parent wrapper divs with inline padding styles */
+  div:has(> .content > .file-manager-content) {
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+  
+  .content:has(.file-manager-content) {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+    background: #ffffff !important;
+  }
+
+  .file-manager-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden !important;
+    background: #ffffff !important;
+  }
+
+  /* -------------------------------------------------
      1. MAIN CONTAINER
      Remove desktop grid, full width layout
      ------------------------------------------------- */
@@ -397,7 +426,7 @@
     padding-bottom: var(--fm-safe-bottom) !important;
     
     /* Background */
-    background: var(--bg, #f8fafc) !important;
+    background: #ffffff !important;
   }
 
   /* Hide desktop sidebar completely */
@@ -415,6 +444,47 @@
     flex-direction: column !important;
     min-height: 0 !important;
     width: 100% !important;
+  }
+
+  /* Section nav full width */
+  .section-nav {
+    width: 100% !important;
+    padding: 12px 16px !important;
+    margin: 0 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    background: #ffffff !important;
+    border-bottom: 1px solid #e5e5e5 !important;
+  }
+
+  .section-nav > div {
+    display: flex !important;
+    gap: 16px !important;
+    min-width: max-content !important;
+  }
+
+  .nav-btn {
+    white-space: nowrap !important;
+    padding: 10px 4px !important;
+    font-size: 15px !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  /* Content header full width */
+  .content-header {
+    width: 100% !important;
+    padding: 12px 16px !important;
+    margin: 0 !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+    background: #ffffff !important;
+  }
+
+  /* File search full width */
+  .file-search {
+    width: 100% !important;
+    flex-wrap: wrap !important;
   }
 
   /* -------------------------------------------------
@@ -438,7 +508,7 @@
     padding: var(--fm-mobile-padding) !important;
     
     /* Style */
-    background: rgba(255, 255, 255, 0.98) !important;
+    background: #ffffff !important;
     backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
     border-bottom: 1px solid var(--line, #e5e7eb) !important;
@@ -473,7 +543,7 @@
     flex: none !important;
     display: flex !important;
     align-items: center !important;
-    gap: 10px !important;
+    gap: 12px !important;
     padding: 12px 14px !important;
     background: var(--bg-2, #f3f4f6) !important;
     border: 1px solid var(--line, #e5e7eb) !important;
@@ -491,6 +561,7 @@
     font-size: 18px !important;
     color: var(--muted, #6b7280) !important;
     flex-shrink: 0 !important;
+    margin-left: 2px !important;
   }
 
   .fm-search input {
@@ -501,6 +572,7 @@
     color: var(--text, #1f2937) !important;
     outline: none !important;
     min-width: 0 !important;
+    padding: 0 !important;
   }
 
   .fm-search input::placeholder {
@@ -586,7 +658,8 @@
     display: flex !important;
     flex-direction: column !important;
     gap: var(--fm-mobile-gap) !important;
-    padding: var(--fm-mobile-padding) !important;
+    padding: 0 !important;
+    width: 100% !important;
     
     /* Smooth scrolling */
     overflow-y: auto !important;
@@ -595,25 +668,65 @@
     scroll-behavior: smooth !important;
     
     /* Subtle background */
-    background: var(--bg, #f8fafc) !important;
+    background: #ffffff !important;
   }
 
   /* Section containers */
   .fm-section {
-    background: var(--surface, white) !important;
-    border: 1px solid var(--line, #e5e7eb) !important;
-    border-radius: calc(var(--fm-mobile-radius) + 4px) !important;
-    overflow: hidden !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    background: #ffffff !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
   }
 
   .fm-section-head {
     display: flex !important;
     align-items: center !important;
-    justify-content: space-between !important;
-    padding: 14px var(--fm-mobile-padding) !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+    padding: 14px 16px !important;
     border-bottom: 1px solid var(--line, #e5e7eb) !important;
-    background: var(--bg-2, #fafbfc) !important;
+    background: #ffffff !important;
+  }
+
+  .fm-section-head h3 {
+    flex: 0 0 auto !important;
+    margin-right: auto !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    color: var(--text, #1f2937) !important;
+  }
+
+  .fm-section-head .fm-spacer {
+    display: none !important;
+  }
+
+  .fm-section-head .fm-switch,
+  .fm-section-head .fm-dropdown,
+  .fm-section-head .fm-btn {
+    flex: 0 0 auto !important;
+  }
+
+  .fm-section-head select {
+    min-height: 40px !important;
+    padding: 8px 32px 8px 12px !important;
+    font-size: 14px !important;
+    touch-action: manipulation !important;
+  }
+
+  .fm-section-head .fm-btn {
+    min-height: 40px !important;
+    padding: 8px 14px !important;
+    font-size: 14px !important;
+    white-space: nowrap !important;
+    touch-action: manipulation !important;
+  }
+
+  .fm-section-head .fm-btn i {
+    font-size: 16px !important;
+    margin-right: 6px !important;
   }
 
   .fm-section-head h3 {
@@ -638,7 +751,7 @@
     align-items: center !important;
     gap: 6px !important;
     padding: 10px var(--fm-mobile-padding) !important;
-    background: var(--bg-2, #fafbfc) !important;
+    background: #ffffff !important;
     border-bottom: 1px solid var(--line, #e5e7eb) !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
@@ -782,13 +895,17 @@
   
   /* Grid container */
   .fm-collection {
-    padding: var(--fm-mobile-padding) !important;
+    padding: 16px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
   }
 
   .fm-grid {
     display: grid !important;
     grid-template-columns: repeat(2, 1fr) !important;
     gap: var(--fm-mobile-gap) !important;
+    width: 100% !important;
   }
 
   /* File Card - Base Styles */
@@ -918,38 +1035,14 @@
   }
 
   /* -------------------------------------------------
-     SELECTION CHECKBOX - Always Visible on Mobile
+     SELECTION CHECKBOX - Hidden on Mobile
      24x24px, rounded 4px, animated
      ------------------------------------------------- */
   .fm-selection-checkbox,
   .fm-card-checkbox,
   .fm-card .checkbox {
-    position: absolute !important;
-    top: 8px !important;
-    left: 8px !important;
-    width: var(--fm-checkbox-size) !important;
-    height: var(--fm-checkbox-size) !important;
-    border-radius: 6px !important;
-    border: 2px solid var(--line, #d1d5db) !important;
-    background: rgba(255, 255, 255, 0.95) !important;
-    
-    /* Layout */
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    
-    /* Interaction */
-    cursor: pointer !important;
-    touch-action: manipulation !important;
-    z-index: 10 !important;
-    
-    /* Style */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08) !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    
-    /* Ensure always visible on mobile */
-    opacity: 1 !important;
-    visibility: visible !important;
+    display: none !important;
+    visibility: hidden !important;
   }
 
   /* Checkbox hover/active state */
@@ -1017,6 +1110,8 @@
     top: 8px !important;
     right: 8px !important;
     z-index: 10 !important;
+    display: flex !important;
+    gap: 6px !important;
     
     /* Always visible on mobile */
     opacity: 1 !important;
@@ -1080,6 +1175,9 @@
     border-radius: var(--fm-mobile-radius) !important;
     border: 1px solid var(--line, #e5e7eb) !important;
     overflow: hidden !important;
+    width: 100% !important;
+    margin: 0 16px !important;
+    box-sizing: border-box !important;
   }
 
   /* List Row Structure: [Checkbox 32px] [Icon 40px] [Info flex] [Menu 40px] */

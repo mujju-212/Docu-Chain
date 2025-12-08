@@ -1,0 +1,185 @@
+/* =====================================================
+   DEBUG STYLES FOR AUTH PAGES
+   Import this file in Login.js or Register.js to debug
+   field and icon positioning issues
+   
+   TO USE:
+   Add this line to Login.js or Register.js:
+   import './auth.debug.css';
+   ===================================================== */
+
+/* FIELD CONTAINER DEBUG */
+.field {
+  outline: 3px dashed red !important;
+  background: rgba(255, 0, 0, 0.05) !important;
+  position: relative !important;
+  margin-bottom: 20px !important;
+}
+
+.field::before {
+  content: 'FIELD CONTAINER';
+  position: absolute;
+  top: -20px;
+  left: 0;
+  font-size: 10px;
+  color: red;
+  font-weight: bold;
+  background: white;
+  padding: 2px 4px;
+  z-index: 1000;
+}
+
+/* INPUT/SELECT DEBUG */
+.field input,
+.field select {
+  outline: 2px solid blue !important;
+  background: rgba(255, 255, 0, 0.15) !important;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 255, 0.3) !important;
+}
+
+.field input::before,
+.field select::before {
+  content: 'INPUT FIELD';
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: blue;
+  font-weight: bold;
+  background: white;
+  padding: 2px 4px;
+  z-index: 1001;
+}
+
+/* LEFT ICON DEBUG (email, password, institution icons) */
+.field > i:first-of-type,
+.field > i:first-child {
+  background: rgba(255, 0, 0, 0.5) !important;
+  outline: 3px solid orange !important;
+  padding: 4px !important;
+  z-index: 1002 !important;
+  box-shadow: 0 0 10px rgba(255, 165, 0, 0.8) !important;
+}
+
+.field > i:first-of-type::after,
+.field > i:first-child::after {
+  content: 'LEFT ICON';
+  position: absolute;
+  top: -18px;
+  left: 0;
+  font-size: 9px;
+  color: orange;
+  font-weight: bold;
+  background: white;
+  padding: 2px 4px;
+  white-space: nowrap;
+  font-family: Arial, sans-serif;
+}
+
+/* RIGHT ICON DEBUG (password toggle, eye icon) */
+.field .icon,
+.field button.icon,
+.field .toggle-password {
+  background: rgba(0, 255, 0, 0.5) !important;
+  outline: 3px solid lime !important;
+  z-index: 1003 !important;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.8) !important;
+}
+
+.field .icon::after,
+.field button.icon::after,
+.field .toggle-password::after {
+  content: 'RIGHT ICON (TOGGLE)';
+  position: absolute;
+  top: -18px;
+  right: 0;
+  font-size: 9px;
+  color: green;
+  font-weight: bold;
+  background: white;
+  padding: 2px 4px;
+  white-space: nowrap;
+  font-family: Arial, sans-serif;
+}
+
+/* NESTED ICON DEBUG */
+.field .icon i,
+.field button.icon i,
+.field .toggle-password i {
+  outline: 2px dotted purple !important;
+  background: rgba(128, 0, 128, 0.3) !important;
+}
+
+/* DROPDOWN CHEVRON DEBUG */
+.field select {
+  background-color: rgba(173, 216, 230, 0.3) !important;
+}
+
+/* POSITION DEBUG INFO */
+.field {
+  --debug-left-icon-left: attr(data-left-icon-left);
+  --debug-left-icon-top: attr(data-left-icon-top);
+}
+
+/* BRAND DEBUG */
+.brand {
+  outline: 2px solid purple !important;
+  background: rgba(128, 0, 128, 0.1) !important;
+}
+
+.logo {
+  outline: 2px solid navy !important;
+}
+
+/* MEASUREMENT GUIDES */
+body::before {
+  content: '🔍 DEBUG MODE ACTIVE - Check icon positions and field boundaries';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #ff0000;
+  color: white;
+  text-align: center;
+  padding: 10px;
+  font-weight: bold;
+  z-index: 9999;
+  font-size: 14px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* MEASUREMENT RULERS */
+.field::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg, red 0%, red 50%, transparent 50%, transparent 100%);
+  background-size: 10px 1px;
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* PADDING VISUALIZATION */
+.field input,
+.field select {
+  background-image: 
+    linear-gradient(to right, rgba(255, 0, 0, 0.2) 0%, rgba(255, 0, 0, 0.2) 48px, transparent 48px, transparent calc(100% - 52px), rgba(0, 255, 0, 0.2) calc(100% - 52px), rgba(0, 255, 0, 0.2) 100%) !important;
+}
+
+@media screen and (max-width: 768px) {
+  body::before {
+    content: '🔍 MOBILE DEBUG MODE - Check mobile icon positions';
+    font-size: 12px;
+    padding: 8px;
+  }
+  
+  .field input,
+  .field select {
+    background-image: 
+      linear-gradient(to right, rgba(255, 0, 0, 0.2) 0%, rgba(255, 0, 0, 0.2) 48px, transparent 48px, transparent calc(100% - 52px), rgba(0, 255, 0, 0.2) calc(100% - 52px), rgba(0, 255, 0, 0.2) 100%) !important;
+  }
+}

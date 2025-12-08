@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../services/api';
 import '../pages/auth/auth.css';
 import '../pages/auth/auth.mobile.css';
+// 🔍 DEBUG: Uncomment the line below to enable debug mode for field/icon positioning
+// import '../pages/auth/auth.debug.css';
 
 function Login() {
   const { login } = useAuth();

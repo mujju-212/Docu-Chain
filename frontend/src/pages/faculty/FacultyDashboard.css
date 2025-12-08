@@ -790,6 +790,24 @@ div.content-grid {
 }
 
 @media (max-width: 768px) {
+  /* Modern File Manager header on mobile */
+  .content:not(.chat-content) h2 {
+    font-size: 22px !important;
+    padding: 16px 20px !important;
+    border-radius: 12px !important;
+    background: var(--g-50, #f0fdf4) !important;
+    color: var(--g-900, #14532d) !important;
+    border-left: 4px solid var(--g-500, #22c55e) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+  }
+
+  .content:not(.chat-content) h2::before {
+    font-size: 20px !important;
+  }
+
   .content-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 12px !important;
@@ -848,6 +866,30 @@ div.content-grid {
   border: 1px solid var(--line);
   transform: scale(0.95);
   transition: transform 0.3s ease;
+}
+
+/* Modern File Manager Header - Desktop */
+.content:not(.chat-content) h2 {
+  font-size: 28px !important;
+  font-weight: 600 !important;
+  margin: 0 0 24px 0 !important;
+  padding: 18px 26px !important;
+  background: var(--g-50, #f0fdf4) !important;
+  color: var(--g-900, #14532d) !important;
+  border-radius: 12px !important;
+  border-left: 4px solid var(--g-500, #22c55e) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+}
+
+.content:not(.chat-content) h2::before {
+  content: '\edc1' !important;
+  font-family: 'remixicon' !important;
+  font-size: 28px !important;
+  font-weight: normal !important;
+  color: var(--g-600, #16a34a) !important;
 }
 
 .profile-overlay.show .profile-modal {
