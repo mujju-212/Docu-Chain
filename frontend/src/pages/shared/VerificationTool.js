@@ -1,9 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { API_URL } from '../../services/api';
 import jsQR from 'jsqr';
 import './VerificationTool.css';
 
-// API_URL already includes /api suffix from services/api.js
+// Get API URL with production domain fallback (same logic as api.js)
+const getApiUrl = () => {
+  // If on production domain without env var, use production API
+  if (typeof window !== 'undefined' && 
+      (window.location.hostname === 'www.docuchain.tech' || 
+       window.location.hostname === 'docuchain.tech')) {
+    return 'https://docu-chain-api.azurewebsites.net/api';
+  }
+  
+  let url = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  // Force HTTPS in production (when not localhost)
+  if (!url.includes('localhost') && !url.includes('127.0.0.1')) {
+    url = url.replace(/^http:\/\//i, 'https://');
+  }
+  return url;
+};
+
+const API_URL = getApiUrl();
 
 export default function VerificationTool() {
   // States

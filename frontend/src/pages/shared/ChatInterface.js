@@ -3,7 +3,25 @@ import ReactDOM from 'react-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { io } from 'socket.io-client';
 import blockchainServiceV2 from '../../services/blockchainServiceV2';
-import { API_URL } from '../../services/api';
+
+// Get API URL with production domain fallback (same logic as api.js)
+const getApiUrl = () => {
+  // If on production domain without env var, use production API
+  if (typeof window !== 'undefined' && 
+      (window.location.hostname === 'www.docuchain.tech' || 
+       window.location.hostname === 'docuchain.tech')) {
+    return 'https://docu-chain-api.azurewebsites.net/api';
+  }
+  
+  let url = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  // Force HTTPS in production (when not localhost)
+  if (!url.includes('localhost') && !url.includes('127.0.0.1')) {
+    url = url.replace(/^http:\/\//i, 'https://');
+  }
+  return url;
+};
+
+const API_URL = getApiUrl();
 import {
     requestApprovalOnBlockchain,
     approveDocumentOnBlockchain,

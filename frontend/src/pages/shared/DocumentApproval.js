@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { API_URL } from '../../services/api';
 import './DocumentApproval.css';
 import TransactionLoader from '../../components/shared/TransactionLoader';
 import {
@@ -13,6 +12,25 @@ import {
   getMyApprovalTasks
 } from '../../utils/metamask';
 import Web3 from 'web3';
+
+// Get API URL with production domain fallback (same logic as api.js)
+const getApiUrl = () => {
+  // If on production domain without env var, use production API
+  if (typeof window !== 'undefined' && 
+      (window.location.hostname === 'www.docuchain.tech' || 
+       window.location.hostname === 'docuchain.tech')) {
+    return 'https://docu-chain-api.azurewebsites.net/api';
+  }
+  
+  let url = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  // Force HTTPS in production (when not localhost)
+  if (!url.includes('localhost') && !url.includes('127.0.0.1')) {
+    url = url.replace(/^http:\/\//i, 'https://');
+  }
+  return url;
+};
+
+const API_URL = getApiUrl();
 
 const DocumentApproval = ({ userRole = 'faculty' }) => {
   // Utility function to format file size
