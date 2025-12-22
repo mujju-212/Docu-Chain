@@ -32,7 +32,7 @@ class FallbackEmailService:
     def send_via_brevo(to_email, subject, html_content, to_name=None):
         """Primary: Send via Brevo API"""
         try:
-            from .brevo_email_simple import SimpleBrevoEmailService
+            from app.services.brevo_email_simple import SimpleBrevoEmailService
             return SimpleBrevoEmailService.send_email(to_email, subject, html_content, to_name)
         except Exception as e:
             return False, f"Brevo service error: {str(e)}"
