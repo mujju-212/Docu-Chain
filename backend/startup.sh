@@ -24,10 +24,9 @@ export FLASK_ENV=production
 # python -m flask db upgrade
 
 # Start Gunicorn with SocketIO support
-# Using eventlet for WebSocket + high concurrency
+# Worker class is auto-detected in gunicorn.conf.py (eventlet/gevent/sync)
 # Use wsgi.py module for proper Socket.IO integration
 gunicorn --config gunicorn.conf.py --bind 0.0.0.0:$PORT wsgi:app \
-    --worker-class eventlet \
     --workers 3 \
     --timeout 120 \
     --keep-alive 5 \
