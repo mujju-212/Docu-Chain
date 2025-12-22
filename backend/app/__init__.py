@@ -99,7 +99,7 @@ def create_app(config_name=None):
     from app.models import user, document, institution, folder, recent_activity, approval, document_template, chat, blockchain_transaction, activity_log
     
     # Register blueprints
-    from app.routes import auth, documents, users, approvals, chat, circulars, institutions, folders, shares, recent, document_generation, blockchain, activity_log as activity_log_routes, dashboard, notifications
+    from app.routes import auth, documents, users, approvals, chat, circulars, institutions, folders, shares, recent, document_generation, blockchain, activity_log as activity_log_routes, dashboard, notifications, health
     
     app.register_blueprint(auth.bp, url_prefix='/api/auth')
     app.register_blueprint(documents.bp, url_prefix='/api/documents')
@@ -116,6 +116,7 @@ def create_app(config_name=None):
     app.register_blueprint(activity_log_routes.bp)  # /api/activity-logs prefix already in blueprint
     app.register_blueprint(dashboard.bp)  # /api/dashboard prefix already in blueprint
     app.register_blueprint(notifications.bp)  # /api/notifications prefix already in blueprint
+    app.register_blueprint(health.bp)  # /api/health prefix already in blueprint
     
     # Create upload folder if it doesn't exist
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)

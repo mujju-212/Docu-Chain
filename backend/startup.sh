@@ -4,6 +4,19 @@
 
 echo "Starting DocuChain API..."
 
+# Network diagnostics for Azure App Service
+echo "=== Network Diagnostics ==="
+echo "Testing DNS resolution for api.brevo.com..."
+nslookup api.brevo.com || echo "DNS resolution failed"
+
+echo "Testing connectivity to api.brevo.com..."
+curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 https://api.brevo.com || echo "Connection failed"
+
+echo "Current DNS servers:"
+cat /etc/resolv.conf | grep nameserver
+
+echo "=== Starting Application ==="
+
 # Set environment
 export FLASK_ENV=production
 

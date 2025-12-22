@@ -5,8 +5,8 @@ from app.models.user import User
 from app.models.institution import Institution
 from app.models.folder import Folder
 from app.models.activity_log import log_activity
-# Use simple Brevo email service (bypasses SDK DNS issues in Azure)
-from app.services.brevo_email_simple import EmailService
+# Use fallback email service for better reliability in Azure
+from app.services.fallback_email_service import EmailService
 from datetime import datetime, timedelta
 from functools import wraps
 import random

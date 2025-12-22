@@ -1,0 +1,45 @@
+# Azure App Service Environment Configuration
+# Add these to your Azure App Service Configuration -> Application Settings
+
+# Primary Email Service (Brevo)
+BREVO_API_KEY=your_brevo_api_key_here
+BREVO_SENDER_EMAIL=support@docuchain.tech
+BREVO_SENDER_NAME=DocuChain
+
+# Fallback SMTP Configuration (Gmail example)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your_gmail_address@gmail.com
+SMTP_PASSWORD=your_gmail_app_password
+SMTP_USE_TLS=true
+
+# Network Configuration for Azure
+WEBSITES_ENABLE_APP_SERVICE_STORAGE=true
+WEBSITES_DNS_SERVER=8.8.8.8
+WEBSITE_HTTPLOGGING_ENABLED=true
+
+# Email Service Configuration
+DNS_TIMEOUT=30
+EMAIL_RETRY_ATTEMPTS=3
+EMAIL_FALLBACK_ENABLED=true
+
+# Database Configuration
+DATABASE_URL=postgresql://username:password@hostname:port/database
+SQLALCHEMY_DATABASE_URI=postgresql://username:password@hostname:port/database
+
+# Application Settings
+FLASK_ENV=production
+SECRET_KEY=your_secret_key_here
+JWT_SECRET_KEY=your_jwt_secret_key_here
+
+# File Upload Settings
+UPLOAD_FOLDER=/home/site/wwwroot/uploads
+MAX_CONTENT_LENGTH=16777216
+
+# WebSocket Configuration
+SOCKET_IO_ASYNC_MODE=eventlet
+SOCKET_IO_CORS_ORIGINS=*
+
+# Logging Configuration  
+LOG_LEVEL=INFO
+ENABLE_EMAIL_LOGGING=true
