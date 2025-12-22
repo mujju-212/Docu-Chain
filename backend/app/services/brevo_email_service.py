@@ -16,6 +16,8 @@ load_dotenv()
 # Initialize Brevo API client with environment variable
 configuration = sib_api_v3_sdk.Configuration()
 configuration.api_key['api-key'] = os.getenv('BREVO_API_KEY', '')
+# CRITICAL FIX: Override old sendinblue.com endpoint with new brevo.com endpoint
+configuration.host = 'https://api.brevo.com/v3'
 
 # Email configuration from environment variables
 DEFAULT_SENDER_EMAIL = os.getenv('BREVO_SENDER_EMAIL', 'support@docuchain.tech')
