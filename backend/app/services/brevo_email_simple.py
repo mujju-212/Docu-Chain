@@ -7,7 +7,11 @@ import requests
 import os
 import socket
 import time
+import urllib3
 from dotenv import load_dotenv
+
+# Disable SSL warnings when using IP fallback
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 load_dotenv()
 
@@ -94,8 +98,8 @@ class SimpleBrevoEmailService:
                 )
                 session.mount('https://', adapter)
                 
-                # Increase timeout for Azure environment, disable SSL verification for IP-based requests
-                verify_ssl = dns_works  # Only verify SSL when using hostname
+                # Disable SSL verification when using IP address (Azure workaround)
+                verify_ssl = dns_works and (attempt == 0)  # Only verify on first attempt with hostname
                 response = session.post(
                     url, 
                     json=payload, 
@@ -118,15 +122,13 @@ class SimpleBrevoEmailService:
                 else:
                     error_msg = f"Brevo API error: {response.status_code} - {response.text}"
                     print(f"[EMAIL ERROR] {error_msg}")
+                    # Try IP fallback on next attempt if we got a bad response
+                    if attempt < max_retries - 1 and dns_works:
+                        dns_works = False
+                        time.sleep(base_delay)
+                        continue
                     return False, error_msg
                     
-            except requests.exceptions.SSLError as e:
-                # If SSL fails with IP, that's expected - this shouldn't happen but handle it
-                print(f"[SSL ERROR] SSL verification failed (expected with IP), attempt {attempt + 1}")
-                if attempt < max_retries - 1:
-                    dns_works = False  # Force IP usage on next retry
-                    continue
-                return False, f"SSL verification failed: {str(e)}"
             except requests.exceptions.Timeout:
                 if attempt < max_retries - 1:
                     delay = base_delay * (2 ** attempt)
