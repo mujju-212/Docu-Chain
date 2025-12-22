@@ -15,6 +15,10 @@ BREVO_API_KEY = os.getenv('BREVO_API_KEY', '')
 BREVO_SENDER_EMAIL = os.getenv('BREVO_SENDER_EMAIL', 'support@docuchain.tech')
 BREVO_SENDER_NAME = os.getenv('BREVO_SENDER_NAME', 'DocuChain')
 
+# Brevo API endpoints - use IP as fallback when DNS fails
+BREVO_API_HOST = 'api.brevo.com'
+BREVO_API_IP = '141.101.90.104'  # Cloudflare IP for api.brevo.com
+
 
 class SimpleBrevoEmailService:
     """Direct Brevo API calls using requests - more reliable in Azure"""
@@ -33,14 +37,12 @@ class SimpleBrevoEmailService:
         """Send email using Brevo REST API directly with DNS resolution check"""
         
         # Check DNS resolution first
-        if not SimpleBrevoEmailService.check_dns_resolution('api.brevo.com'):
-            print("[DNS WARNING] Cannot resolve api.brevo.com, waiting and retrying...")
-            time.sleep(2)  # Wait for DNS
-            if not SimpleBrevoEmailService.check_dns_resolution('api.brevo.com'):
-                return False, "DNS resolution failed for api.brevo.com. Check Azure network connectivity."
+        dns_works = SimpleBrevoEmailService.check_dns_resolution(BREVO_API_HOST)
         
-        url = "https://api.brevo.com/v3/smtp/email"
+        if not dns_works:
+            print(f"[DNS WARNING] Cannot resolve {BREVO_API_HOST}, will use IP address fallback...")
         
+        # Prepare request data
         headers = {
             "accept": "application/json",
             "api-key": BREVO_API_KEY,
@@ -68,20 +70,42 @@ class SimpleBrevoEmailService:
         
         for attempt in range(max_retries):
             try:
+                # Try with hostname first if DNS works, otherwise use IP
+                if dns_works or attempt == 0:
+                    url = f"https://{BREVO_API_HOST}/v3/smtp/email"
+                    extra_headers = {}
+                else:
+                    # Use IP address with Host header
+                    url = f"https://{BREVO_API_IP}/v3/smtp/email"
+                    extra_headers = {"Host": BREVO_API_HOST}
+                    print(f"[API] Using IP fallback: {BREVO_API_IP}")
+                
+                # Merge headers
+                request_headers = {**headers, **extra_headers}
+                
                 # Create session with better connection handling for Azure
                 session = requests.Session()
-                session.mount('https://', requests.adapters.HTTPAdapter(
+                adapter = requests.adapters.HTTPAdapter(
                     max_retries=requests.urllib3.util.retry.Retry(
                         total=2,
                         backoff_factor=1,
                         status_forcelist=[502, 503, 504]
                     )
-                ))
+                )
+                session.mount('https://', adapter)
                 
-                # Increase timeout for Azure environment
-                response = session.post(url, json=payload, headers=headers, timeout=30)
+                # Increase timeout for Azure environment, disable SSL verification for IP-based requests
+                verify_ssl = dns_works  # Only verify SSL when using hostname
+                response = session.post(
+                    url, 
+                    json=payload, 
+                    headers=request_headers, 
+                    timeout=30,
+                    verify=verify_ssl
+                )
                 
                 if response.status_code == 201:
+                    print(f"[EMAIL SUCCESS] Sent to {to_email} via {'hostname' if dns_works else 'IP'}")
                     return True, {"message_id": response.json().get('messageId')}
                 elif response.status_code == 429:  # Rate limit
                     if attempt < max_retries - 1:
@@ -93,26 +117,38 @@ class SimpleBrevoEmailService:
                         return False, f"Rate limit exceeded after {max_retries} attempts"
                 else:
                     error_msg = f"Brevo API error: {response.status_code} - {response.text}"
+                    print(f"[EMAIL ERROR] {error_msg}")
                     return False, error_msg
                     
+            except requests.exceptions.SSLError as e:
+                # If SSL fails with IP, that's expected - this shouldn't happen but handle it
+                print(f"[SSL ERROR] SSL verification failed (expected with IP), attempt {attempt + 1}")
+                if attempt < max_retries - 1:
+                    dns_works = False  # Force IP usage on next retry
+                    continue
+                return False, f"SSL verification failed: {str(e)}"
             except requests.exceptions.Timeout:
                 if attempt < max_retries - 1:
                     delay = base_delay * (2 ** attempt)
                     print(f"[TIMEOUT] Retrying in {delay}s... (attempt {attempt + 1})")
                     time.sleep(delay)
                     continue
-                return False, f"Request timeout after {max_retries} attempts - check Azure network connectivity"
+                return False, f"Request timeout after {max_retries} attempts"
             except requests.exceptions.ConnectionError as e:
                 if "Failed to resolve" in str(e) or "NameResolutionError" in str(e):
                     if attempt < max_retries - 1:
                         delay = base_delay * (2 ** attempt)
-                        print(f"[DNS ERROR] Retrying DNS resolution in {delay}s... (attempt {attempt + 1})")
+                        print(f"[DNS ERROR] Switching to IP fallback... (attempt {attempt + 1})")
+                        dns_works = False  # Force IP usage on next retry
                         time.sleep(delay)
                         continue
                     return False, f"DNS resolution failed after {max_retries} attempts: {str(e)}"
                 return False, f"Connection error: {str(e)}"
             except Exception as e:
+                print(f"[EMAIL ERROR] Unexpected error: {str(e)}")
                 return False, f"Email sending error: {str(e)}"
+        
+        return False, "Failed after all retry attempts"
     
     @staticmethod
     def send_verification_email(email, otp, user_name=None, role=None):
