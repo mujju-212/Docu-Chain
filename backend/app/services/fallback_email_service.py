@@ -4,10 +4,15 @@ For critical email delivery in Azure environments
 """
 
 import requests
-import smtplib
 import os
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
+try:
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    SMTP_AVAILABLE = True
+except ImportError:
+    SMTP_AVAILABLE = False
+    
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -41,17 +46,20 @@ class FallbackEmailService:
     def send_via_smtp(to_email, subject, html_content, to_name=None):
         """Fallback: Send via SMTP"""
         try:
+            if not SMTP_AVAILABLE:
+                return False, "SMTP modules not available"
+                
             if not SMTP_USERNAME or not SMTP_PASSWORD:
                 return False, "SMTP credentials not configured"
             
             # Create message
-            msg = MimeMultipart('alternative')
+            msg = MIMEMultipart('alternative')
             msg['Subject'] = subject
             msg['From'] = f"{BREVO_SENDER_NAME} <{SMTP_USERNAME}>"
             msg['To'] = to_email
             
             # Add HTML content
-            html_part = MimeText(html_content, 'html')
+            html_part = MIMEText(html_content, 'html')
             msg.attach(html_part)
             
             # Send via SMTP
@@ -81,16 +89,21 @@ class FallbackEmailService:
         # Log primary failure
         print(f"[EMAIL] Brevo failed for {to_email}: {response}")
         
-        # Try fallback (SMTP)
-        success, response = FallbackEmailService.send_via_smtp(to_email, subject, html_content, to_name)
-        
-        if success:
-            print(f"[EMAIL] Sent via SMTP fallback to {to_email}")
-            return True, response
-        
-        # All providers failed
-        print(f"[EMAIL] All providers failed for {to_email}: {response}")
-        return False, f"All email providers failed. Last error: {response}"
+        # Try fallback (SMTP) only if available
+        if SMTP_AVAILABLE:
+            success, response = FallbackEmailService.send_via_smtp(to_email, subject, html_content, to_name)
+            
+            if success:
+                print(f"[EMAIL] Sent via SMTP fallback to {to_email}")
+                return True, response
+            
+            # SMTP also failed
+            print(f"[EMAIL] SMTP fallback failed for {to_email}: {response}")
+            return False, f"All email providers failed. Brevo: DNS/connection issue, SMTP: {response}"
+        else:
+            # SMTP not available, only Brevo failed
+            print(f"[EMAIL] SMTP fallback not available for {to_email}")
+            return False, f"Primary email service failed and SMTP fallback not available. Error: {response}"
     
     @staticmethod
     def send_verification_email(email, otp, user_name=None, role=None):
