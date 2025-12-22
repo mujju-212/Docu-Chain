@@ -5,8 +5,8 @@ from app.models.user import User
 from app.models.institution import Institution
 from app.models.folder import Folder
 from app.models.activity_log import log_activity
-# Use Brevo email service instead of Resend
-from app.services.brevo_email_service import EmailService
+# Use simple Brevo email service (bypasses SDK DNS issues in Azure)
+from app.services.brevo_email_simple import EmailService
 from datetime import datetime, timedelta
 from functools import wraps
 import random
