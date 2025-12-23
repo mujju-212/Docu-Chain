@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 # Load .env file at import time
 load_dotenv()
 
-# Check if running in production (eventlet mode)
+# Check if running in production (gevent mode)
 is_production = os.getenv('FLASK_ENV') == 'production'
 
 class Config:

@@ -58,10 +58,10 @@ def create_app(config_name=None):
         return response
     
     # Determine async mode based on environment
-    # Use 'eventlet' in production for high concurrency (50+ users)
+    # Use 'gevent' in production for high concurrency (50+ users)
     # Use 'threading' in development for easier debugging
     is_production = os.getenv('FLASK_ENV') == 'production'
-    async_mode = 'eventlet' if is_production else 'threading'
+    async_mode = 'gevent' if is_production else 'threading'
     
     # Initialize SocketIO with optimal settings for concurrency
     socketio.init_app(

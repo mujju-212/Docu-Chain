@@ -1,8 +1,8 @@
-# Eventlet monkey-patching MUST be done before any other imports
+# Gevent monkey-patching MUST be done before any other imports
 import os
 if os.getenv('FLASK_ENV') == 'production':
-    import eventlet
-    eventlet.monkey_patch()
+    from gevent import monkey
+    monkey.patch_all()
 
 from app import create_app, socketio, db
 from dotenv import load_dotenv

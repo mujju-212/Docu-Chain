@@ -13,7 +13,7 @@ from app import create_app, socketio
 # Create Flask app instance
 app = create_app()
 
-# For Gunicorn with eventlet worker, we need to expose the SocketIO instance
+# For Gunicorn with gevent worker, we need to expose the SocketIO instance
 # This allows Gunicorn to properly handle WebSocket connections
 if __name__ == '__main__':
     socketio.run(app)
