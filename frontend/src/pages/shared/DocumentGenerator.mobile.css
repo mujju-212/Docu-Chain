@@ -30,6 +30,24 @@
 @media screen and (max-width: 768px) {
 
   /* -------------------------------------------------
+     CRITICAL: VIEWPORT & HTML FIXES
+     ------------------------------------------------- */
+  html {
+    -webkit-text-size-adjust: 100% !important;
+    -ms-text-size-adjust: 100% !important;
+  }
+
+  body {
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none !important;
+  }
+
+  /* -------------------------------------------------
      PHASE 1: MOBILE DESIGN TOKENS (Global)
      ------------------------------------------------- */
   :root {
@@ -61,6 +79,7 @@
     width: 100% !important;
     min-height: calc(100vh - var(--dashboard-header) - var(--dashboard-bottom-nav)) !important;
     height: auto !important;
+    max-width: 100vw !important;
     
     /* Account for dashboard header and bottom nav */
     padding-top: var(--docgen-padding) !important;
@@ -82,6 +101,10 @@
     
     /* Spacing between sections */
     gap: 16px !important;
+    
+    /* Remove any desktop box shadows or borders */
+    box-shadow: none !important;
+    border-radius: 0 !important;
   }
 
   /* -------------------------------------------------
@@ -541,6 +564,10 @@
     box-shadow: var(--docgen-shadow) !important;
     
     cursor: pointer !important;
+    touch-action: manipulation !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -webkit-tap-highlight-color: transparent !important;
     transition: var(--docgen-transition) !important;
   }
 
@@ -1577,6 +1604,9 @@
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
     
     cursor: pointer !important;
+    touch-action: manipulation !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
     transition: all 0.2s ease !important;
     
     -webkit-tap-highlight-color: transparent !important;
@@ -2114,7 +2144,7 @@
 
   /* -------------------------------------------------
      MODAL OVERLAY & BACKDROP
-     When rendered via React conditional, show immediately
+     Full-screen backdrop with smooth fade-in
      ------------------------------------------------- */
   .template-modal-overlay,
   .document-modal-overlay,
@@ -2125,24 +2155,24 @@
     right: 0 !important;
     bottom: 0 !important;
     
-    background: rgba(0, 0, 0, 0.5) !important;
-    backdrop-filter: blur(4px) !important;
-    -webkit-backdrop-filter: blur(4px) !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
     
-    z-index: 1000 !important;
+    z-index: 9999 !important;
     
-    /* Visible by default when rendered */
     opacity: 1 !important;
     visibility: visible !important;
     
-    /* Flex center for modal content */
     display: flex !important;
-    align-items: center !important;
+    align-items: flex-end !important;
     justify-content: center !important;
+    
+    overflow: hidden !important;
   }
 
   /* -------------------------------------------------
-     MODAL CONTAINER (Full-Screen)
+     MODAL CONTAINER (Full-Screen Mobile)
      ------------------------------------------------- */
   .template-modal,
   .document-modal,
@@ -2156,17 +2186,15 @@
     display: flex !important;
     flex-direction: column !important;
     
-    background: var(--surface, #ffffff) !important;
+    background: #f8fafc !important;
     
-    z-index: 1001 !important;
+    z-index: 10000 !important;
     
-    /* Slide-up animation */
     transform: translateY(100%) !important;
-    transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1) !important;
+    transition: transform 0.3s ease !important;
     
-    /* Safe area for notched phones */
-    padding-top: env(safe-area-inset-top, 0) !important;
-    padding-bottom: env(safe-area-inset-bottom, 0) !important;
+    max-width: 100vw !important;
+    overflow: hidden !important;
   }
 
   .template-modal.active,
@@ -2179,102 +2207,107 @@
   }
 
   /* -------------------------------------------------
-     MODAL HEADER
+     MODAL HEADER - Clean Design
      ------------------------------------------------- */
   .template-modal-header,
   .document-modal-header,
   .modal-header {
     display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
+    flex-direction: column !important;
+    gap: 0 !important;
     
-    height: 56px !important;
-    min-height: 56px !important;
-    padding: 0 16px !important;
+    background: #ffffff !important;
+    border-bottom: 1px solid #e5e7eb !important;
     
-    background: var(--surface, #ffffff) !important;
-    border-bottom: 1px solid var(--line, #e2e8f0) !important;
-    
-    /* Sticky header */
     position: sticky !important;
     top: 0 !important;
-    z-index: 10 !important;
+    z-index: 100 !important;
+    flex-shrink: 0 !important;
   }
 
-  .modal-back-btn,
-  .modal-close-btn {
+  .template-modal-header {
+    padding: 0 !important;
+  }
+
+  .template-modal-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    padding: 12px 16px !important;
+    background: #ffffff !important;
+  }
+
+  .close-modal-btn {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     
-    width: 40px !important;
-    height: 40px !important;
+    width: 32px !important;
+    height: 32px !important;
     
-    background: transparent !important;
+    background: #f3f4f6 !important;
     border: none !important;
-    border-radius: 50% !important;
+    border-radius: 8px !important;
     
-    color: var(--text-primary, #1e293b) !important;
-    font-size: 20px !important;
+    color: #6b7280 !important;
+    font-size: 18px !important;
     
     cursor: pointer !important;
-    transition: var(--docgen-transition) !important;
-    
-    -webkit-tap-highlight-color: transparent !important;
   }
 
-  .modal-back-btn:active,
-  .modal-close-btn:active {
-    background: var(--bg, #f8fafc) !important;
-    transform: scale(0.9) !important;
-  }
-
-  .modal-title {
-    flex: 1 !important;
-    
-    font-size: 17px !important;
-    font-weight: 600 !important;
-    color: var(--text-primary, #1e293b) !important;
-    
-    text-align: center !important;
-    
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    
-    margin: 0 12px !important;
-  }
-
-  .modal-action-btn {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    
-    padding: 8px 16px !important;
-    
-    background: var(--accent, #3b82f6) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: var(--docgen-radius-sm) !important;
-    
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    
-    cursor: pointer !important;
-    transition: var(--docgen-transition) !important;
-  }
-
-  .modal-action-btn:active {
+  .close-modal-btn:active {
+    background: #e5e7eb !important;
     transform: scale(0.95) !important;
   }
 
-  .modal-action-btn:disabled {
-    opacity: 0.5 !important;
-    cursor: not-allowed !important;
+  .template-modal-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 0 20px 16px 20px !important;
+    background: #ffffff !important;
+  }
+
+  .template-modal-icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
+    width: 56px !important;
+    height: 56px !important;
+    flex-shrink: 0 !important;
+    
+    border-radius: 14px !important;
+    
+    font-size: 28px !important;
+  }
+
+  .template-modal-info {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .template-modal-info h2 {
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    color: #111827 !important;
+    margin: 0 0 4px 0 !important;
+    line-height: 1.3 !important;
+  }
+
+  .template-modal-info p {
+    font-size: 14px !important;
+    color: #6b7280 !important;
+    margin: 0 !important;
+    line-height: 1.4 !important;
+  }
+
+  .template-modal-header .view-toggle {
+    display: none !important;
   }
 
   /* -------------------------------------------------
-     MODAL BODY (Scrollable Content)
+     MODAL BODY - Scrollable Content Area
      ------------------------------------------------- */
   .template-modal-body,
   .document-modal-body,
@@ -2289,9 +2322,16 @@
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
     
-    padding: 16px !important;
+    padding: 0 0 20px 0 !important;
+    margin: 0 !important;
     
-    background: var(--bg, #f8fafc) !important;
+    background: #f1f5f9 !important;
+    
+    min-height: 0 !important;
+  }
+
+  .template-modal-body::-webkit-scrollbar {
+    display: none !important;
   }
 
   /* -------------------------------------------------
@@ -2460,7 +2500,776 @@
   }
 
   /* -------------------------------------------------
-     MODAL FOOTER
+     TEMPLATE FORM SECTION - Redesigned
+     Clean, card-based mobile form layout
+     ------------------------------------------------- */
+  .template-form-section {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    
+    width: 100% !important;
+    min-height: 100% !important;
+    
+    overflow: visible !important;
+    
+    background: #f1f5f9 !important;
+  }
+
+  .template-form-section.collapsed {
+    display: none !important;
+  }
+
+  .form-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    flex: 1 !important;
+  }
+
+  /* -------------------------------------------------
+     WIZARD STEPS - 3-Step Flow (Fill → Preview → Submit)
+     ------------------------------------------------- */
+  .wizard-steps {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    
+    padding: 24px 20px !important;
+    margin: 0 !important;
+    
+    background: #ffffff !important;
+    border-bottom: 2px solid #f1f5f9 !important;
+    
+    flex-shrink: 0 !important;
+    position: relative !important;
+  }
+
+  /* Connecting Line */
+  .wizard-steps::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 38px !important;
+    left: calc(20px + 24px) !important;
+    right: calc(20px + 24px) !important;
+    height: 2px !important;
+    background: #e5e7eb !important;
+    z-index: 0 !important;
+  }
+
+  .wizard-step {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 10px !important;
+    
+    flex: 0 0 auto !important;
+    position: relative !important;
+    z-index: 1 !important;
+  }
+
+  .wizard-step-number {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
+    width: 48px !important;
+    height: 48px !important;
+    
+    background: #ffffff !important;
+    border: 3px solid #e5e7eb !important;
+    border-radius: 50% !important;
+    
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #9ca3af !important;
+    
+    transition: all 0.25s ease !important;
+  }
+
+  .wizard-step.active .wizard-step-number {
+    background: #3b82f6 !important;
+    border-color: #3b82f6 !important;
+    color: #ffffff !important;
+    transform: scale(1.1) !important;
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35) !important;
+  }
+
+  .wizard-step.completed .wizard-step-number {
+    background: #10b981 !important;
+    border-color: #10b981 !important;
+    color: #ffffff !important;
+  }
+
+  .wizard-step-label {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #9ca3af !important;
+    text-align: center !important;
+    line-height: 1.3 !important;
+    max-width: 85px !important;
+  }
+
+  .wizard-step.active .wizard-step-label {
+    color: #3b82f6 !important;
+    font-weight: 700 !important;
+  }
+
+  .wizard-step.completed .wizard-step-label {
+    color: #10b981 !important;
+  }
+
+  /* -------------------------------------------------
+     STEP VISIBILITY CONTROLS
+     Hide sections when not active
+     ------------------------------------------------- */
+  
+  /* Step 1: Show ONLY document details form, hide everything else */
+  .template-modal-body.step-1 .choose-action-card,
+  .template-modal-body.step-1 .select-recipients-card,
+  .template-modal-body.step-1 .template-preview-section,
+  .template-modal-body.step-1 .document-preview,
+  .template-modal-body.step-1 .preview-section,
+  .template-modal-body.step-1 .document-preview-section,
+  .template-modal-body.step-1 .form-preview-section,
+  .template-modal-body.step-1 .recipient-selection-section,
+  .template-modal-body.step-1 .action-selection-section,
+  .template-modal-body.step-1 .approver-selection-section,
+  .template-modal-body.step-1 .choose-action-section,
+  .template-modal-body.step-1 .select-approvers-section,
+  .template-modal-body.step-1 .preview-card,
+  .template-modal-body.step-1 .preview-container,
+  .template-modal-body.step-1 .generate-preview-section,
+  .template-modal-body.step-1 .template-preview-wrapper,
+  .template-modal-body.step-1 button[class*="preview"],
+  .template-modal-body.step-1 button[class*="generate"],
+  .template-modal-body.step-1 .preview-actions,
+  .template-modal-body.step-1 .document-actions {
+    display: none !important;
+  }
+
+  /* Step 2: Show ONLY preview, hide form fields and actions */
+  .template-modal-body.step-2 .document-details-card,
+  .template-modal-body.step-2 .choose-action-card,
+  .template-modal-body.step-2 .select-recipients-card,
+  .template-modal-body.step-2 .template-fields,
+  .template-modal-body.step-2 .recipient-selection-section,
+  .template-modal-body.step-2 .action-selection-section,
+  .template-modal-body.step-2 .approver-selection-section,
+  .template-modal-body.step-2 .choose-action-section,
+  .template-modal-body.step-2 .select-approvers-section {
+    display: none !important;
+  }
+
+  /* Step 2: DON'T hide template-form-section, just hide the cards inside it */
+  .template-modal-body.step-2 .template-form-section .form-container > .form-card {
+    display: none !important;
+  }
+
+  /* Step 2: Show preview section */
+  .template-modal-body.step-2 .template-preview-section {
+    display: flex !important;
+  }
+
+  /* Step 3: Show ONLY actions and recipients, hide form and preview */
+  .template-modal-body.step-3 .document-details-card,
+  .template-modal-body.step-3 .template-fields,
+  .template-modal-body.step-3 .template-preview-section,
+  .template-modal-body.step-3 .document-preview-section,
+  .template-modal-body.step-3 .form-preview-section,
+  .template-modal-body.step-3 .preview-section,
+  .template-modal-body.step-3 .document-preview,
+  .template-modal-body.step-3 .template-preview-wrapper {
+    display: none !important;
+  }
+
+  /* Step 3: FORCE show template-form-section and action/recipient cards */
+  .template-modal-body.step-3 .template-form-section {
+    display: flex !important;
+  }
+  
+  .template-modal-body.step-3 .form-container {
+    display: flex !important;
+  }
+
+  .template-modal-body.step-3 .choose-action-card,
+  .template-modal-body.step-3 .select-recipients-card {
+    display: block !important;
+  }
+
+  /* -------------------------------------------------
+     FORM CARD - Clean & Spacious
+     ------------------------------------------------- */
+  .form-card {
+    display: flex !important;
+    flex-direction: column !important;
+    
+    background: #ffffff !important;
+    border-radius: 0 !important;
+    border: none !important;
+    border-bottom: 12px solid #f1f5f9 !important;
+    
+    overflow: visible !important;
+    margin: 0 !important;
+    
+    min-height: auto !important;
+  }
+
+  .form-card-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    
+    padding: 24px 20px !important;
+    
+    background: #ffffff !important;
+    border-bottom: 2px solid #e5e7eb !important;
+  }
+
+  .form-card-icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
+    width: 44px !important;
+    height: 44px !important;
+    flex-shrink: 0 !important;
+    
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+    border-radius: 12px !important;
+    
+    font-size: 22px !important;
+    color: #ffffff !important;
+  }
+
+  .form-card-title {
+    flex: 1 !important;
+  }
+
+  .form-card-title h3 {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #111827 !important;
+    margin: 0 0 3px 0 !important;
+    line-height: 1.3 !important;
+  }
+
+  .form-card-title p {
+    font-size: 13px !important;
+    color: #6b7280 !important;
+    margin: 0 !important;
+    line-height: 1.4 !important;
+  }
+
+  .form-card-body {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+    
+    padding: 28px 20px 32px 20px !important;
+    
+    background: #ffffff !important;
+  }
+
+  /* -------------------------------------------------
+     PREVIEW SECTION - Step 2 Only
+     ------------------------------------------------- */
+  .document-preview-section,
+  .form-preview-section {
+    display: none !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    background: #ffffff !important;
+    border-bottom: 10px solid #f1f5f9 !important;
+  }
+
+  /* Show preview in step 2 */
+  .template-modal-body.step-2 .document-preview-section,
+  .template-modal-body.step-2 .form-preview-section {
+    display: flex !important;
+  }
+
+  .preview-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    padding: 20px !important;
+    background: #ffffff !important;
+    border-bottom: 2px solid #f1f5f9 !important;
+  }
+
+  .preview-header-icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 44px !important;
+    height: 44px !important;
+    flex-shrink: 0 !important;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    border-radius: 12px !important;
+    font-size: 22px !important;
+    color: #ffffff !important;
+  }
+
+  .preview-header-title h3 {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #111827 !important;
+    margin: 0 0 3px 0 !important;
+  }
+
+  .preview-header-title p {
+    font-size: 13px !important;
+    color: #6b7280 !important;
+    margin: 0 !important;
+  }
+
+  .preview-content {
+    padding: 24px 20px !important;
+    background: #f9fafb !important;
+  }
+
+  .preview-item {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .preview-item:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  .preview-label {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #6b7280 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  .preview-value {
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    color: #111827 !important;
+    line-height: 1.5 !important;
+    padding: 12px 16px !important;
+    background: #ffffff !important;
+    border-radius: 8px !important;
+    border: 1px solid #e5e7eb !important;
+  }
+
+  .preview-value.empty {
+    color: #9ca3af !important;
+    font-style: italic !important;
+  }
+
+  /* -------------------------------------------------
+     FORM GRID & FIELDS - Clean & Spacious
+     ------------------------------------------------- */
+  .form-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 24px !important;
+  }
+
+  .form-field,
+  .template-field,
+  .form-group {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .form-field label,
+  .template-field label,
+  .form-label {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #1f2937 !important;
+    
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    
+    margin-bottom: 0 !important;
+    
+    line-height: 1.4 !important;
+  }
+
+  .form-field label .required,
+  .template-field label .required,
+  .form-label .required,
+  .required {
+    color: #ef4444 !important;
+    font-size: 14px !important;
+  }
+
+  .form-field input,
+  .form-field textarea,
+  .form-field select,
+  .template-field input,
+  .template-field textarea,
+  .template-field select,
+  .form-input,
+  .form-textarea,
+  .form-select {
+    width: 100% !important;
+    padding: 16px 16px !important;
+    
+    background: #ffffff !important;
+    border: 2px solid #d1d5db !important;
+    border-radius: 10px !important;
+    
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+    color: #111827 !important;
+    font-weight: 400 !important;
+    
+    transition: all 0.2s ease !important;
+    
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    
+    min-height: 50px !important;
+  }
+
+  .form-field input:focus,
+  .form-field textarea:focus,
+  .form-field select:focus,
+  .template-field input:focus,
+  .template-field textarea:focus,
+  .template-field select:focus,
+  .form-input:focus,
+  .form-textarea:focus,
+  .form-select:focus {
+    outline: none !important;
+    border-color: #3b82f6 !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12) !important;
+  }
+
+  .form-field input::placeholder,
+  .form-field textarea::placeholder,
+  .form-field select::placeholder,
+  .template-field input::placeholder,
+  .template-field textarea::placeholder,
+  .template-field select::placeholder,
+  .form-input::placeholder,
+  .form-textarea::placeholder,
+  .form-select::placeholder {
+    color: #9ca3af !important;
+  }
+
+  .form-textarea {
+    min-height: 120px !important;
+    resize: vertical !important;
+    line-height: 1.6 !important;
+    padding: 16px !important;
+  }
+  .template-field input::placeholder,
+  .template-field textarea::placeholder,
+  .form-input::placeholder,
+  .form-textarea::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+  }
+
+  .form-field textarea,
+  .template-field textarea,
+  .form-textarea {
+    min-height: 120px !important;
+    max-height: 240px !important;
+    resize: vertical !important;
+    font-family: inherit !important;
+    line-height: 1.6 !important;
+  }
+
+  .form-field select,
+  .template-field select,
+  .form-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 16px center !important;
+    background-size: 18px !important;
+    padding-right: 48px !important;
+    cursor: pointer !important;
+  }
+
+  /* -------------------------------------------------
+     EMPTY STATE (No Fields)
+     ------------------------------------------------- */
+  .empty-form-state {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 12px !important;
+    
+    padding: 32px 20px !important;
+    
+    text-align: center !important;
+  }
+
+  .empty-form-state i {
+    font-size: 40px !important;
+    color: #cbd5e1 !important;
+    opacity: 0.6 !important;
+  }
+
+  .empty-form-state p {
+    font-size: 13px !important;
+    color: #64748b !important;
+    margin: 0 !important;
+    line-height: 1.6 !important;
+  }
+
+  /* -------------------------------------------------
+     RECIPIENT/APPROVER SEARCH
+     ------------------------------------------------- */
+  .recipient-search,
+  .approver-search {
+    margin-bottom: 16px !important;
+  }
+
+  .recipient-search input,
+  .approver-search input {
+    width: 100% !important;
+    padding: 12px 16px 12px 44px !important;
+    
+    background: #f8fafc !important;
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    
+    font-size: 14px !important;
+    color: #1e293b !important;
+    
+    transition: all 0.2s ease !important;
+  }
+
+  .recipient-search input:focus,
+  .approver-search input:focus {
+    outline: none !important;
+    border-color: #3b82f6 !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
+  }
+
+  /* -------------------------------------------------
+     RECIPIENT SELECTION - Step 3 Only
+     ------------------------------------------------- */
+  .recipient-selection-section,
+  .action-selection-section,
+  .approver-selection-section,
+  .choose-action-section,
+  .select-approvers-section {
+    display: none !important;
+  }
+
+  /* Show selection sections in step 3 */
+  .template-modal-body.step-3 .recipient-selection-section,
+  .template-modal-body.step-3 .action-selection-section,
+  .template-modal-body.step-3 .approver-selection-section,
+  .template-modal-body.step-3 .choose-action-section,
+  .template-modal-body.step-3 .select-approvers-section {
+    display: block !important;
+  }
+
+  /* -------------------------------------------------
+     RECIPIENT SELECTION - Clean Cards
+     ------------------------------------------------- */
+  .recipients-grid,
+  .approvers-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .recipient-card,
+  .approver-card {
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    
+    padding: 16px !important;
+    
+    background: #ffffff !important;
+    border: 2px solid #e5e7eb !important;
+    border-radius: 10px !important;
+    
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    
+    -webkit-tap-highlight-color: transparent !important;
+    user-select: none !important;
+  }
+
+  .recipient-card:active,
+  .approver-card:active {
+    transform: scale(0.98) !important;
+  }
+
+  .recipient-card.selected,
+  .approver-card.selected {
+    background: #eff6ff !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15) !important;
+  }
+
+  .recipient-checkbox,
+  .approver-checkbox {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
+    width: 22px !important;
+    height: 22px !important;
+    flex-shrink: 0 !important;
+    
+    background: #ffffff !important;
+    border: 2px solid #d1d5db !important;
+    border-radius: 6px !important;
+    
+    transition: all 0.2s ease !important;
+  }
+
+  .recipient-card.selected .recipient-checkbox,
+  .approver-card.selected .approver-checkbox {
+    background: #3b82f6 !important;
+    border-color: #3b82f6 !important;
+  }
+
+  .recipient-checkbox i,
+  .approver-checkbox i {
+    font-size: 13px !important;
+    color: white !important;
+    opacity: 0 !important;
+    transition: opacity 0.2s ease !important;
+  }
+
+  .recipient-card.selected .recipient-checkbox i,
+  .approver-card.selected .approver-checkbox i {
+    opacity: 1 !important;
+  }
+
+  .recipient-info,
+  .approver-info {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    min-width: 0 !important;
+  }
+
+  .recipient-name,
+  .approver-name {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #111827 !important;
+    
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .recipient-role,
+  .recipient-department,
+  .approver-role,
+  .approver-department {
+    font-size: 13px !important;
+    color: #6b7280 !important;
+    
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* -------------------------------------------------
+     ACTION TYPE SELECTION - Clean Cards
+     ------------------------------------------------- */
+  .action-type-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .action-type-card {
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
+    
+    padding: 18px !important;
+    
+    background: #ffffff !important;
+    border: 2px solid #e5e7eb !important;
+    border-radius: 10px !important;
+    
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    
+    -webkit-tap-highlight-color: transparent !important;
+    user-select: none !important;
+  }
+
+  .action-type-card:active {
+    transform: scale(0.98) !important;
+  }
+
+  .action-type-card.selected {
+    background: #eff6ff !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15) !important;
+  }
+
+  .action-type-icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
+    width: 52px !important;
+    height: 52px !important;
+    flex-shrink: 0 !important;
+    
+    background: #f9fafb !important;
+    border-radius: 12px !important;
+    
+    font-size: 24px !important;
+    color: #6b7280 !important;
+    
+    transition: all 0.2s ease !important;
+  }
+
+  .action-type-card.selected .action-type-icon {
+    background: #3b82f6 !important;
+    color: #ffffff !important;
+    transform: scale(1.05) !important;
+  }
+
+  .action-type-content {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+
+  .action-type-title {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #111827 !important;
+  }
+
+  .action-type-description {
+    font-size: 13px !important;
+    color: #6b7280 !important;
+    line-height: 1.5 !important;
+  }
+
+  /* -------------------------------------------------
+     MODAL FOOTER - Multi-Step Navigation
      ------------------------------------------------- */
   .template-modal-footer,
   .document-modal-footer,
@@ -2469,77 +3278,167 @@
     flex-direction: column !important;
     gap: 10px !important;
     
-    padding: 16px !important;
+    padding: 16px 16px !important;
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0)) !important;
     
-    background: var(--surface, #ffffff) !important;
-    border-top: 1px solid var(--line, #e2e8f0) !important;
+    background: #ffffff !important;
+    border-top: 2px solid #f1f5f9 !important;
     
-    /* Sticky footer */
     position: sticky !important;
     bottom: 0 !important;
-    z-index: 10 !important;
+    z-index: 100 !important;
+    
+    flex-shrink: 0 !important;
+    
+    box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.06) !important;
   }
 
-  .modal-footer-primary {
+  /* Hide preview and save draft buttons in Step 1 */
+  .template-modal-footer.step-1 .preview-btn,
+  .template-modal-footer.step-1 .save-draft-btn,
+  .template-modal-footer.step-1 .prev-step-btn,
+  .template-modal-footer.step-1 button[class*="preview"],
+  .template-modal-footer.step-1 button[class*="draft"],
+  .template-modal-footer.step-1 button[class*="save"],
+  .template-modal-footer.step-1 button:not([class*="next"]):not(.next-step-btn) {
+    display: none !important;
+  }
+
+  /* Hide generate/submit buttons in Step 1 and 2 */
+  .template-modal-footer.step-1 .generate-btn,
+  .template-modal-footer.step-1 .submit-btn,
+  .template-modal-footer.step-1 button[class*="generate"],
+  .template-modal-footer.step-1 button[class*="submit"],
+  .template-modal-footer.step-2 .generate-btn,
+  .template-modal-footer.step-2 .submit-btn {
+    display: none !important;
+  }
+
+  /* Show only Next button in Step 1 */
+  .template-modal-footer.step-1 .next-step-btn {
+    width: 100% !important;
+  }
+
+  /* Button Row Layout for Previous + Next */
+  .footer-button-row {
+    display: flex !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  /* Primary Button (Next/Submit) */
+  .modal-footer-primary,
+  .submit-btn,
+  .generate-btn,
+  .next-step-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    
+    flex: 1 !important;
+    height: 52px !important;
+    
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 12px !important;
+    
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    
+    -webkit-tap-highlight-color: transparent !important;
+    
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25) !important;
+  }
+
+  .modal-footer-primary:active,
+  .submit-btn:active,
+  .generate-btn:active,
+  .next-step-btn:active {
+    transform: scale(0.98) !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2) !important;
+  }
+
+  .modal-footer-primary:disabled,
+  .submit-btn:disabled,
+  .generate-btn:disabled,
+  .next-step-btn:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+    background: #cbd5e1 !important;
+  }
+
+  .modal-footer-primary i,
+  .submit-btn i,
+  .generate-btn i,
+  .next-step-btn i {
+    font-size: 18px !important;
+  }
+
+  /* Secondary/Previous Button */
+  .modal-footer-secondary,
+  .prev-step-btn {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     gap: 8px !important;
     
-    width: 100% !important;
-    height: var(--docgen-button-height) !important;
+    flex: 1 !important;
+    height: 52px !important;
     
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: var(--docgen-radius-sm) !important;
+    background: #ffffff !important;
+    color: #6b7280 !important;
+    border: 2px solid #e5e7eb !important;
+    border-radius: 12px !important;
     
     font-size: 15px !important;
     font-weight: 600 !important;
     
     cursor: pointer !important;
-    transition: var(--docgen-transition) !important;
-    
-    -webkit-tap-highlight-color: transparent !important;
+    transition: all 0.2s ease !important;
   }
 
-  .modal-footer-primary:active {
+  .modal-footer-secondary:active,
+  .prev-step-btn:active {
+    background: #f9fafb !important;
     transform: scale(0.98) !important;
   }
 
-  .modal-footer-primary:disabled {
-    opacity: 0.5 !important;
-    cursor: not-allowed !important;
+  /* Full Width Button (Step 1) */
+  .footer-button-full {
+    width: 100% !important;
   }
 
-  .modal-footer-primary i {
-    font-size: 18px !important;
-  }
-
-  .modal-footer-secondary {
+  /* Save Draft Button */
+  .save-draft-btn {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     gap: 8px !important;
     
     width: 100% !important;
-    height: var(--docgen-button-height) !important;
+    height: 48px !important;
     
     background: transparent !important;
-    color: var(--text-secondary, #64748b) !important;
-    border: 1px solid var(--line, #e2e8f0) !important;
-    border-radius: var(--docgen-radius-sm) !important;
+    color: #6b7280 !important;
+    border: 2px dashed #d1d5db !important;
+    border-radius: 10px !important;
     
-    font-size: 15px !important;
-    font-weight: 500 !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
     
     cursor: pointer !important;
-    transition: var(--docgen-transition) !important;
+    transition: all 0.2s ease !important;
   }
 
-  .modal-footer-secondary:active {
-    background: var(--bg, #f8fafc) !important;
+  .save-draft-btn:active {
+    background: #f9fafb !important;
+    border-color: #9ca3af !important;
   }
 
   /* Row layout for footer buttons */
@@ -6241,6 +7140,145 @@
   .document-generation .form-textarea {
     user-select: text !important;
     -webkit-user-select: text !important;
+  }
+
+  /* =====================================================
+     PHASE 10: NOTIFICATIONS (Mobile Toast)
+     ===================================================== */
+  
+  .notifications-container {
+    position: fixed !important;
+    top: calc(var(--dashboard-header) + 12px) !important;
+    left: 16px !important;
+    right: 16px !important;
+    z-index: 9999 !important;
+    
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    
+    pointer-events: none !important;
+  }
+
+  .notification {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    
+    padding: 14px 16px !important;
+    min-height: 56px !important;
+    
+    background: var(--surface, #ffffff) !important;
+    border-radius: var(--docgen-radius) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+    
+    pointer-events: auto !important;
+    
+    animation: slideInDown 0.3s ease-out !important;
+  }
+
+  .notification.success {
+    border-left: 4px solid #10b981 !important;
+  }
+
+  .notification.error {
+    border-left: 4px solid #ef4444 !important;
+  }
+
+  .notification.warning {
+    border-left: 4px solid #f59e0b !important;
+  }
+
+  .notification.info {
+    border-left: 4px solid #3b82f6 !important;
+  }
+
+  .notification-icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    
+    border-radius: 50% !important;
+    
+    font-size: 18px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .notification.success .notification-icon {
+    background: rgba(16, 185, 129, 0.1) !important;
+    color: #10b981 !important;
+  }
+
+  .notification.error .notification-icon {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: #ef4444 !important;
+  }
+
+  .notification.warning .notification-icon {
+    background: rgba(245, 158, 11, 0.1) !important;
+    color: #f59e0b !important;
+  }
+
+  .notification.info .notification-icon {
+    background: rgba(59, 130, 246, 0.1) !important;
+    color: #3b82f6 !important;
+  }
+
+  .notification-content {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .notification-content h4 {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: var(--text-primary, #1e293b) !important;
+    margin: 0 0 2px 0 !important;
+  }
+
+  .notification-content p {
+    font-size: 13px !important;
+    color: var(--text-secondary, #64748b) !important;
+    margin: 0 !important;
+    line-height: 1.4 !important;
+  }
+
+  .notification button {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
+    width: 32px !important;
+    height: 32px !important;
+    
+    background: transparent !important;
+    border: none !important;
+    border-radius: 50% !important;
+    
+    color: var(--text-secondary, #64748b) !important;
+    font-size: 16px !important;
+    
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+  }
+
+  .notification button:active {
+    background: var(--bg, #f1f5f9) !important;
+  }
+
+  @keyframes slideInDown {
+    from {
+      transform: translateY(-100%) !important;
+      opacity: 0 !important;
+    }
+    to {
+      transform: translateY(0) !important;
+      opacity: 1 !important;
+    }
   }
 
   /* -------------------------------------------------

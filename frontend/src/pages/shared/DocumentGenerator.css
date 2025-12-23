@@ -852,16 +852,17 @@
 }
 
 @media (max-width: 768px) {
+  /* Remove all desktop overrides - mobile.css handles everything */
   .document-generation {
-    padding: 16px;
+    /* Mobile CSS will handle this */
   }
   
   .templates-grid {
-    grid-template-columns: 1fr;
+    /* Mobile CSS will handle this */
   }
   
   .analytics-bar {
-    grid-template-columns: 1fr;
+    /* Mobile CSS will handle this */
   }
 }
 

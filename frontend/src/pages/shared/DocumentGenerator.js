@@ -49,6 +49,9 @@ export default function DocumentGenerator() {
   const [approvalFlow, setApprovalFlow] = useState('sequential'); // sequential or parallel
   const [sharePermissions, setSharePermissions] = useState({}); // { recipientId: 'read' | 'write' }
   
+  // Wizard step management for 3-step flow
+  const [currentStep, setCurrentStep] = useState(1);
+  
   // Get user role from localStorage
   const userRole = localStorage.getItem('userRole') || 'student';
   
@@ -1983,7 +1986,7 @@ export default function DocumentGenerator() {
       {/* Full Screen Template Form Modal - Redesigned */}
       {selectedTemplate && (
         <div className="modal-overlay" onClick={(e) => e.target.className === 'modal-overlay' && closeModal()}>
-          <div className="template-modal">
+          <div className="template-modal active">
             {/* Modal Header */}
             <div className="template-modal-header">
               <div className="template-modal-title">
@@ -2017,30 +2020,30 @@ export default function DocumentGenerator() {
             </div>
 
             {/* Modal Body */}
-            <div className="template-modal-body">
+            <div className={`template-modal-body step-${currentStep}`}>
               {/* Left Side - Form */}
               <div className={`template-form-section ${showPreview ? 'collapsed' : ''}`}>
                 <div className="form-container">
                   {/* Step Indicator */}
                   <div className="wizard-steps">
-                    <div className={`wizard-step ${areRequiredFieldsFilled() ? 'completed' : 'active'}`}>
-                      <div className="wizard-step-number">{areRequiredFieldsFilled() ? <i className="ri-check-line"></i> : '1'}</div>
+                    <div className={`wizard-step ${currentStep > 1 ? 'completed' : currentStep === 1 ? 'active' : ''}`}>
+                      <div className="wizard-step-number">{currentStep > 1 ? <i className="ri-check-line"></i> : '1'}</div>
                       <div className="wizard-step-label">Fill Details</div>
                     </div>
-                    <div className={`wizard-step-line ${areRequiredFieldsFilled() ? 'completed' : ''}`}></div>
-                    <div className={`wizard-step ${approvalType ? 'completed' : areRequiredFieldsFilled() ? 'active' : ''}`}>
-                      <div className="wizard-step-number">{approvalType ? <i className="ri-check-line"></i> : '2'}</div>
-                      <div className="wizard-step-label">Choose Action</div>
+                    <div className={`wizard-step-line ${currentStep > 1 ? 'completed' : ''}`}></div>
+                    <div className={`wizard-step ${currentStep > 2 ? 'completed' : currentStep === 2 ? 'active' : ''}`}>
+                      <div className="wizard-step-number">{currentStep > 2 ? <i className="ri-check-line"></i> : '2'}</div>
+                      <div className="wizard-step-label">Preview</div>
                     </div>
-                    <div className={`wizard-step-line ${approvalType ? 'completed' : ''}`}></div>
-                    <div className={`wizard-step ${(approvalType === 'save' || selectedRecipients.length > 0) ? 'completed' : approvalType ? 'active' : ''}`}>
-                      <div className="wizard-step-number">{(approvalType === 'save' || selectedRecipients.length > 0) ? <i className="ri-check-line"></i> : '3'}</div>
-                      <div className="wizard-step-label">{approvalType === 'save' ? 'Ready' : 'Select Recipients'}</div>
+                    <div className={`wizard-step-line ${currentStep > 2 ? 'completed' : ''}`}></div>
+                    <div className={`wizard-step ${currentStep === 3 ? 'active' : ''}`}>
+                      <div className="wizard-step-number">3</div>
+                      <div className="wizard-step-label">Choose Action & Submit</div>
                     </div>
                   </div>
 
                   {/* Form Fields Section */}
-                  <div className="form-card">
+                  <div className="form-card document-details-card">
                     <div className="form-card-header">
                       <i className="ri-file-list-3-line"></i>
                       <h3>Document Details</h3>
@@ -2105,7 +2108,7 @@ export default function DocumentGenerator() {
                   </div>
 
                   {/* Action Type Section - MOVED BEFORE RECIPIENTS */}
-                  <div className="form-card">
+                  <div className="form-card choose-action-card">
                     <div className="form-card-header">
                       <i className="ri-shield-check-line"></i>
                       <h3>Choose Action</h3>
@@ -2181,7 +2184,7 @@ export default function DocumentGenerator() {
 
                   {/* Recipients/Approvers Section - Only show if not 'save' */}
                   {approvalType !== 'save' && (
-                    <div className="form-card">
+                    <div className="form-card select-recipients-card">
                       <div className="form-card-header">
                         <i className={approvalType === 'share' ? 'ri-team-line' : 'ri-user-star-line'}></i>
                         <h3>{approvalType === 'share' ? 'Select Recipients' : 'Select Approvers'}</h3>
@@ -2368,35 +2371,55 @@ export default function DocumentGenerator() {
             </div>
 
             {/* Modal Footer */}
-            <div className="template-modal-footer">
-              <div className="footer-left">
-                <button className="footer-btn outline" onClick={handleSaveDraft} disabled={isSubmitting}>
-                  <i className="ri-save-line"></i> Save as Draft
-                </button>
-              </div>
-              <div className="footer-right">
-                <button className="footer-btn outline" onClick={handlePreview}>
-                  <i className="ri-eye-line"></i> Preview
-                </button>
-                <button 
-                  className="footer-btn primary" 
-                  onClick={handleGenerateAndSubmit} 
-                  disabled={isSubmitting || (approvalType !== 'save' && selectedRecipients.length === 0)}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <i className="ri-loader-4-line spinning"></i> Processing...
-                    </>
-                  ) : approvalType === 'save' ? (
-                    <>
-                      <i className="ri-folder-add-line"></i> Save to Files
-                    </>
-                  ) : (
-                    <>
-                      <i className="ri-send-plane-line"></i> Generate & Submit
-                    </>
-                  )}
-                </button>
+            <div className={`template-modal-footer step-${currentStep}`}>
+              <div className="footer-button-row">
+                {currentStep > 1 && (
+                  <button 
+                    className="footer-btn prev-step-btn" 
+                    onClick={() => setCurrentStep(currentStep - 1)}
+                  >
+                    <i className="ri-arrow-left-line"></i> Previous
+                  </button>
+                )}
+                {currentStep < 3 && (
+                  <button 
+                    className="footer-btn next-step-btn" 
+                    onClick={() => {
+                      if (currentStep === 1 && !areRequiredFieldsFilled()) {
+                        showNotification('error', 'Incomplete Form', 'Please fill all required fields');
+                        return;
+                      }
+                      if (currentStep === 1) {
+                        handlePreview();
+                      }
+                      setCurrentStep(currentStep + 1);
+                    }}
+                    disabled={currentStep === 1 && !areRequiredFieldsFilled()}
+                  >
+                    Next <i className="ri-arrow-right-line"></i>
+                  </button>
+                )}
+                {currentStep === 3 && (
+                  <button 
+                    className="footer-btn primary" 
+                    onClick={handleGenerateAndSubmit} 
+                    disabled={isSubmitting || (approvalType !== 'save' && selectedRecipients.length === 0)}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <i className="ri-loader-4-line spinning"></i> Processing...
+                      </>
+                    ) : approvalType === 'save' ? (
+                      <>
+                        <i className="ri-folder-add-line"></i> Save to Files
+                      </>
+                    ) : (
+                      <>
+                        <i className="ri-send-plane-line"></i> Generate & Submit
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>

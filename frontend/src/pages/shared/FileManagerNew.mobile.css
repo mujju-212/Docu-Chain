@@ -926,6 +926,9 @@
     /* Interaction */
     cursor: pointer !important;
     touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
     transition: all 0.2s ease !important;
     position: relative !important;
     overflow: hidden !important;
@@ -1198,6 +1201,9 @@
     /* Interaction */
     cursor: pointer !important;
     touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
     transition: background 0.15s ease !important;
     position: relative !important;
   }
@@ -2234,7 +2240,8 @@
   }
 
   .fm-modal.show,
-  .fm-modal.active {
+  .fm-modal.active,
+  .fm-modal.fm-open {
     transform: translateY(0) !important;
     opacity: 1 !important;
     visibility: visible !important;

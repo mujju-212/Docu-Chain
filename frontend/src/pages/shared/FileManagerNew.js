@@ -2164,6 +2164,12 @@ const FileManager = () => {
   };
 
   // Single click - show details
+  // Detect if user is on mobile device
+  const isMobileDevice = () => {
+    return window.innerWidth <= 768 || 
+           /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+
   const handleSingleClick = (file) => {
     setCurrentFile(file);
     setIsDetailsModalOpen(true);
@@ -2172,9 +2178,11 @@ const FileManager = () => {
   // Double click - open file/folder
   const handleDoubleClick = (file) => {
     console.log('🔍 Double-clicked file:', file);
+    console.log('📋 File type:', file.type, 'IPFS:', file.ipfsHash);
     
     if (file.type === 'folder') {
       // Navigate into folder
+      console.log('📁 Opening folder');
       navigateToFolder(file);
       const folderName = file.name || file.folder_name || file.title || 'Unnamed Folder';
       addRecentActivity(file.id, folderName, 'folder-opened', 'folder', {
@@ -2185,6 +2193,7 @@ const FileManager = () => {
       showNotification('info', 'Folder Opened', `Opened ${folderName} folder`);
     } else {
       // Open file for viewing/editing
+      console.log('📄 Opening file modal');
       const fileName = file.name || file.fileName || file.file_name || 'Unnamed File';
       const fileSize = file.size || file.fileSize || file.file_size || 'Unknown';
       const fileOwner = file.owner || file.createdBy || file.created_by || 'You';
@@ -2203,20 +2212,35 @@ const FileManager = () => {
         logDocumentAccess(file.id, 'view');
       }
       
+      console.log('🎯 Setting currentFile and opening modal');
       setCurrentFile(file);
       setIsFileModalOpen(true);
+      console.log('✅ Modal state set to true');
     }
   };
 
-  // Handle click with timeout for single/double click detection
+  // Handle click with mobile-optimized behavior
   const handleFileClick = (file) => {
+    console.log('🖱️ File clicked:', file.name, 'Mobile:', isMobileDevice());
+    
+    // On mobile: single touch opens files/folders immediately (no delay)
+    if (isMobileDevice()) {
+      console.log('📱 Mobile device detected - opening immediately');
+      handleDoubleClick(file);
+      return;
+    }
+    
+    console.log('🖥️ Desktop device - using double-click detection');
+    // On desktop: use double-click detection
     if (clickTimeout) {
       // Double click detected
+      console.log('✅ Double-click detected');
       clearTimeout(clickTimeout);
       setClickTimeout(null);
       handleDoubleClick(file);
     } else {
       // Start timeout for single click
+      console.log('⏳ Starting single-click timeout');
       const timeout = setTimeout(() => {
         handleSingleClick(file);
         setClickTimeout(null);

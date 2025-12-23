@@ -1,0 +1,364 @@
+/* User Management Mobile Styles */
+
+@media (max-width: 768px) {
+  /* Container */
+  .user-management-container {
+    padding: 12px !important;
+  }
+
+  /* Header */
+  .um-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .um-header-left h1 {
+    font-size: 20px !important;
+  }
+
+  .um-header-left p {
+    font-size: 13px !important;
+  }
+
+  .um-header-right {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .um-btn {
+    padding: 8px 14px !important;
+    font-size: 13px !important;
+  }
+
+  /* Analytics Cards - 2 columns on mobile */
+  .um-analytics {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .um-stat-card {
+    padding: 12px !important;
+  }
+
+  .um-stat-icon {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 18px !important;
+  }
+
+  .um-stat-value {
+    font-size: 20px !important;
+  }
+
+  .um-stat-label {
+    font-size: 12px !important;
+  }
+
+  /* Filters */
+  .um-filters {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .um-filter-group {
+    width: 100% !important;
+  }
+
+  .um-filter-select,
+  .um-search-box {
+    width: 100% !important;
+  }
+
+  .um-filter-select select {
+    font-size: 13px !important;
+    padding: 8px 12px !important;
+  }
+
+  .um-search-box input {
+    font-size: 13px !important;
+    padding: 8px 12px 8px 36px !important;
+  }
+
+  /* Table Container - Enable horizontal scroll */
+  .um-table-container {
+    margin: 0 -12px !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+
+  .um-table-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Table - Compact mobile view */
+  .um-table {
+    min-width: 750px !important;
+    font-size: 13px !important;
+  }
+
+  .um-table th {
+    padding: 10px 12px !important;
+    font-size: 11px !important;
+    position: sticky !important;
+    top: 0 !important;
+    background: var(--bg-secondary) !important;
+    z-index: 10 !important;
+  }
+
+  .um-table td {
+    padding: 10px 12px !important;
+  }
+
+  /* User Cell - Compact */
+  .um-user-cell {
+    gap: 8px !important;
+    min-width: 200px !important;
+  }
+
+  .um-avatar {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 13px !important;
+    border-radius: 8px !important;
+  }
+
+  .um-user-info {
+    min-width: 0 !important;
+  }
+
+  .um-user-name {
+    font-size: 13px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .um-user-email {
+    font-size: 11px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* Role & Department Column */
+  .um-table td:nth-child(2) {
+    min-width: 150px !important;
+  }
+
+  /* Status Badges */
+  .um-status-badge {
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+    white-space: nowrap !important;
+  }
+
+  .um-role-badge {
+    font-size: 11px !important;
+    padding: 3px 8px !important;
+  }
+
+  /* Contact Column */
+  .um-table td:nth-child(3) {
+    min-width: 130px !important;
+    font-size: 12px !important;
+  }
+
+  /* Date Columns */
+  .um-table td:nth-child(4),
+  .um-table td:nth-child(5) {
+    min-width: 100px !important;
+    font-size: 12px !important;
+  }
+
+  /* Status Column */
+  .um-table td:nth-child(6) {
+    min-width: 90px !important;
+  }
+
+  /* Action Buttons */
+  .um-actions {
+    gap: 6px !important;
+  }
+
+  .um-action-btn {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 15px !important;
+  }
+
+  /* Pagination */
+  .um-pagination {
+    padding: 12px !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  .um-pagination-info {
+    font-size: 12px !important;
+    width: 100% !important;
+    text-align: center !important;
+  }
+
+  .um-pagination-controls {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .um-page-btn {
+    min-width: 32px !important;
+    height: 32px !important;
+    font-size: 13px !important;
+  }
+
+  /* Modals */
+  .um-modal-content {
+    width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 40px) !important;
+    margin: 20px 12px !important;
+    padding: 16px !important;
+    border-radius: 12px !important;
+  }
+
+  .um-modal-header {
+    padding: 0 0 12px 0 !important;
+  }
+
+  .um-modal-header h2 {
+    font-size: 18px !important;
+  }
+
+  .um-modal-body {
+    padding: 12px 0 !important;
+    max-height: calc(100vh - 200px) !important;
+  }
+
+  .um-modal-actions {
+    padding: 12px 0 0 0 !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .um-modal-actions .um-btn {
+    flex: 1 1 calc(50% - 4px) !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+  }
+
+  /* Profile Modal */
+  .um-profile-header {
+    flex-direction: column !important;
+    text-align: center !important;
+    padding: 16px !important;
+  }
+
+  .um-profile-avatar {
+    width: 60px !important;
+    height: 60px !important;
+    font-size: 24px !important;
+  }
+
+  .um-profile-name {
+    font-size: 18px !important;
+  }
+
+  .um-profile-email {
+    font-size: 13px !important;
+  }
+
+  .um-profile-status {
+    font-size: 12px !important;
+    padding: 4px 12px !important;
+  }
+
+  .um-detail-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .um-detail-item label {
+    font-size: 11px !important;
+  }
+
+  .um-detail-item span {
+    font-size: 13px !important;
+  }
+
+  /* Form Grid */
+  .um-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .um-form-group label {
+    font-size: 12px !important;
+  }
+
+  .um-form-input,
+  .um-form-select {
+    font-size: 13px !important;
+    padding: 8px 12px !important;
+  }
+
+  /* Empty State */
+  .um-empty {
+    padding: 40px 20px !important;
+  }
+
+  .um-empty-icon {
+    font-size: 40px !important;
+    width: 80px !important;
+    height: 80px !important;
+  }
+
+  .um-empty h3 {
+    font-size: 16px !important;
+  }
+
+  .um-empty p {
+    font-size: 13px !important;
+  }
+
+  /* Scroll Hint for Table */
+  .um-table-container::after {
+    content: '← Swipe to see more →';
+    display: block;
+    text-align: center;
+    padding: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary, #f1f5f9);
+    border-top: 1px solid var(--border-color);
+  }
+
+  /* Hide scroll hint when scrolled */
+  .um-table-wrapper:not(:hover)::after {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small screens */
+  .um-analytics {
+    grid-template-columns: 1fr !important;
+  }
+
+  .um-header-left h1 {
+    font-size: 18px !important;
+  }
+
+  .um-table {
+    min-width: 700px !important;
+  }
+
+  .um-user-cell {
+    min-width: 180px !important;
+  }
+
+  .um-modal-actions .um-btn {
+    flex: 1 1 100% !important;
+  }
+}

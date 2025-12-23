@@ -726,8 +726,8 @@ const UserManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.length === 0 ? (
-                <tr>
+                {filteredUsers.length === 0 ? (
+                  <tr>
                   <td colSpan="6" className="um-no-results">
                     <i className="ri-user-search-line"></i>
                     <p>No users found</p>
