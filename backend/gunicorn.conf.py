@@ -4,22 +4,8 @@
 import multiprocessing
 import os
 
-# Try to use eventlet if available, otherwise fall back to gevent or sync
-try:
-    import eventlet
-    eventlet.monkey_patch()
-    worker_class = "eventlet"
-    print("Using eventlet worker class")
-except ImportError:
-    try:
-        import gevent
-        from gevent import monkey
-        monkey.patch_all()
-        worker_class = "gevent"
-        print("Eventlet not available, using gevent worker class")
-    except ImportError:
-        worker_class = "sync"
-        print("Neither eventlet nor gevent available, using sync worker class")
+# Use gevent worker for async support without eventlet dependency
+worker_class = "gevent"
 
 # Bind to Azure's expected port
 bind = "0.0.0.0:8000"
