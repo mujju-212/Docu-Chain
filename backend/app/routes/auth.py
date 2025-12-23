@@ -5,8 +5,8 @@ from app.models.user import User
 from app.models.institution import Institution
 from app.models.folder import Folder
 from app.models.activity_log import log_activity
-# Use fallback email service for better reliability in Azure
-from app.services.fallback_email_service import EmailService
+# Use simple Brevo email service
+from app.services.brevo_email_simple import SimpleBrevoEmailService
 from datetime import datetime, timedelta
 from functools import wraps
 import random
@@ -258,7 +258,7 @@ def admin_create_user():
             full_name = f"{user.first_name} {user.last_name}"
             institution = Institution.query.get(institution_id)
             inst_name = institution.name if institution else "DocuChain Institution"
-            EmailService.send_welcome_email(
+            SimpleBrevoEmailService.send_welcome_email(
                 user.email, 
                 full_name, 
                 user.role, 
@@ -340,7 +340,7 @@ def register():
         # Send welcome email
         try:
             full_name = f"{user.first_name} {user.last_name}"
-            EmailService.send_welcome_email(
+            SimpleBrevoEmailService.send_welcome_email(
                 user.email, 
                 full_name, 
                 user.role, 
@@ -516,7 +516,7 @@ def create_institution():
         # Send institution registration email with credentials
         try:
             admin_full_name = f"{admin.first_name} {admin.last_name}"
-            EmailService.send_institution_registration_email(
+            SimpleBrevoEmailService.send_institution_registration_email(
                 admin.email,
                 institution.name,
                 admin_full_name,
@@ -527,7 +527,7 @@ def create_institution():
         
         # Send welcome email too
         try:
-            EmailService.send_welcome_email(
+            SimpleBrevoEmailService.send_welcome_email(
                 admin.email,
                 admin_full_name,
                 'institution',
@@ -641,7 +641,7 @@ def send_email_verification():
         }
         
         # Send verification email using Brevo
-        success, response = EmailService.send_verification_email(email, otp)
+        success, response = SimpleBrevoEmailService.send_verification_email(email, otp)
         if success:
             return jsonify({
                 'success': True, 
@@ -742,7 +742,7 @@ def forgot_password():
         }
         
         # Send OTP email using Resend
-        success, response = EmailService.send_forgot_password_email(email, otp, user.first_name)
+        success, response = SimpleBrevoEmailService.send_forgot_password_email(email, otp, user.first_name)
         if success:
             # For development, also return OTP in response
             response_data = {
@@ -894,16 +894,16 @@ def test_email(email_type):
         email = data.get('email', 'test@docuchain.app')
         
         if email_type == 'forgot-password':
-            success, response = EmailService.send_forgot_password_email(email, '123456', 'Test User')
+            success, response = SimpleBrevoEmailService.send_forgot_password_email(email, '123456', 'Test User')
         elif email_type == 'verification':
-            success, response = EmailService.send_verification_email(email, '789012', 'Test User', 'student')
+            success, response = SimpleBrevoEmailService.send_verification_email(email, '789012', 'Test User', 'student')
         elif email_type == 'institution':
-            success, response = EmailService.send_institution_registration_email(
+            success, response = SimpleBrevoEmailService.send_institution_registration_email(
                 email, 'Test University', 'Test Admin', 'TempPass123'
             )
         elif email_type == 'welcome':
             role = data.get('role', 'student')
-            success, response = EmailService.send_welcome_email(email, 'Test User', role, 'Test University')
+            success, response = SimpleBrevoEmailService.send_welcome_email(email, 'Test User', role, 'Test University')
         else:
             return jsonify({'success': False, 'message': 'Invalid email type'}), 400
         
@@ -918,3 +918,4 @@ def test_email(email_type):
             
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
