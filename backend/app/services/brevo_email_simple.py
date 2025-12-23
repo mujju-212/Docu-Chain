@@ -1,11 +1,13 @@
 """
 Simple Brevo Email Service using requests library
-Reliable in Azure with proper timeout settings
+With IP-based fallback for Azure DNS issues
 """
 
 import requests
 import os
 from dotenv import load_dotenv
+import socket
+from urllib3.util.connection import create_connection
 
 load_dotenv()
 
@@ -13,20 +15,25 @@ BREVO_API_KEY = os.getenv('BREVO_API_KEY', '')
 BREVO_SENDER_EMAIL = os.getenv('BREVO_SENDER_EMAIL', 'support@docuchain.tech')
 BREVO_SENDER_NAME = os.getenv('BREVO_SENDER_NAME', 'DocuChain')
 
+# Brevo API IP address (fallback for DNS issues)
+BREVO_API_IP = "141.101.90.104"
+
 
 class SimpleBrevoEmailService:
-    """Direct Brevo API calls using requests - simple and reliable"""
+    """Direct Brevo API calls using requests - with DNS fallback"""
     
     @staticmethod
     def send_email(to_email, subject, html_content, to_name=None):
-        """Send email using Brevo REST API directly"""
+        """Send email using Brevo REST API with DNS fallback"""
         
+        # First try normal API call
         url = "https://api.brevo.com/v3/smtp/email"
         
         headers = {
             "accept": "application/json",
             "api-key": BREVO_API_KEY,
-            "content-type": "application/json"
+            "content-type": "application/json",
+            "Host": "api.brevo.com"  # Important for SNI
         }
         
         payload = {
@@ -45,12 +52,12 @@ class SimpleBrevoEmailService:
         }
         
         try:
-            # Simple request with longer timeout for Azure
+            # Try normal DNS resolution first
             response = requests.post(
                 url, 
                 json=payload, 
                 headers=headers, 
-                timeout=60  # Increased to 60 seconds for Azure
+                timeout=30
             )
             
             if response.status_code == 201:
@@ -61,14 +68,39 @@ class SimpleBrevoEmailService:
                 print(f"[EMAIL ERROR] {error_msg}")
                 return False, error_msg
                 
-        except requests.exceptions.Timeout:
-            error_msg = "Request timeout - Brevo API took too long to respond"
-            print(f"[EMAIL ERROR] {error_msg}")
-            return False, error_msg
-        except requests.exceptions.ConnectionError as e:
-            error_msg = f"Connection error: {str(e)}"
-            print(f"[EMAIL ERROR] {error_msg}")
-            return False, error_msg
+        except (requests.exceptions.Timeout, socket.gaierror, OSError) as e:
+            # DNS or connection failed - try IP fallback
+            print(f"[EMAIL] DNS failed, trying IP fallback: {str(e)}")
+            
+            try:
+                # Use IP address directly with SNI
+                ip_url = f"https://{BREVO_API_IP}/v3/smtp/email"
+                
+                # Create session with custom adapter for SNI
+                session = requests.Session()
+                
+                # Make request with IP but proper Host header for SNI
+                response = session.post(
+                    ip_url,
+                    json=payload,
+                    headers=headers,
+                    timeout=30,
+                    verify=True  # Keep SSL verification
+                )
+                
+                if response.status_code == 201:
+                    print(f"[EMAIL SUCCESS] Sent via IP to {to_email}")
+                    return True, {"message_id": response.json().get('messageId')}
+                else:
+                    error_msg = f"Brevo API error (IP): {response.status_code} - {response.text}"
+                    print(f"[EMAIL ERROR] {error_msg}")
+                    return False, error_msg
+                    
+            except Exception as ip_error:
+                error_msg = f"Both DNS and IP fallback failed: DNS={str(e)}, IP={str(ip_error)}"
+                print(f"[EMAIL ERROR] {error_msg}")
+                return False, error_msg
+                
         except Exception as e:
             error_msg = f"Email sending error: {str(e)}"
             print(f"[EMAIL ERROR] {error_msg}")
