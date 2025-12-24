@@ -32,7 +32,11 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.2.4",
     "axios": "^1.13.0",
-    "form-data": "^4.0.4"
+    "class-variance-authority": "^0.7.1",
+    "form-data": "^4.0.4",
+    "framer-motion": "^12.23.26",
+    "lucide-react": "^0.562.0"
   }
 }

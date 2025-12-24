@@ -55,6 +55,11 @@ export default {
         'slide-up': 'slideUp 0.3s ease-out',
         'slide-down': 'slideDown 0.3s ease-out',
         'spin-slow': 'spin 3s linear infinite',
+        'pulse-slow': 'pulse-slow 3s ease-in-out infinite',
+        'gradient': 'gradient 3s ease infinite',
+        'border-beam': 'border-beam calc(var(--duration)*1s) infinite linear',
+        'scan': 'scan 2s linear infinite',
+        'star-btn': 'star-btn calc(var(--duration)*1s) linear infinite',
       },
       keyframes: {
         fadeIn: {
@@ -68,6 +73,35 @@ export default {
         slideDown: {
           '0%': { transform: 'translateY(-10px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        'pulse-slow': {
+          '0%, 100%': {
+            transform: 'translateX(-100%)',
+          },
+          '50%': {
+            transform: 'translateX(100%)',
+          },
+        },
+        gradient: {
+          '0%, 100%': {
+            backgroundPosition: '0% 50%',
+          },
+          '50%': {
+            backgroundPosition: '100% 50%',
+          },
+        },
+        'border-beam': {
+          '100%': {
+            'offset-distance': '100%',
+          },
+        },
+        scan: {
+          '0%': { transform: 'translateY(-100%)' },
+          '100%': { transform: 'translateY(200%)' },
+        },
+        'star-btn': {
+          '0%': { 'offset-distance': '0%' },
+          '100%': { 'offset-distance': '100%' },
         },
       },
     },

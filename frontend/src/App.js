@@ -10,6 +10,14 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import FacultyDashboard from './pages/faculty/FacultyDashboard';
 import StudentDashboard from './pages/student/StudentDashboard';
 import VerifyDocument from './pages/public/VerifyDocument';
+import LandingPage from './pages/LandingPage';
+import Features from './pages/Features';
+import FeaturesTimeline from './pages/FeaturesTimeline';
+import HowToUse from './pages/HowToUse';
+import HelpSupport from './pages/HelpSupport';
+import FAQ from './pages/FAQ';
+import Blog from './pages/Blog';
+import About from './pages/About';
 import LoadingScreen from './components/LoadingScreen';
 import './pages/auth/auth.css';
 import './pages/auth/auth.mobile.css';
@@ -50,6 +58,30 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {/* Public landing page */}
+      <Route path="/" element={<LandingPage />} />
+      
+      {/* Features Page - Role-based Features Explanation */}
+      <Route path="/features" element={<Features />} />
+      
+      {/* Features Timeline - Interactive Timeline View */}
+      <Route path="/features-timeline" element={<FeaturesTimeline />} />
+      
+      {/* How to Use Guide */}
+      <Route path="/how-to-use" element={<HowToUse />} />
+      
+      {/* Help & Support Page */}
+      <Route path="/help" element={<HelpSupport />} />
+      
+      {/* FAQ Page */}
+      <Route path="/faqs" element={<FAQ />} />
+      
+      {/* Blog Page */}
+      <Route path="/blog" element={<Blog />} />
+      
+      {/* About Page */}
+      <Route path="/about" element={<About />} />
+      
       {/* Public verification routes - no auth required */}
       <Route path="/verify" element={<VerifyDocument />} />
       <Route path="/verify/:code" element={<VerifyDocument />} />
@@ -81,10 +113,6 @@ function AppRoutes() {
           getDashboardComponent() :
           <Navigate to="/login" replace />
         }
-      />
-      <Route
-        path="/"
-        element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />}
       />
     </Routes>
   );
