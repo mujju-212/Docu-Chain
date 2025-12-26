@@ -41,9 +41,9 @@ const About = () => {
       avatar: 'NB',
       gradient: 'from-cyan-500 to-blue-600',
       social: {
-        linkedin: null, // placeholder
-        github: null, // placeholder
-        email: null // placeholder
+        linkedin: 'https://www.linkedin.com/in/nandeesh-bm-696546301',
+        github: 'https://github.com/nandeeshbm',
+        email: 'nandeeshvk4@gmail.com'
       },
       contributions: [
         'Created responsive and interactive user interfaces',
