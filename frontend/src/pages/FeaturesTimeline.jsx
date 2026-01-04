@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Header } from '../components/ui/header-2';
-import { BackgroundBeams } from '../components/ui/background-beams';
 import { Footer } from '../components/ui/footer-section';
 import RadialOrbitalTimelineDemo from "../components/blocks/radial-orbital-timeline-demo";
 import { 
@@ -27,7 +26,6 @@ export default function FeaturesTimeline() {
 
       {/* Hero Section with Background */}
       <section className="relative py-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <BackgroundBeams className="opacity-40" />
         <div className="max-w-7xl mx-auto text-center relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -49,7 +47,6 @@ export default function FeaturesTimeline() {
 
       {/* Feature Timeline */}
       <section className="py-20 relative">
-        <BackgroundBeams className="opacity-30" />
         <div className="relative z-10">
           <RadialOrbitalTimelineDemo />
         </div>
@@ -57,7 +54,6 @@ export default function FeaturesTimeline() {
 
       {/* Detailed Features Grid */}
       <section className="py-24 px-4 sm:px-6 lg:px-8 bg-black/50 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="max-w-7xl mx-auto relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -173,7 +169,6 @@ export default function FeaturesTimeline() {
 
       {/* Stats Section */}
       <section className="py-24 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid md:grid-cols-4 gap-8 text-center">
             {[
@@ -201,7 +196,6 @@ export default function FeaturesTimeline() {
 
       {/* Footer with Beams */}
       <div className="relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="relative z-10">
           <Footer />
         </div>
@@ -209,3 +203,4 @@ export default function FeaturesTimeline() {
     </div>
   );
 }
+

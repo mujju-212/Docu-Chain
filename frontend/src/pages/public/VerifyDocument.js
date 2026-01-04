@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { API_URL } from '../../services/api';
-import { BackgroundBeams } from '../../components/ui/background-beams';
 import { Header } from '../../components/ui/header-2';
 import { 
   Shield, 
@@ -287,7 +286,6 @@ export default function VerifyDocument() {
 
   return (
     <div className="min-h-screen bg-[#030303] relative">
-      <BackgroundBeams className="opacity-40" />
       
       {/* Header - Same as LandingPage */}
       <Header />
@@ -706,3 +704,4 @@ export default function VerifyDocument() {
     </div>
   );
 }
+

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Header } from '../components/ui/header-2';
-import { BackgroundBeams } from '../components/ui/background-beams';
 import { Footer } from '../components/ui/footer-section';
 import { GlowingEffect } from '../components/ui/glowing-effect';
 import { 
@@ -59,7 +58,7 @@ export default function HelpSupport() {
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <BackgroundBeams className="opacity-40" />
+
         <div className="max-w-7xl mx-auto text-center relative z-10">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-blue-500/20 border-2 border-blue-500/50 mb-6">
             <HelpCircle className="w-10 h-10 text-blue-400" />
@@ -78,7 +77,7 @@ export default function HelpSupport() {
 
       {/* Quick Links */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
+
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
@@ -120,7 +119,7 @@ export default function HelpSupport() {
 
       {/* Contact Section */}
       <section id="contact" className="py-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
+
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
@@ -268,7 +267,7 @@ export default function HelpSupport() {
 
       {/* Resources Section */}
       <section id="resources" className="py-16 px-4 sm:px-6 lg:px-8 bg-black/30 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
+
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
@@ -315,3 +314,4 @@ export default function HelpSupport() {
     </div>
   );
 }
+

@@ -15,14 +15,14 @@ function TimelineEntry({
   return (
     <div className="w-full">
       {/* Desktop Layout */}
-      <div className="hidden md:block">
+      <div className="flex md:flex">
         <div className="flex items-start gap-6 group w-full">
           <div className="flex-shrink-0 w-40">
             <dl>
               <dt className="sr-only">Date</dt>
               <dd
                 className={cn(
-                  "text-sm font-medium text-gray-300 transition-colors group-hover:text-white",
+                  "text-sm font-medium text-gray-400 transition-colors group-hover:text-white",
                   dateClassName
                 )}
               >
@@ -37,23 +37,23 @@ function TimelineEntry({
             </dl>
           </div>
           <div className="flex items-start gap-4 flex-1">
-            <div className="relative flex-shrink-0">
+            <div className="relative flex-shrink-0" style={{ minWidth: '40px' }}>
               <div
-                className={cn("h-16 border-l-2 border-gray-600", lineClassName)}
+                className={cn("h-full min-h-[96px] border-l-2 border-gray-700", lineClassName)}
               />
               <div
                 className={cn(
-                  "absolute -left-[5px] top-[1.6875rem] flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 ring-2 ring-blue-400/30 transition-colors group-hover:bg-blue-400 group-hover:ring-blue-300/50",
-                  !item.icon && "h-2.5 w-2.5",
+                  "absolute -left-[17px] top-6 flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 ring-4 ring-blue-500/20 transition-colors group-hover:bg-blue-400 group-hover:ring-blue-400/30 z-10",
+                  !item.icon && "h-3 w-3",
                   dotClassName
                 )}
               >
                 {item.icon && (
-                  <div className="h-3 w-3 text-white">{item.icon}</div>
+                  <div className="h-6 w-6 text-white flex items-center justify-center">{item.icon}</div>
                 )}
               </div>
             </div>
-            <div className="flex flex-col gap-2 pt-4 flex-1">
+            <div className="flex flex-col gap-2 pt-4 flex-1 min-w-0">
               <h3
                 className={cn(
                   "text-xl font-semibold tracking-tight text-white",
@@ -65,7 +65,7 @@ function TimelineEntry({
               {item.description && (
                 <p
                   className={cn(
-                    "text-base text-gray-300 leading-relaxed",
+                    "text-base text-gray-400 leading-relaxed",
                     descriptionClassName
                   )}
                 >
@@ -79,33 +79,33 @@ function TimelineEntry({
 
       {/* Mobile Layout */}
       <div className="md:hidden">
-        <div className="flex items-center space-x-4 rounded-lg px-4 py-3">
-          <div className="relative">
-            <div className={cn("h-16 border-l border-gray-700", lineClassName)} />
+        <div className="flex items-start gap-4 p-4">
+          <div className="relative flex-shrink-0">
+            <div className={cn("h-20 border-l-2 border-gray-700", lineClassName)} />
             <div
               className={cn(
-                "absolute -left-1 top-5 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/60",
-                !item.icon && "h-2.5 w-2.5",
+                "absolute -left-[7px] top-8 flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 ring-2 ring-blue-500/30",
+                !item.icon && "h-3 w-3",
                 dotClassName
               )}
             >
               {item.icon && (
-                <div className="h-3 w-3 text-white">{item.icon}</div>
+                <div className="h-5 w-5 text-white flex items-center justify-center">{item.icon}</div>
               )}
             </div>
           </div>
-          <div>
-            <dl>
+          <div className="flex-1 pt-2">
+            <dl className="mb-2">
               <dt className="sr-only">Date</dt>
               <dd
                 className={cn(
-                  "text-sm font-medium text-gray-400",
+                  "text-xs font-medium text-gray-500",
                   dateClassName
                 )}
               >
                 <time dateTime={item.date}>
                   {new Date(item.date).toLocaleDateString("en-US", {
-                    month: "long",
+                    month: "short",
                     day: "numeric",
                     year: "numeric",
                   })}
@@ -114,7 +114,7 @@ function TimelineEntry({
             </dl>
             <h3
               className={cn(
-                "text-lg font-medium tracking-tight text-white",
+                "text-lg font-semibold tracking-tight text-white mb-1",
                 titleClassName
               )}
             >
@@ -123,7 +123,7 @@ function TimelineEntry({
             {item.description && (
               <p
                 className={cn(
-                  "text-sm text-gray-400",
+                  "text-sm text-gray-400 leading-relaxed",
                   descriptionClassName
                 )}
               >
@@ -162,9 +162,9 @@ export function Timeline({
   const remainingItems = sortedItems.slice(initialCount);
 
   return (
-    <div className={cn("mx-5 max-w-4xl md:max-w-6xl lg:max-w-7xl md:mx-auto relative z-20", className)}>
-      <div>
-        <ul className="space-y-8">
+    <div className={cn("mx-auto max-w-4xl md:max-w-6xl lg:max-w-7xl px-4 relative z-20", className)}>
+      <div className="w-full">
+        <ul className="space-y-12 w-full">
           {initialItems.map((item, index) => (
             <motion.li
               key={index}
@@ -190,7 +190,7 @@ export function Timeline({
             {showAll &&
               remainingItems.map((item, index) => (
                 <motion.li
-                  key={index}
+                  key={index + initialCount}
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}

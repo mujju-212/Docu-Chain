@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Github, Linkedin, Mail, ChevronDown, Code, Database, Palette, TestTube, Shield, Blocks, Users, Target, Eye } from 'lucide-react';
 import { Header } from '../components/ui/header-2';
-import { BackgroundBeams } from '../components/ui/background-beams';
 import { Footer } from '../components/ui/footer-section';
 import { GlowingEffect } from '../components/ui/glowing-effect';
 
@@ -114,7 +113,6 @@ const About = () => {
       
       {/* Hero Section */}
       <section className="relative pt-32 pb-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <BackgroundBeams className="opacity-40" />
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -138,7 +136,6 @@ const About = () => {
 
       {/* Mission & Vision Section */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid md:grid-cols-2 gap-8">
             <motion.div
@@ -200,7 +197,6 @@ const About = () => {
 
       {/* Team Section */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-black/30 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="max-w-7xl mx-auto relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -389,3 +385,4 @@ const About = () => {
 };
 
 export default About;
+

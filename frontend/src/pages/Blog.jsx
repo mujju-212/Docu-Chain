@@ -1,6 +1,5 @@
 import React from 'react';
 import { Header } from '../components/ui/header-2';
-import { BackgroundBeams } from '../components/ui/background-beams';
 import { Footer } from '../components/ui/footer-section';
 import { Timeline } from '../components/ui/timeline';
 import { 
@@ -24,84 +23,77 @@ export default function Blog() {
       date: "2025-12-20",
       title: "DocuChain Goes Live on Azure",
       description: "Successfully deployed DocuChain to Azure Cloud Platform with PostgreSQL database and enhanced scalability.",
-      icon: <Cloud className="h-3 w-3" />,
+      icon: <Cloud className="h-6 w-6" />,
       href: "#",
     },
     {
       date: "2025-12-15",
       title: "Performance Optimization Complete",
       description: "Achieved 50x performance improvement with database indexing, query optimization, and caching strategies.",
-      icon: <TrendingUp className="h-3 w-3" />,
+      icon: <TrendingUp className="h-6 w-6" />,
       href: "#",
     },
     {
       date: "2025-12-10",
       title: "Blockchain Integration Enhanced",
       description: "Integrated smart contracts for document verification with Ethereum Sepolia testnet for tamper-proof records.",
-      icon: <Shield className="h-3 w-3" />,
+      icon: <Shield className="h-6 w-6" />,
       href: "#",
     },
     {
       date: "2025-12-05",
       title: "Multi-Signature Approval System",
       description: "Launched advanced approval workflows supporting sequential and parallel approval chains with digital signatures.",
-      icon: <FileCheck className="h-3 w-3" />,
+      icon: <FileCheck className="h-6 w-6" />,
       href: "#",
     },
     {
       date: "2025-11-28",
       title: "IPFS Storage Integration",
       description: "Implemented decentralized file storage using IPFS for secure, distributed document management.",
-      icon: <Database className="h-3 w-3" />,
+      icon: <Database className="h-6 w-6" />,
       href: "#",
     },
     {
       date: "2025-11-20",
       title: "Real-Time Chat System",
       description: "Added WebSocket-powered real-time chat with document sharing capabilities for seamless collaboration.",
-      icon: <Users className="h-3 w-3" />,
-      href: "#",
-    },
-    {
-      date: "2025-11-15",
-      title: "Email Notification System",
-      description: "Integrated automated email notifications for approvals, shares, and important document activities.",
-      icon: <Zap className="h-3 w-3" />,
+      icon: <Users className="h-6 w-6" />,
       href: "#",
     },
     {
       date: "2025-11-10",
       title: "Advanced File Manager",
       description: "Built comprehensive file management system with folder organization, drag-and-drop, and batch operations.",
-      icon: <Layers className="h-3 w-3" />,
+      icon: <Layers className="h-6 w-6" />,
       href: "#",
     },
     {
       date: "2025-11-01",
       title: "QR Code Verification",
       description: "Implemented QR code-based document verification for instant authenticity checks.",
-      icon: <Lock className="h-3 w-3" />,
+      icon: <Lock className="h-6 w-6" />,
       href: "#",
     },
     {
       date: "2025-10-25",
       title: "Role-Based Access Control",
       description: "Designed three-tier permission system: Students, Faculty, and Administrators with granular access controls.",
-      icon: <Settings className="h-3 w-3" />,
+      icon: <Settings className="h-6 w-6" />,
       href: "#",
     },
     {
       date: "2025-10-15",
       title: "Production Scaling Guide",
       description: "Published comprehensive guide for scaling from 50 to 1000+ concurrent users.",
-      icon: <Globe className="h-3 w-3" />,
+      icon: <Globe className="h-6 w-6" />,
       href: "#",
     },
     {
       date: "2025-10-01",
       title: "DocuChain Project Launch",
       description: "Initiated development of blockchain-powered document management system for educational institutions.",
-      icon: <Rocket className="h-3 w-3" />,
+      icon: <Rocket className="h-6 w-6" />,
       href: "#",
     },
   ];
@@ -112,7 +104,6 @@ export default function Blog() {
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <BackgroundBeams className="opacity-40" />
         <div className="max-w-7xl mx-auto text-center relative z-10">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-blue-500/20 border-2 border-blue-500/50 mb-6">
             <Rocket className="w-10 h-10 text-blue-400" />
@@ -130,23 +121,21 @@ export default function Blog() {
       </section>
 
       {/* Timeline Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
+      <section className="py-20 px-4 sm:px-6 lg:px-8 relative overflow-visible">
         <div className="max-w-7xl mx-auto relative z-10">
           <Timeline
             items={blogPosts}
             initialCount={6}
             showMoreText="Load More Updates"
             showLessText="Show Less"
-            dotClassName="bg-gradient-to-b from-blue-500 to-purple-600 ring-1 ring-blue-500/50"
-            lineClassName="border-l border-gray-700"
+            dotClassName="bg-gradient-to-br from-blue-500 to-purple-600 ring-4 ring-blue-500/20 shadow-lg shadow-blue-500/50"
+            lineClassName="border-l-2 border-gray-700"
           />
         </div>
       </section>
 
       {/* Features Highlight */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-black/30 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">

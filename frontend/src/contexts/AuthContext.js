@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-// import toast from 'react-hot-toast' // Temporarily disabled
+import toast from 'react-hot-toast'
 import api from '../services/api'
 
 const AuthContext = createContext(null)
@@ -27,10 +27,40 @@ export const AuthProvider = ({ children }) => {
     checkAuth()
   }, [])
 
+  // Periodically check if token has expired (every minute)
+  useEffect(() => {
+    if (!isAuthenticated) return
+    
+    const checkExpiration = () => {
+      const tokenExpiration = localStorage.getItem('tokenExpiration')
+      if (tokenExpiration && Date.now() > parseInt(tokenExpiration)) {
+        console.log('Token expired during session, logging out...')
+        logout()
+        toast.error('Your session has expired. Please login again.')
+      }
+    }
+    
+    // Check every minute
+    const interval = setInterval(checkExpiration, 60000)
+    
+    return () => clearInterval(interval)
+  }, [isAuthenticated])
+
   const checkAuth = async () => {
     try {
       const token = localStorage.getItem('token')
+      const tokenExpiration = localStorage.getItem('tokenExpiration')
+      
       if (!token) {
+        setLoading(false)
+        return
+      }
+
+      // Check if token has expired
+      if (tokenExpiration && Date.now() > parseInt(tokenExpiration)) {
+        console.log('Token expired, logging out...')
+        logout()
+        toast.error('Your session has expired. Please login again.')
         setLoading(false)
         return
       }
@@ -42,6 +72,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       localStorage.removeItem('token')
+      localStorage.removeItem('tokenExpiration')
     } finally {
       setLoading(false)
     }
@@ -60,8 +91,13 @@ export const AuthProvider = ({ children }) => {
       if (response.data.success) {
         const { user, token } = response.data
         
-        // Store token
+        // Set token expiration: 30 days if remember me, 7 days otherwise
+        const expirationDays = remember ? 30 : 7
+        const expirationTime = Date.now() + (expirationDays * 24 * 60 * 60 * 1000)
+        
+        // Store token and expiration
         localStorage.setItem('token', token)
+        localStorage.setItem('tokenExpiration', expirationTime.toString())
         
         // Store complete user object for ChatInterface
         localStorage.setItem('user', JSON.stringify(user))
@@ -117,8 +153,12 @@ export const AuthProvider = ({ children }) => {
       if (response.data.success) {
         const { user, token } = response.data
         
-        // Store token
+        // Set token expiration: 7 days default
+        const expirationTime = Date.now() + (7 * 24 * 60 * 60 * 1000)
+        
+        // Store token and expiration
         localStorage.setItem('token', token)
+        localStorage.setItem('tokenExpiration', expirationTime.toString())
         
         // Store complete user object for ChatInterface
         localStorage.setItem('user', JSON.stringify(user))
@@ -151,8 +191,9 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       // Logout error handled silently
     } finally {
-      // Clear local storage
+      // Clear local storage - include token expiration
       localStorage.removeItem('token')
+      localStorage.removeItem('tokenExpiration')
       localStorage.removeItem('user')
       localStorage.removeItem('userId')
       localStorage.removeItem('userEmail')

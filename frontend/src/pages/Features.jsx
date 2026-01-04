@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '../components/ui/header-2';
-import { BackgroundBeams } from '../components/ui/background-beams';
 import { Footer } from '../components/ui/footer-section';
 import { GlowingEffect } from '../components/ui/glowing-effect';
 import { 
@@ -216,7 +215,6 @@ export default function Features() {
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <BackgroundBeams className="opacity-40" />
         <div className="max-w-7xl mx-auto text-center relative z-10">
           <h1 className="text-5xl md:text-7xl font-bold text-white mb-6">
             Powerful Features for{' '}
@@ -246,7 +244,6 @@ export default function Features() {
 
       {/* Core Features Grid */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
@@ -272,7 +269,6 @@ export default function Features() {
 
       {/* Role-Based Features */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-black/30 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
@@ -308,7 +304,6 @@ export default function Features() {
 
       {/* Technology Stats */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
@@ -373,7 +368,6 @@ export default function Features() {
 
       {/* Technology Stack */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-black/30 relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
@@ -420,7 +414,6 @@ export default function Features() {
 
       {/* CTA Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <BackgroundBeams className="opacity-40" />
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <div className="relative rounded-[1.5rem] border-[0.75px] border-gray-800 p-3">
             <GlowingEffect
@@ -461,7 +454,6 @@ export default function Features() {
 
       {/* Footer */}
       <div className="relative overflow-hidden">
-        <BackgroundBeams className="opacity-30" />
         <div className="relative z-10">
           <Footer />
         </div>
@@ -469,3 +461,4 @@ export default function Features() {
     </div>
   );
 }
+

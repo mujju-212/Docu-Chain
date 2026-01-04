@@ -56,17 +56,57 @@ export const BackgroundBeams = React.memo(({ className }) => {
     "M-37 -581C-37 -581 31 -176 495 -49C959 78 1027 483 1027 483",
   ];
 
-  // Generate random stars
+  // Check if reduced motion is preferred
+  const prefersReducedMotion = React.useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
+
+  // Check if mobile device (less powerful)
+  const isMobile = React.useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768;
+  }, []);
+
+  // Generate random stars - fewer on mobile for better performance
   const stars = React.useMemo(() => {
-    return Array.from({ length: 200 }, (_, i) => ({
+    const starCount = isMobile ? 50 : 100; // Reduced from 200
+    return Array.from({ length: starCount }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
-      size: Math.random() * 2 + 1,
-      opacity: Math.random() * 0.5 + 0.3,
+      size: Math.random() * 2 + 2, // Increased from 1 to 2 for better visibility (2-4px)
+      opacity: Math.random() * 0.3 + 0.5, // Increased minimum opacity from 0.3 to 0.5 (0.5-0.8)
       delay: Math.random() * 3,
     }));
-  }, []);
+  }, [isMobile]);
+
+  // Don't animate if reduced motion is preferred
+  if (prefersReducedMotion) {
+    return (
+      <div
+        className={cn(
+          "absolute h-full w-full inset-0 flex items-center justify-center opacity-50",
+          className
+        )}
+      >
+        {/* Static stars */}
+        {stars.slice(0, 30).map((star) => (
+          <div
+            key={star.id}
+            className="absolute rounded-full bg-white"
+            style={{
+              left: `${star.x}%`,
+              top: `${star.y}%`,
+              width: `${star.size}px`,
+              height: `${star.size}px`,
+              opacity: star.opacity,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -75,7 +115,7 @@ export const BackgroundBeams = React.memo(({ className }) => {
         className
       )}
     >
-      {/* Stars */}
+      {/* Stars - Optimized for performance */}
       {stars.map((star) => (
         <motion.div
           key={star.id}
@@ -85,6 +125,7 @@ export const BackgroundBeams = React.memo(({ className }) => {
             top: `${star.y}%`,
             width: `${star.size}px`,
             height: `${star.size}px`,
+            willChange: 'opacity, transform',
           }}
           initial={{ opacity: star.opacity }}
           animate={{
@@ -92,10 +133,11 @@ export const BackgroundBeams = React.memo(({ className }) => {
             scale: [1, 1.2, 1],
           }}
           transition={{
-            duration: 3 + Math.random() * 2,
+            duration: isMobile ? 5 : 4, // Slower on mobile
             repeat: Infinity,
             delay: star.delay,
             ease: "easeInOut",
+            repeatType: "loop",
           }}
         />
       ))}
@@ -122,6 +164,7 @@ export const BackgroundBeams = React.memo(({ className }) => {
             stroke={`url(#linearGradient-${index})`}
             strokeOpacity="0.4"
             strokeWidth="0.5"
+            style={{ willChange: 'auto' }}
           />
         ))}
 
@@ -143,8 +186,8 @@ export const BackgroundBeams = React.memo(({ className }) => {
                 y2: ["0%", `${93 + Math.random() * 8}%`],
               }}
               transition={{
-                duration: Math.random() * 10 + 10,
-                ease: "easeInOut",
+                duration: isMobile ? 20 : 15, // Slower animations on mobile
+                ease: "linear",
                 repeat: Infinity,
                 delay: Math.random() * 10,
               }}
